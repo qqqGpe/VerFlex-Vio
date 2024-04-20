@@ -1,3 +1,5 @@
+#ifndef __VIO_SENSOR_DATA__
+#define __VIO_SENSOR_DATA__
 #include <Eigen/Eigen>
 #include <cstdint>
 #include <opencv2/opencv.hpp>
@@ -13,6 +15,7 @@ struct ImuData {
 struct FeatureData {
     double ts_sec;
     int cam_id;
+    int keyframe;
     std::vector<Eigen::Vector2d> cam_obs;
     std::vector<bool> valid;
     std::vector<uint32_t> feat_id;
@@ -27,3 +30,5 @@ struct CameraData {
     cv::Mat mask;
     bool operator<(const CameraData& other) { return ts_sec < other.ts_sec; }
 };
+
+#endif

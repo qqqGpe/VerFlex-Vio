@@ -14,6 +14,8 @@ public:
         assert(dx.rows() == _size);
         set_value(_value + dx);
     }
+
+    Eigen::VectorXd vec() const { return this->value(); }
 };
 
 #endif
