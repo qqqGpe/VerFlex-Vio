@@ -45,9 +45,12 @@ list(APPEND thirdparty_libraries
         glog::glog
 )
 
-add_executable(${PROJECT_NAME}_node src/vio_backend_node.cpp)
+aux_source_directory(src DIR_SRCS)
+# message(lib_list)
+# add_library(backend_lib lib_list)
+
+add_executable(${PROJECT_NAME}_node ${DIR_SRCS})
 target_link_libraries(${PROJECT_NAME}_node
                       ${catkin_LIBRARIES}
                       ${thirdparty_libraries}
 )
-

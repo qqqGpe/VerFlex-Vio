@@ -9,19 +9,11 @@ class Initializer {
 public:
 
     Initializer() = default;
-    ~Initializer();
+    ~Initializer(){};
 
-    void feed_imu_measurement(const ImuData & data) {
-        imu_data.push_back(data);
-        std::sort(imu_data.begin(), imu_data.end());
-
-        if(imu_data.size() > IMU_QUE_SIZE) {
-            imu_data.pop_front();
-        }
-    }
-
-    bool static_initialize(IMU_state &imu_state);
-    Eigen::Matrix3d Gram_Schmit(const Eigen::Vector3d &gravity_body);
+    void feed_imu_measurement(const ImuData & data);
+    bool static_initialize(std::shared_ptr<IMU_state> &imu_state);
+    Eigen::Matrix3d Gram_Schmidt(const Eigen::Vector3d &gravity_body);
 
     bool is_initialized = false;
 

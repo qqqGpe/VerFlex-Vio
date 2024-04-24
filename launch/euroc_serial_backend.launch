@@ -45,7 +45,12 @@
         <param name="max_cameras"               type="int"    value="$(arg max_cameras)" /> -->
 
         <!-- log parameters -->
-        <param name="log_path"    type="str"    value="$(arg log_path)" />
+        <param name="log_path"          type="str"    value="$(arg log_path)" />
+
+        <param name="camera_topic_0"    type="str"    value="/cam0/image_raw" />
+        <param name="camera_topic_1"    type="str"    value="/cam1/image_raw" />
+        <param name="imu_topic"         type="str"    value="/imu0" />
+        <param name="feature_topic"     type="str"    value="/vio_frontend/vio_frontend_feat_0" />
 
     </node>
 

@@ -1,3 +1,5 @@
+#ifndef __VIO_PARAMETER__
+#define __VIO_PARAMETER__
 #include "ros/node_handle.h"
 #include <memory>
 #include <ros/ros.h>
@@ -18,7 +20,11 @@ public:
         _nh->param<int>("max_feat_n", max_feat_n, 500);
         _nh->param<int>("max_clone_pose", max_clone_pose, 6);
         _nh->param<std::string>("log_path", log_path, "");
-        _nh->param<std::string>("data_path", data_path, "");
+        _nh->param<std::string>("path_bag", path_bag, "");
+        _nh->param<std::string>("cam_topic_0", cam_topic_0, "");
+        _nh->param<std::string>("cam_topic_1", cam_topic_1, "");
+        _nh->param<std::string>("imu_topic", imu_topic, "");
+        _nh->param<std::string>("feature_topic", feature_topic, "");
     }
 
     int img_width, img_height;
@@ -26,8 +32,14 @@ public:
     int max_feat_n;
     int max_clone_pose;
     std::string log_path;
-    std::string data_path;
+    std::string path_bag;
+    std::string cam_topic_0;
+    std::string cam_topic_1;
+    std::string imu_topic;
+    std::string feature_topic;
 
 private:
     std::shared_ptr<ros::NodeHandle> _nh;
 };
+
+#endif

@@ -1,7 +1,16 @@
 #include "initializer.h"
 #include <glog/logging.h>
 
-Eigen::Matrix3d Initializer::Gram_Schmit(const Eigen::Vector3d &gravity_inI) {
+void Initializer::feed_imu_measurement(const ImuData & data) {
+    imu_data.push_back(data);
+    std::sort(imu_data.begin(), imu_data.end());
+    if(imu_data.size() > IMU_QUE_SIZE) {
+        imu_data.pop_front();
+    }
+}
+
+// Gram-Schmidt正交化
+Eigen::Matrix3d Initializer::Gram_Schmidt(const Eigen::Vector3d &gravity_inI) {
     Eigen::Vector3d e1(1.0, 0, 0);
     Eigen::Vector3d z_axis = gravity_inI.normalized();
     Eigen::Vector3d x_axis = z_axis.cross(e1);
@@ -15,7 +24,7 @@ Eigen::Matrix3d Initializer::Gram_Schmit(const Eigen::Vector3d &gravity_inI) {
     return R_GtoI;
 }
 
-bool Initializer::static_initialize(IMU_state &imu_state)
+bool Initializer::static_initialize(std::shared_ptr<IMU_state> &imu_state)
 {
     if(is_initialized) {
         LOG(WARNING) << "system has already been initialized!";
@@ -57,7 +66,7 @@ bool Initializer::static_initialize(IMU_state &imu_state)
         return false;
     }
 
-    Eigen::Matrix3d R_GtoI = Gram_Schmit(acc_mean);
+    Eigen::Matrix3d R_GtoI = Gram_Schmidt(acc_mean);
 
     Eigen::Vector3d gravity_inG(0, 0, gravity_mag);
     Eigen::Vector3d init_bg = gyro_mean;
@@ -69,13 +78,13 @@ bool Initializer::static_initialize(IMU_state &imu_state)
     init_imu_state.block<4, 1>(0, 0) = q_GtoI.coeffs();
     init_imu_state.block<3, 1>(10, 0) = init_bg;
     init_imu_state.block<3, 1>(13, 0) = init_ba;
-    imu_state.set_value(init_imu_state);
+    imu_state->set_value(init_imu_state);
 
     // initialize static imu covariance
-    Eigen::MatrixXd init_imu_covariance = std::pow(0.02, 2) * Eigen::MatrixXd::Identity(imu_state.size(), imu_state.size());
+    Eigen::MatrixXd init_imu_covariance = std::pow(0.02, 2) * Eigen::MatrixXd::Identity(imu_state->size(), imu_state->size());
     init_imu_covariance.block(3, 3, 3, 3) = std::pow(0.05, 2) * Eigen::Matrix3d::Identity(); // p
     init_imu_covariance.block(6, 6, 3, 3) = std::pow(0.01, 2) * Eigen::Matrix3d::Identity(); // v (static)
-    imu_state.set_covariance(init_imu_covariance);
+    imu_state->set_covariance(init_imu_covariance);
 
     LOG(INFO) << "static inialization finished!";
     is_initialized = true;

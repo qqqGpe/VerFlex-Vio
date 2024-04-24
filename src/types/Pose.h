@@ -27,8 +27,8 @@ public:
     virtual void set_value(const Eigen::MatrixXd &new_value) override {
         assert(new_value.rows() == 7);
         assert(new_value.cols() == 1);
-        _q->set_value(new_value.segment<4>(0));
-        _p->set_value(new_value.segment<3>(4));
+        _q->set_value(new_value.block<4, 1>(0, 0));
+        _p->set_value(new_value.block<3, 1>(4, 0));
     }
 
     Eigen::Quaterniond quat() const {return _q->q(); }

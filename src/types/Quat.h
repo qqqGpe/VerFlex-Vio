@@ -14,14 +14,14 @@ public:
     virtual void set_value(const Eigen::MatrixXd &new_value) override {
         assert(new_value.rows() == 4);
         assert(new_value.cols() == 1);
-        _quat = Eigen::Quaterniond(new_value);
+        _quat = Eigen::Quaterniond(new_value.block<4, 1>(0, 0));
         _Rot = _quat.toRotationMatrix();
     }
 
     virtual void set_fej(const Eigen::MatrixXd &new_fej) override{
         assert(new_fej.rows() == 4);
         assert(new_fej.cols() == 1);
-        _quat_fej = Eigen::Quaterniond(new_fej);
+        _quat_fej = Eigen::Quaterniond(new_fej.block<4, 1>(0, 0));
         _Rot_fej = _quat_fej.toRotationMatrix();
     }
 
@@ -44,7 +44,7 @@ public:
     Eigen::Matrix3d Rot() const { return _Rot; }
 
     Eigen::Matrix3d Rot_fej() const { return _Rot_fej; }
-    
+
 protected:
     Eigen::Quaterniond _quat;
     Eigen::Quaterniond _quat_fej;
