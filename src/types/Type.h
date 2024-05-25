@@ -1,8 +1,10 @@
 #ifndef __VIO_TYPES__
 #define __VIO_TYPES__
-
+#include <memory>
+#include "utils/format.h"
 #include <Eigen/Eigen>
 #include <Eigen/Geometry>
+#include <glog/logging.h>
 
 class Type {
 public:
@@ -10,6 +12,8 @@ public:
         : _size(size)
     {
     }
+
+    virtual void set_ts(const double ts) { _ts = ts; }
 
     virtual void set_local_id(int new_id) { _id = new_id; }
 
@@ -22,6 +26,10 @@ public:
     virtual const Eigen::MatrixXd& value() const { return _value; }
 
     virtual const Eigen::MatrixXd& fej() { return _fej; }
+
+    virtual std::shared_ptr<Type> clone() = 0;
+
+    double ts() { return _ts; }
 
     virtual void set_value(const Eigen::MatrixXd &new_value) {
         assert(new_value.rows() == _value.rows());
@@ -36,6 +44,7 @@ public:
     }
 
 protected:
+    double _ts = 0;
     int _size = -1;
     int _id = -1;
     Eigen::MatrixXd _value;

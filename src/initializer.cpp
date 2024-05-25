@@ -68,7 +68,7 @@ bool Initializer::static_initialize(std::shared_ptr<IMU_state> &imu_state)
 
     Eigen::Matrix3d R_GtoI = Gram_Schmidt(acc_mean);
 
-    Eigen::Vector3d gravity_inG(0, 0, gravity_mag);
+    Eigen::Vector3d gravity_inG(0, 0, -gravity_mag);
     Eigen::Vector3d init_bg = gyro_mean;
     Eigen::Vector3d init_ba = acc_mean - R_GtoI * gravity_inG;
 

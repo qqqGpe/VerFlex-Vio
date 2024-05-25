@@ -13,6 +13,16 @@ public:
         _p = std::make_shared<Vec>();
     }
 
+    virtual void set_ts(const double ts) override
+    {
+        if (ts <= 0) {
+            LOG(ERROR) << utils::Format("timestamp should > 0, ts: {0}s", ts);
+            return;
+        }
+        _q->set_ts(ts);
+        _p->set_ts(ts);
+    }
+
     virtual void update(const Eigen::VectorXd &dx) override{
         _q->update(dx.segment<3>(0));
         _p->update(dx.segment<3>(_q->size()));
@@ -31,9 +41,23 @@ public:
         _p->set_value(new_value.block<3, 1>(4, 0));
     }
 
-    Eigen::Quaterniond quat() const {return _q->q(); }
+    virtual std::shared_ptr<Type> clone() override
+    {
+        std::shared_ptr<Pose> clone_variable = std::make_shared<Pose>();
+        clone_variable->_q = std::dynamic_pointer_cast<Quat>(_q->clone());
+        clone_variable->_p = std::dynamic_pointer_cast<Vec>(_p->clone());
+        clone_variable->set_ts(ts());
+        assert(clone_variable != nullptr && clone_variable != nullptr);
+        return clone_variable;
+    }
 
+    Eigen::Quaterniond quat() const {return _q->q(); }
     Eigen::Vector3d p() const {return _p->vec(); }
+
+    Eigen::Quaterniond quat_fej() const {return _q->q_fej(); }
+    Eigen::Vector3d p_fej() const {return _p->fej(); }
+
+    friend class IMU_state;
 
 protected:
     std::shared_ptr<Quat> _q;

@@ -11,18 +11,22 @@ public:
         _quat_fej.setIdentity();
     }
 
-    virtual void set_value(const Eigen::MatrixXd &new_value) override {
+    virtual void set_value(const Eigen::MatrixXd &new_value) override
+    {
         assert(new_value.rows() == 4);
         assert(new_value.cols() == 1);
         _quat = Eigen::Quaterniond(new_value.block<4, 1>(0, 0));
         _Rot = _quat.toRotationMatrix();
+        _value << _quat.w(), _quat.x(), _quat.y(), _quat.z();
     }
 
-    virtual void set_fej(const Eigen::MatrixXd &new_fej) override{
+    virtual void set_fej(const Eigen::MatrixXd &new_fej) override
+    {
         assert(new_fej.rows() == 4);
         assert(new_fej.cols() == 1);
         _quat_fej = Eigen::Quaterniond(new_fej.block<4, 1>(0, 0));
         _Rot_fej = _quat_fej.toRotationMatrix();
+        _fej << _quat_fej.w(), _quat_fej.x(), _quat_fej.y(), _quat_fej.z();
     }
 
     virtual void update(const Eigen::VectorXd& d_theta) override
@@ -30,11 +34,17 @@ public:
         assert(d_theta.rows() == 3);
         Eigen::Vector4d dq_tmp;
         dq_tmp << 1, 0.5 * d_theta; // w, x, y, z
-        // dq_tmp = dq_tmp.eval().normalized();
         Eigen::Quaterniond dq(dq_tmp(0), dq_tmp(1), dq_tmp(2), dq_tmp(3));
-        // _quat = Eigen::Quaterniond(_value(0), _value(1), _value(2), _value(3));
         _quat = _quat * dq;
         set_value(Eigen::Vector4d(_quat.w(), _quat.x(), _quat.y(), _quat.z()));
+    }
+
+    virtual std::shared_ptr<Type> clone() override
+    {
+        std::shared_ptr<Quat> clone_variable = std::make_shared<Quat>();
+        clone_variable->set_value(this->value());
+        clone_variable->set_fej(this->fej());
+        return clone_variable;
     }
 
     Eigen::Quaterniond q() const { return _quat; }

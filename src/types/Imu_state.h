@@ -50,20 +50,45 @@ public:
     void set_covariance(const Eigen::MatrixXd &covariance_new) {
         assert(covariance_new.rows() == 15);
         assert(covariance_new.cols() == 15);
-        covariance = covariance_new;
+        _covariance = covariance_new;
     }
 
+    virtual std::shared_ptr<Type> clone() override
+    {
+        std::shared_ptr<IMU_state> clone_variable = std::make_shared<IMU_state>();
+        clone_variable->_pose = std::dynamic_pointer_cast<Pose>(_pose->clone());
+        clone_variable->_v = std::dynamic_pointer_cast<Vec>(_v->clone());
+        clone_variable->_bg = std::dynamic_pointer_cast<Vec>(_bg->clone());
+        clone_variable->_ba = std::dynamic_pointer_cast<Vec>(_ba->clone());
+
+        clone_variable->_pose->set_ts(ts());
+        clone_variable->_v->set_ts(ts());
+        clone_variable->_bg->set_ts(ts());
+        clone_variable->_ba->set_ts(ts());
+
+        assert(clone_variable != nullptr && clone_variable != nullptr);
+        return clone_variable;
+    }
+
+    Eigen::MatrixXd covariance() const {return _covariance;}
+
     std::shared_ptr<Pose> pose() const { return _pose; }
+    std::shared_ptr<Quat> q() const {return _pose->_q; }
+    std::shared_ptr<Vec> p() const {return _pose->_p; }
     std::shared_ptr<Vec> v() const { return _v; }
     std::shared_ptr<Vec> bg() const { return _bg; }
     std::shared_ptr<Vec> ba() const { return _ba; }
+
+    Eigen::Vector3d last_am = Eigen::Vector3d::Zero();
+    Eigen::Vector3d last_wm = Eigen::Vector3d::Zero();
+    Eigen::Vector3d gravity_inG = Eigen::Vector3d(0, 0, -9.81);
 
  protected:
     std::shared_ptr<Pose> _pose;
     std::shared_ptr<Vec> _v;
     std::shared_ptr<Vec> _ba;
     std::shared_ptr<Vec> _bg;
-    Eigen::MatrixXd covariance = Eigen::MatrixXd::Zero(15, 15);
+    Eigen::MatrixXd _covariance = Eigen::MatrixXd::Zero(15, 15);
 };
 
 #endif

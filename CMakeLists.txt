@@ -30,6 +30,7 @@ catkin_package(
 
 add_subdirectory(src/states)
 add_subdirectory(src/types)
+add_subdirectory(src/camera)
 
 include_directories(
           src

@@ -34,6 +34,12 @@
 
         <param name="img_width"                 type="int"    value="752" />
         <param name="img_height"                type="int"    value="480" />
+
+        <rosparam param="intrinsic_cam_0">      [458.654, 457.296, 367.215, 248.375]                    </rosparam>
+        <rosparam param="distortion_param_0">   [-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05]   </rosparam>
+        <rosparam param="intrinsic_cam_1">      [458.654, 457.296, 367.215, 248.375]                    </rosparam>
+        <rosparam param="distortion_param_1">   [-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05]   </rosparam>
+
         <param name="max_feat_n"                type="int"    value="225" />
         <param name="max_clone_pose"            type="int"    value="11" />
 

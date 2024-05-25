@@ -3,12 +3,15 @@
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/PointCloud.h>
-#include <glog/logging.h>
 
 #include "states/state.h"
 #include "initializer.h"
 #include "sensor_data.h"
 #include "parameter.h"
+#include "ImuManager.h"
+#include "visualManager.h"
+#include "mathematical_tools.h"
+#include "camera_model.h"
 
 class VioManager {
 public:
@@ -16,13 +19,24 @@ public:
     VioManager(const Param &params) {
         state = std::make_shared<State>();
         initializer = std::make_shared<Initializer>();
+        _camera_model_0 = std::make_shared<CameraModel>(CameraType::PINHOLE, params.intrinsic_cam_0, params.distortion_cam_0);
+
+        _imu_manager = std::make_shared<ImuManager>(params);
+        _visual_manager = std::make_shared<VisualManager>(params, _camera_model_0);
+
     }
     ~VioManager(){}
 
     void imu_callback(const sensor_msgs::Imu::ConstPtr &msg);
+
     void feature_callback(const sensor_msgs::PointCloud::ConstPtr &msg);
+
+    void propagate_state_and_covariance(std::shared_ptr<State> state, double ts);
 
     std::shared_ptr<State> state;
     std::shared_ptr<Initializer> initializer;
+    std::shared_ptr<ImuManager> _imu_manager;
+    std::shared_ptr<VisualManager> _visual_manager;
+    std::shared_ptr<CameraModel> _camera_model_0;
 
 };
