@@ -1,8 +1,8 @@
 #ifndef __VISUAL_MANAGER__
 #define __VISUAL_MANAGER__
 
-#include "types/Imu_state.h"
-#include "states/state.h"
+#include "Imu_state.h"
+#include "state.h"
 #include "sensor_data.h"
 #include "parameter.h"
 #include "camera_model.h"

@@ -24,19 +24,18 @@ find_package(glog 0.7.0 REQUIRED)
 
 catkin_package(
  LIBRARIES vio_backend
- INCLUDE_DIRS src/
+ INCLUDE_DIRS src/core src/states src/types src/utils
  CATKIN_DEPENDS cv_bridge geometry_msgs image_transport nav_msgs rosbag roscpp sensor_msgs std_msgs tf
 )
 
-add_subdirectory(src/states)
-add_subdirectory(src/types)
-add_subdirectory(src/camera)
-
 include_directories(
-          src
-          ${EIGEN3_INCLUDE_DIR}
-          ${Boost_INCLUDE_DIRS}
-          ${catkin_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIR}
+  ${Boost_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS}
+  src/states/
+  src/types/
+  src/utils/
+  src/core/
 )
 
 list(APPEND thirdparty_libraries
@@ -46,12 +45,31 @@ list(APPEND thirdparty_libraries
         glog::glog
 )
 
-aux_source_directory(src DIR_SRCS)
+file(GLOB_RECURSE CORE_DIR_LIST "src/core/*.cpp")
+message(STATUS "CORE_DIR_LIST = ${CORE_DIR_LIST}")
+add_library(
+        CORE_LIB STATIC
+        ${CORE_DIR_LIST}
+)
+target_include_directories(CORE_LIB PUBLIC
+src/states/
+src/types/
+src/utils/)
+target_link_libraries(CORE_LIB glog::glog)
+
+
+# add_subdirectory(src/states)
+# add_subdirectory(src/types)
+add_subdirectory(src/core)
+# add_subdirectory(src/utils)
+
+# aux_source_directory(src DIR_SRCS)
 # message(lib_list)
 # add_library(backend_lib lib_list)
 
-add_executable(${PROJECT_NAME}_node ${DIR_SRCS})
+add_executable(${PROJECT_NAME}_node src/vio_backend_node.cpp)
 target_link_libraries(${PROJECT_NAME}_node
+                      CORE_LIB
                       ${catkin_LIBRARIES}
                       ${thirdparty_libraries}
 )

@@ -2,7 +2,7 @@
 #define __IMU_MANAGER__
 
 #include "sensor_data.h"
-#include "states/state.h"
+#include "state.h"
 #include "parameter.h"
 
 class ImuManager {

@@ -5,8 +5,8 @@
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
 
-#include "parameter.h"
-#include "vioManager.h"
+#include "core/parameter.h"
+#include "core/vioManager.h"
 
 int main(int argc, char** argv)
 {

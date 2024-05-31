@@ -1,10 +1,10 @@
 #include <thread>
-#include <Eigen/Eigen>
+#include <Eigen/Core>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/PointCloud.h>
 
-#include "states/state.h"
+#include "state.h"
 #include "initializer.h"
 #include "sensor_data.h"
 #include "parameter.h"
@@ -22,7 +22,7 @@ public:
         _camera_model_0 = std::make_shared<CameraModel>(CameraType::PINHOLE, params.intrinsic_cam_0, params.distortion_cam_0);
 
         _imu_manager = std::make_shared<ImuManager>(params);
-        _visual_manager = std::make_shared<VisualManager>(params, _camera_model_0);
+        _visual_manager = std::make_shared<VisualManager>(params, state, _camera_model_0);
 
     }
     ~VioManager(){}

@@ -4,8 +4,8 @@
 #include <Eigen/Dense>
 #include <memory>
 #include <map>
-#include "types/Pose.h"
-#include "types/Imu_state.h"
+#include "Pose.h"
+#include "Imu_state.h"
 
 struct CameraPose {
 

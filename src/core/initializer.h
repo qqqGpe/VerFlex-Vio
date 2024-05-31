@@ -1,6 +1,6 @@
 #ifndef __VIO_INITIALIZER__
 #define __VIO_INITIALIZER__
-#include "types/Imu_state.h"
+#include "Imu_state.h"
 #include "sensor_data.h"
 
 #define IMU_QUE_SIZE 500

@@ -1,7 +1,6 @@
 #ifndef __VIO_SENSOR_DATA__
 #define __VIO_SENSOR_DATA__
-#include <Eigen/Eigen>
-#include <cstdint>
+#include <Eigen/Core>
 #include <opencv2/opencv.hpp>
 
 struct ImuData {

@@ -1,5 +1,5 @@
 #include "vioManager.h"
-#include "utils/format.h"
+#include "format.h"
 #include "mathematical_tools.h"
 #include <glog/logging.h>
 

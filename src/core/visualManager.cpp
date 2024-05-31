@@ -79,7 +79,7 @@ bool VisualManager::gaussian_newton_optimization(std::map<double, CameraPose>& c
             z_m << (*it).second.u_norm, (*it).second.v_norm;
 
             Eigen::Matrix3d R_CitoG = clone_pose_buffer[tn].Rwc;
-            Eigen::Matrix3d p_CiinG = clone_pose_buffer[tn].pwc;
+            Eigen::Vector3d p_CiinG = clone_pose_buffer[tn].pwc;
 
             Eigen::Matrix3d R_AtoCi = R_CitoG.transpose() * R_AtoG;
             Eigen::Vector3d p_CiinA = R_AtoG.transpose() * (p_CiinG - p_AinG);
@@ -91,9 +91,10 @@ bool VisualManager::gaussian_newton_optimization(std::map<double, CameraPose>& c
                 continue;
             }
 
-            Eigen::Vector2d res;
+            Eigen::Vector3d res;
             res(0, 0) = z_m(0, 0) - h(0, 0) / h(2, 0);
             res(1, 0) = z_m(1, 0) - h(1, 0) / h(2, 0);
+            res(2, 0) = 0.f;
 
             Eigen::MatrixXd Jacobian_1(2, 3);
             Eigen::MatrixXd Jacobian_2(3, 3);

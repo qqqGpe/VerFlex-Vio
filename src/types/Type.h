@@ -1,7 +1,7 @@
 #ifndef __VIO_TYPES__
 #define __VIO_TYPES__
 #include <memory>
-#include "utils/format.h"
+#include "format.h"
 #include <Eigen/Eigen>
 #include <Eigen/Geometry>
 #include <glog/logging.h>

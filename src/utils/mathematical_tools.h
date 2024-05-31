@@ -1,7 +1,7 @@
 #ifndef __MATH_TOOLS__
 #define __MATH_TOOLS__
 
-#include <Eigen/Eigen>
+#include <Eigen/Core>
 
 class mathematical {
 public:
