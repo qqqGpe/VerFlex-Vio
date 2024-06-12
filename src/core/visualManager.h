@@ -11,8 +11,8 @@
 
 struct cam_obs_t
 {
-    int u, v;
-    int u_norm, v_norm;
+    double u, v;
+    double u_norm, v_norm;
 } ;
 
 struct Feature {
@@ -43,7 +43,7 @@ public:
 
     void feed_visual_measurement(const FeatureData &data);
 
-    void feature_triangulation(std::vector<Feature* > feats);
+    void feature_triangulation(std::vector<Feature* > feats, std::map<double, CameraPose> camera_pose_buffer);
 
     bool least_square_triangulation(std::map<double, CameraPose> &clone_pose_buffer, Feature* feat);
 

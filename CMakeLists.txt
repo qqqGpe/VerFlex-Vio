@@ -73,3 +73,10 @@ target_link_libraries(${PROJECT_NAME}_node
                       ${catkin_LIBRARIES}
                       ${thirdparty_libraries}
 )
+
+add_executable(test_triangulation src/test_triangulation.cpp)
+target_link_libraries(test_triangulation
+                      CORE_LIB
+                      ${catkin_LIBRARIES}
+                      ${thirdparty_libraries}
+)

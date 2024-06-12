@@ -7,7 +7,7 @@ namespace {
     constexpr double kMaxConditionNum = 10000.f;
     constexpr double kMinTriangDist = 0.2;
     constexpr double kMaxTriangDist = 20;
-    constexpr int kMaxIterationTimes = 10;
+    constexpr int kMaxIterationTimes = 5;
 }
 
 bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat)
@@ -91,23 +91,23 @@ bool VisualManager::gaussian_newton_optimization(std::map<double, CameraPose>& c
                 continue;
             }
 
-            Eigen::Vector3d res;
+            Eigen::Vector2d res;
             res(0, 0) = z_m(0, 0) - h(0, 0) / h(2, 0);
             res(1, 0) = z_m(1, 0) - h(1, 0) / h(2, 0);
-            res(2, 0) = 0.f;
 
             Eigen::MatrixXd Jacobian_1(2, 3);
             Eigen::MatrixXd Jacobian_2(3, 3);
-            Jacobian_1 << 1 / h(2, 0), 0, -h(0, 0) / std::pow(h(2, 0), 2),
-                0, 1 / h(2, 0), -h(1, 0) / std::pow(h(2, 0), 2);
+            Jacobian_1 << 1/h(2, 0), 0, -h(0, 0)/std::pow(h(2, 0), 2),
+                          0, 1/h(2, 0), -h(1, 0)/std::pow(h(2, 0), 2);
             Jacobian_2.block<3, 1>(0, 0) << 1, 0, 0;
             Jacobian_2.block<3, 1>(0, 1) << 0, 1, 0;
             Jacobian_2.block<3, 1>(0, 2) << -p_CiinA;
             Jacobian_2 = R_AtoCi * Jacobian_2.eval();
 
-            Eigen::Matrix3d Jacobian = Jacobian_1 * Jacobian_2;
+            Eigen::MatrixXd Jacobian(2, 3);
+            Jacobian = Jacobian_1 * Jacobian_2;
             ATA += Jacobian.transpose() * Jacobian;
-            ATb += -Jacobian.transpose() * res;
+            ATb += Jacobian.transpose() * res;
         }
 
         Eigen::Vector3d delta_x = ATA.colPivHouseholderQr().solve(ATb);
@@ -118,15 +118,15 @@ bool VisualManager::gaussian_newton_optimization(std::map<double, CameraPose>& c
     }
 
     Eigen::Vector3d paf_opt;
-    paf_opt << alpha / rho, beta / rho, 1 / rho;
+    paf_opt << alpha/rho, beta/rho, 1/rho;
     feat->_pwf = p_AinG + R_AtoG * paf_opt;
 
     return true;
 }
 
-void VisualManager::feature_triangulation(std::vector<Feature* > feats)
+void VisualManager::feature_triangulation(std::vector<Feature* > feats, std::map<double, CameraPose> camera_pose_buffer)
 {
-    std::map<double, CameraPose> camera_pose_buffer = _state->access_clone_pose_buffer();
+    // std::map<double, CameraPose> camera_pose_buffer = _state->access_clone_pose_buffer();
 
     for (auto it = feats.begin(); it != feats.end(); it++) {
         if ((*it)->_visual_obs_buffer.size() < kMinFeatForMapping) {
@@ -149,5 +149,4 @@ void VisualManager::feature_triangulation(std::vector<Feature* > feats)
             continue;
         }
     }
-
 }
