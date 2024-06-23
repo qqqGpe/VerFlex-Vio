@@ -41,15 +41,19 @@ public:
         _camera_model = camera_model;
     }
 
-    void feed_visual_measurement(const FeatureData &data);
+    void feed_visual_measurement(const FeatureData& data);
 
-    void feature_triangulation(std::vector<Feature* > feats, std::map<double, CameraPose> camera_pose_buffer);
+    void feature_triangulation(std::vector<Feature*> feats, std::map<double, CameraPose> camera_pose_buffer);
 
-    bool least_square_triangulation(std::map<double, CameraPose> &clone_pose_buffer, Feature* feat);
+    bool least_square_triangulation(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
 
-    bool gaussian_newton_optimization(std::map<double, CameraPose> &clone_pose_buffer, Feature* feat);
+    bool gaussian_newton_optimization(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
 
-private:
+    bool construct_feature_jocabian_full(std::vector<Feature*> feats);
+
+    Eigen::MatrixXd get_single_feature_jacobian(Feature* feat, std::unordered_map<std::shared_ptr<Type>, size_t> map_hx, int total_hx);
+
+// private:
     std::shared_ptr<State> _state;
     std::shared_ptr<CameraModel> _camera_model;
 

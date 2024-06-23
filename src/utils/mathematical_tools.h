@@ -2,6 +2,7 @@
 #define __MATH_TOOLS__
 
 #include <Eigen/Core>
+#include <Eigen/Jacobi>
 
 class mathematical {
 public:
@@ -25,9 +26,25 @@ inline static Eigen::Matrix3d Rodrigues(Eigen::Vector3d vec, double theta) {
     return R;
 }
 
+static void nullspace_project_inplace(Eigen::MatrixXd &Hfx, int cols) {
+  // Apply the left nullspace of H_f to all variables
+  // Based on "Matrix Computations 4th Edition by Golub and Van Loan"
+  // See page 252, Algorithm 5.2.4 for how these two loops work
+  // They use "matlab" index notation, thus we need to subtract 1 from all index
+  Eigen::JacobiRotation<double> tempHo_GR;
+  for (int n = 0; n < cols; n++) {
+    for (int m = Hfx.rows() - 1; m > n; m--) {
+      // Givens matrix G
+      tempHo_GR.makeGivens(Hfx(m - 1, n), Hfx(m, n));
+      // Multiply G to the corresponding lines (m-1,m) in each matrix
+      // Note: we only apply G to the nonzero cols [n:Ho.cols()-n-1], while
+      //       it is equivalent to applying G to the entire cols [0:Ho.cols()-1].
+      (Hfx.block(m - 1, 0, 2, Hfx.cols())).applyOnTheLeft(0, 1, tempHo_GR.adjoint());
+    }
+  }
+}
 
 };
-
 
 
 #endif

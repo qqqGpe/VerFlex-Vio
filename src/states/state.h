@@ -31,8 +31,12 @@ public:
         _imu_state->set_local_id(_dim);
         _dim += _imu_state->size();
         _variables.push_back(_imu_state);
-        // _imu_to_cam_extrinsic->set_local_id(_dim);
-        // _dim += _imu_to_cam_extrinsic->size();
+
+        if (_do_calibration_update) {
+            _imu_to_cam_extrinsic->set_local_id(_dim);
+            _dim += _imu_to_cam_extrinsic->size();
+            _variables.push_back(_imu_to_cam_extrinsic);
+        }
 
         // initialize state covariance
         _covariance = Eigen::MatrixXd::Zero(_dim, _dim);   // init covariance size;
@@ -59,9 +63,10 @@ public:
         clone->set_local_id(old_cols);
         _clone_pose.insert(std::make_pair(clone->ts(), std::dynamic_pointer_cast<Pose>(clone)));
         _variables.push_back(clone);
-        std::sort(_variables.begin(), _variables.end(),
-                [](const std::shared_ptr<Type> &a, const std::shared_ptr<Type> b)->bool
-                {return a->id() < b->id();});
+        _dim += clone->size();
+        // std::sort(_variables.begin(), _variables.end(),
+        //         [](const std::shared_ptr<Type> &a, const std::shared_ptr<Type> b)->bool
+        //         {return a->id() < b->id();});
     }
 
     std::map<double, CameraPose> access_clone_pose_buffer() const
@@ -86,6 +91,7 @@ public:
     std::shared_ptr<Pose> _imu_to_cam_extrinsic;
     std::vector<std::shared_ptr<Type>> _variables;
     Eigen::MatrixXd _covariance;
+    int32_t _do_calibration_update = 1;
 
 };
 

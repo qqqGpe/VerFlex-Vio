@@ -17,7 +17,7 @@ public:
         assert(new_value.cols() == 1);
         _quat = Eigen::Quaterniond(new_value.block<4, 1>(0, 0));
         _Rot = _quat.toRotationMatrix();
-        _value << _quat.w(), _quat.x(), _quat.y(), _quat.z();
+        _value = _quat.coeffs();
     }
 
     virtual void set_fej(const Eigen::MatrixXd &new_fej) override

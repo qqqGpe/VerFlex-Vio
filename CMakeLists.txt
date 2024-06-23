@@ -80,3 +80,17 @@ target_link_libraries(test_triangulation
                       ${catkin_LIBRARIES}
                       ${thirdparty_libraries}
 )
+
+add_executable(test_givens_rotation src/test_givens_rotation.cpp)
+target_link_libraries(test_givens_rotation
+                      CORE_LIB
+                      ${catkin_LIBRARIES}
+                      ${thirdparty_libraries}
+)
+
+add_executable(test_feature_jacobian src/test_feature_jacobian.cpp)
+target_link_libraries(test_feature_jacobian
+                      CORE_LIB
+                      ${catkin_LIBRARIES}
+                      ${thirdparty_libraries}
+)
