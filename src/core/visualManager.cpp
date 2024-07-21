@@ -2,6 +2,11 @@
 #include "visualManager.h"
 #include "mathematical_tools.h"
 
+#include <opencv2/core/eigen.hpp>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+
 namespace {
     constexpr int kMinFeatForMapping = 2;
     constexpr double kMaxConditionNum = 10000.f;
@@ -122,6 +127,62 @@ bool VisualManager::gaussian_newton_optimization(std::map<double, CameraPose>& c
     feat->_pwf = p_AinG + R_AtoG * paf_opt;
 
     return true;
+}
+
+void VisualManager::pnp_ransac_to_reject_outliers(std::vector<Feature* > feats)
+{
+    double ts = _state->ts_sec();
+    std::vector<cv::Point3d> list_points3d;
+    std::vector<cv::Point2d> list_points2d;
+    for (auto it = feats.begin(); it != feats.end(); it++) {
+        if ((*it)->_valid && (*it)->_is_triangulated) {
+            assert((*it)->_visual_obs_buffer.find(ts) != (*it)->_visual_obs_buffer.end());
+            cv::Point3d p3d((*it)->_pwf.x(), (*it)->_pwf.y(), (*it)->_pwf.z());
+            cam_obs_t obs_2d = (*it)->_visual_obs_buffer.at(ts);
+            cv::Point2d p2d(obs_2d.u, obs_2d.v);
+            list_points3d.push_back(p3d);
+            list_points2d.push_back(p2d);
+        }
+    }
+    cv::Mat intrinsic;
+    cv::Mat distortion;
+    cv::Mat inliers;
+    cv::eigen2cv(_camera_model->intrinsic(), intrinsic);
+    cv::Mat rvec = cv::Mat::zeros(3, 1, CV_64FC1);
+    cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64FC1);
+    cv::solvePnPRansac(list_points3d, list_points2d,
+                       intrinsic, distortion,
+                       rvec, tvec, false, 100, 3.f, 0.95,
+                       inliers, cv::SOLVEPNP_ITERATIVE);
+
+    std::vector<int> inliers_id;
+    for (int i = 0; i < inliers.rows; i++) {
+        int id = feats[inliers.at<int>(i)]->_id;
+        inliers_id.push_back(id);
+    }
+
+    for (auto it = feats.begin(); it != feats.end();) {
+        if (!(*it)->_valid || !(*it)->_is_triangulated) {
+            continue;
+        }
+
+        if (std::find(inliers_id.begin(), inliers_id.end(), (*it)->_id) == inliers_id.end()) {
+            it = feats.erase(it);
+            continue;
+        } else {
+            it++;
+        }
+    }
+
+    // for debugging
+    // for (int i = 0; i < inliers.rows; i++)
+    // {
+    //     std::cout << inliers.at<int>(i) << std::endl;
+    // }
+    // Eigen::Vector3d t_, r_;
+    // cv::cv2eigen(tvec, t_);
+    // std::cout << "translation: " << t_.transpose() << std::endl;
+    return;
 }
 
 void VisualManager::feature_triangulation(std::vector<Feature* > feats, std::map<double, CameraPose> camera_pose_buffer)

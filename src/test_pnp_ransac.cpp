@@ -10,7 +10,7 @@
 #include "Pose.h"
 
 #define DEG2RAD M_PI / 180
-#define POINT_NUM_N 10
+#define POINT_NUM_N 20
 #define SCALE 20
 #define IMAGE_WIDTH 752
 #define IMAGE_HEIGHT 480
@@ -20,9 +20,9 @@ using namespace std;
 
 Matrix3d K;
 MatrixXd pts_g; // 3d points in world frame
-double camera_ts[] = { 1.0, 2.0, 3.0, 4.0, 5.0 };
-double intrinsic[] = { 458.654, 457.296, 367.215, 248.375 }; // fu, fv, cu, cv
-double baseline = 0.5;
+std::vector<double> camera_ts = { 1.0, 2.0, 3.0, 4.0, 5.0 };
+std::vector<double> intrinsic = { 458.654, 457.296, 367.215, 248.375 }; // fu, fv, cu, cv
+double baseline = 1.0;
 std::map<double, CameraPose> camera_pose_buffer;
 std::vector<Feature*> feats;
 
@@ -82,10 +82,7 @@ void project_to_camera()
             Eigen::Vector3d p_inC = R_wc.transpose() * (p3d - p_wc);
             Eigen::Vector3d p_norm = p_inC / p_inC.z();
             Eigen::Vector3d uv = K * p_norm;
-            p_norm = back_project(uv);
-            // if (OOB(uv)) {
-            //     continue;
-            // }
+            // p_norm = back_project(uv);
             cam_obs_t obs = { uv.x(), uv.y(), p_norm.x(), p_norm.y() };
             feat->_visual_obs_buffer.insert(make_pair(camera_ts[j], obs));
             feat->_valid = true;
@@ -102,46 +99,29 @@ int main()
     pts_g = MatrixXd::Random(3, POINT_NUM_N).array().abs();
     pts_g.block<2, POINT_NUM_N>(0, 0) *= 1;
     pts_g.block<1, POINT_NUM_N>(2, 0) *= 5;
-    std::cout << "generated pwf: \n"
-              << std::endl;
-    std::cout << pts_g << std::endl;
+    std::cout << "generated pwf: \n" << std::endl;
+    std::cout << pts_g.transpose() << std::endl;
 
-    VisualManager visual_manager;
+    Param params;   // empty parameters for debugging
+    std::vector<double> distortion;     // empty distortion coeff for debugging
+    std::shared_ptr<CameraModel> camera_model = std::make_shared<CameraModel>(CameraType::PINHOLE, intrinsic, distortion);
+    std::shared_ptr<State> state = make_shared<State>();
+    VisualManager visual_manager(params, state, camera_model);
+
     generate_camera_pose();
     project_to_camera();
-    std::shared_ptr<State> state = make_shared<State>();
+    visual_manager.feature_triangulation(feats, camera_pose_buffer);
 
-    std::unordered_map<std::shared_ptr<Type>, size_t> map_hx;
-    int map_id = 0;
-    // std::shared_ptr<Pose> imu_to_cam_extrinsic = make_shared<Pose>();
-    Eigen::Quaterniond q_ic(1, 0, 0, 0);
-    Eigen::Vector3d tic = Eigen::Vector3d::Zero();
-    Eigen::VectorXd extrinsic = Eigen::VectorXd::Zero(7);
-    extrinsic << q_ic.coeffs(), tic;   // 外参：单位旋转 + 无平移
-    state->_imu_to_cam_extrinsic->set_value(extrinsic);
-    map_hx.insert(make_pair(state->_imu_to_cam_extrinsic, map_id));
-    map_id += state->_imu_to_cam_extrinsic->size();
-    for (int i = 0; i < camera_pose_buffer.size(); i++)
-    {
-        std::shared_ptr<Pose> clone_pose = make_shared<Pose>();
-        CameraPose pose = camera_pose_buffer.at(camera_ts[i]);
-        Eigen::Quaterniond q_clone(pose.Rwc);
-        Eigen::Vector3d p_clone(pose.pwc);
-        Eigen::VectorXd pose_vec = Eigen::VectorXd::Zero(7);
-        pose_vec << q_clone.coeffs(), p_clone;
-        clone_pose->set_value(pose_vec);
-        clone_pose->set_ts(camera_ts[i]);
-        state->_clone_pose.insert(make_pair(camera_ts[i], clone_pose));
-        map_hx.insert(make_pair(clone_pose, map_id));
-        map_id += clone_pose->size();
+    std::cout << "\n feature triangulated: \n" << std::endl;
+    for (auto x : feats) {
+        if(x->_valid && x->_is_triangulated) {
+            std::cout << x->_pwf.transpose() << std::endl;
+        }
     }
-    int total_hx = map_id;
 
+    state->set_ts_sec(camera_ts.back());
     visual_manager.set_state(state);
-    for (int i = 0; i < feats.size(); i++)
-    {
-        visual_manager.get_single_feature_jacobian(feats[i], map_hx, total_hx);
-    }
+    visual_manager.pnp_ransac_to_reject_outliers(feats);
 
     return 0;
 }

@@ -39,9 +39,13 @@ public:
         }
 
         // initialize state covariance
-        _covariance = Eigen::MatrixXd::Zero(_dim, _dim);   // init covariance size;
+        _covariance = Eigen::MatrixXd::Zero(_dim, _dim);   // initialize covariance size;
     }
     ~State(){}
+
+    void set_ts_sec(double ts_sec) { _imu_state->set_ts(ts_sec); }  // for debug
+
+    double ts_sec() { return _imu_state->ts(); }
 
     void stochastic_clone(std::shared_ptr<Type> variable_to_clone)
     {

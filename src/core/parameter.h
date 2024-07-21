@@ -11,6 +11,8 @@ public:
     {
     }
 
+    Param() = default;
+
     void load_params()
     {
         _nh->param<int>("img_width", img_width, 752);

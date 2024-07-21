@@ -4,7 +4,7 @@ project(vio_backend)
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Debug) # Debug Release
 
 find_package(catkin REQUIRED COMPONENTS
   cv_bridge
@@ -57,7 +57,6 @@ src/types/
 src/utils/)
 target_link_libraries(CORE_LIB glog::glog)
 
-
 # add_subdirectory(src/states)
 # add_subdirectory(src/types)
 add_subdirectory(src/core)
@@ -90,6 +89,13 @@ target_link_libraries(test_givens_rotation
 
 add_executable(test_feature_jacobian src/test_feature_jacobian.cpp)
 target_link_libraries(test_feature_jacobian
+                      CORE_LIB
+                      ${catkin_LIBRARIES}
+                      ${thirdparty_libraries}
+)
+
+add_executable(test_pnp_ransac src/test_pnp_ransac.cpp)
+target_link_libraries(test_pnp_ransac
                       CORE_LIB
                       ${catkin_LIBRARIES}
                       ${thirdparty_libraries}

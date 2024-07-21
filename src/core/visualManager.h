@@ -53,7 +53,11 @@ public:
 
     Eigen::MatrixXd get_single_feature_jacobian(Feature* feat, std::unordered_map<std::shared_ptr<Type>, size_t> map_hx, int total_hx);
 
-// private:
+    void pnp_ransac_to_reject_outliers(std::vector<Feature* > feats);
+
+    void set_state(std::shared_ptr<State> state) { _state = state; }    // for debug
+
+private:
     std::shared_ptr<State> _state;
     std::shared_ptr<CameraModel> _camera_model;
 
