@@ -2,6 +2,7 @@
 #include "visualManager.h"
 #include "mathematical_tools.h"
 
+#include <Eigen/Dense>
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -212,38 +213,41 @@ void VisualManager::feature_triangulation(std::vector<Feature* > feats, std::map
     }
 }
 
-bool VisualManager::construct_feature_jocabian_full(std::vector<Feature* > feats)
+bool VisualManager::construct_feature_jocabian_full(std::vector<Feature*> feats, Eigen::MatrixXd& Hx_full)
 {
     constexpr size_t kMinFeatsToUpdate = 15;
     if (feats.size() < kMinFeatsToUpdate) {
-        LOG(INFO) << utils::Format("Too few features {0} to update", feats.size());
+        LOG(INFO) << cv::format("Too few features to update, feature size: %d", int(feats.size()));
         return false;
     }
 
-    std::unordered_map<std::shared_ptr<Type>, size_t> map_hx;
+    _map_hx.clear();
+    _Hx_order.clear();
     int total_hx = 0;
     if (_state->_do_calibration_update) {
-        map_hx.insert({_state->_imu_to_cam_extrinsic, total_hx});
+        _map_hx.insert({ _state->_imu_to_cam_extrinsic, total_hx });
+        _Hx_order.push_back(_state->_imu_to_cam_extrinsic);
         total_hx += _state->_imu_to_cam_extrinsic->size();
     }
 
-    for (auto x : _state->_clone_pose)
-    {
-        map_hx.insert({x.second, total_hx});
+    for (auto x : _state->_clone_pose) {
+        _map_hx.insert({ x.second, total_hx });
+        _Hx_order.push_back(x.second);
         total_hx += x.second->size();
     }
 
-    int max_hx_rows = 2 * feats.size() * _state->_clone_pose.size();
-    Eigen::MatrixXd Hx_full = Eigen::MatrixXd::Zero(max_hx_rows, _state->_dim);
+    Hx_full.resize(2 * feats.size() * _state->_clone_pose.size(), total_hx);
+    Hx_full.setZero();
 
-    for (int i = 0; i < feats.size(); i++)
-    {
-        if (feats[i]->_is_triangulated)
-        {
-            Eigen::MatrixXd Hx_single = get_single_feature_jacobian(feats[i], map_hx, total_hx);
+    int rows_id = 0;
+    for (int i = 0; i < feats.size(); i++) {
+        if (feats[i]->_is_triangulated) {
+            Eigen::MatrixXd Hx_single = get_single_feature_jacobian(feats[i], _map_hx, total_hx);
+            Hx_full.block(rows_id, 0, Hx_single.rows(), Hx_single.cols()) = Hx_single;
+            rows_id += Hx_single.rows();
         }
     }
-
+    Hx_full.conservativeResize(rows_id, Hx_full.cols());
     return true;
 }
 

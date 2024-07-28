@@ -49,7 +49,7 @@ public:
 
     bool gaussian_newton_optimization(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
 
-    bool construct_feature_jocabian_full(std::vector<Feature*> feats);
+    bool construct_feature_jocabian_full(std::vector<Feature*> feats, Eigen::MatrixXd& Hx_full);
 
     Eigen::MatrixXd get_single_feature_jacobian(Feature* feat, std::unordered_map<std::shared_ptr<Type>, size_t> map_hx, int total_hx);
 
@@ -65,6 +65,9 @@ private:
     std::vector<Feature* > _feature_tracked;
     std::vector<Feature* > _feature_lost;
     std::vector<Feature* > _feature_new;
+
+    std::unordered_map<std::shared_ptr<Type>, size_t> _map_hx;
+    std::vector<std::shared_ptr<Type>> _Hx_order;
 };
 
 
