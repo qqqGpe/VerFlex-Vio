@@ -4,6 +4,7 @@
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/PointCloud.h>
 
+#include "frontend.h"
 #include "state.h"
 #include "initializer.h"
 #include "sensor_data.h"
@@ -23,16 +24,18 @@ public:
 
         _imu_manager = std::make_shared<ImuManager>(params);
         _visual_manager = std::make_shared<VisualManager>(params, state, _camera_model_0);
-
     }
     ~VioManager(){}
 
+    void start_visual_system();
+
     void imu_callback(const sensor_msgs::Imu::ConstPtr &msg);
 
-    void feature_callback(const sensor_msgs::PointCloud::ConstPtr &msg);
+    void camera_callback(const sensor_msgs::ImageConstPtr &msg);
 
     void propagate_state_and_covariance(std::shared_ptr<State> state, double ts);
 
+    std::atomic<bool> backend_thread_running = false;
     std::shared_ptr<State> state;
     std::shared_ptr<Initializer> initializer;
     std::shared_ptr<ImuManager> _imu_manager;
@@ -40,3 +43,7 @@ public:
     std::shared_ptr<CameraModel> _camera_model_0;
 
 };
+
+void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager);
+
+void backend_task_entry(VioManager *vio);

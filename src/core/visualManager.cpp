@@ -1,6 +1,7 @@
 #include <vector>
 #include "visualManager.h"
 #include "mathematical_tools.h"
+#include "eskf_solver.h"
 
 #include <Eigen/Dense>
 #include <opencv2/core/eigen.hpp>
@@ -9,11 +10,112 @@
 #include <opencv2/imgproc/imgproc.hpp>
 
 namespace {
-    constexpr int kMinFeatForMapping = 2;
+    constexpr uint32_t kMinFeatForMapping = 2;
     constexpr double kMaxConditionNum = 10000.f;
     constexpr double kMinTriangDist = 0.2;
     constexpr double kMaxTriangDist = 20;
-    constexpr int kMaxIterationTimes = 5;
+    constexpr uint32_t kMaxIterationTimes = 5;
+}
+
+void VisualManager::update()
+{
+    constexpr uint32_t kMinFeatToUpdate = 15;
+    std::map<double, CameraPose> camera_pose_buffer = _state->access_clone_pose_buffer();
+
+    feature_triangulation(_feature_tracked, camera_pose_buffer);
+
+    pnp_ransac_to_reject_outliers(_feature_tracked);
+
+    Eigen::MatrixXd Hx_msckf;
+    Eigen::VectorXd res;
+    construct_feature_jocabian_full(_feature_tracked, Hx_msckf, res);
+
+    Eigen::MatrixXd R = Eigen::MatrixXd::Identity(Hx_msckf.rows(), Hx_msckf.rows());
+
+    if (_feature_tracked.size() >= kMinFeatToUpdate && _state->_clone_pose.size() == _max_clone_pose) {
+        eskfSolver::update(_state, Hx_msckf, res, _Hx_order, _map_hx, R);
+    }
+
+    std::shared_ptr<Type> state_to_marginalize = nullptr;
+    if (decide_keyframe(_state, _feature_tracked) > not_keyframe)
+    {
+        state_to_marginalize = _state->_clone_pose.begin()->second;
+    }
+    else if (_state->_clone_pose.size() >= _max_clone_pose)
+    {
+        auto it = _state->_clone_pose.end();
+        it--;
+        state_to_marginalize = it->second;
+    }
+
+    _state->marginalize_state(state_to_marginalize);
+}
+
+keyframe_flag_e VisualManager::decide_keyframe(std::shared_ptr<State> _state, std::vector<Feature*> feats)
+{
+    constexpr double kLargeParallexThres = 5.0f; // 大于5个平均像素视差则视为关键帧
+
+    if(_state->_clone_pose.size() < _max_clone_pose) {
+        return not_keyframe;
+    }
+
+    uint32_t cnt = 0;
+    double pixel_parallex_sum = 0;
+    double pixel_parrallex_avg = 0;
+    for (auto x : feats) {
+        if (x->_visual_obs_buffer.size() < 2) {
+            continue;
+        }
+        for (auto it = x->_visual_obs_buffer.rbegin(); it != x->_visual_obs_buffer.rend(); it++) {
+            cam_obs_t curr_obs = it->second;
+            cam_obs_t prev_obs = it->second;
+            double diff_u = curr_obs.u - prev_obs.u;
+            double diff_v = curr_obs.v - prev_obs.v;
+            pixel_parallex_sum += std::sqrt(std::pow(diff_u, 2) + std::pow(diff_v, 2));
+            cnt++;
+        }
+    }
+    pixel_parrallex_avg = pixel_parallex_sum / cnt;
+
+    if (feats.size() < _max_feat_n / 2) {
+        return feat_lost_too_much;
+    }
+
+    if (pixel_parrallex_avg > kLargeParallexThres) {
+        return large_parallex_flag;
+    }
+
+    return not_keyframe;
+}
+
+void VisualManager::update_feature(std::pair<double, std::vector<cam_obs_t>> feature_observes)
+{
+    double ts_sec = feature_observes.first;
+    std::vector<cam_obs_t> feature_obs = feature_observes.second;
+    assert(feature_obs.size() == _max_feat_n);
+
+    _feature_lost.clear();
+    _feature_new.clear();
+    _feature_tracked.clear();
+
+    for (int i = 0; i < _feature_base.size(); i++) {
+        Feature *feat = _feature_base[i];
+        cam_obs_t feat_obs = feature_obs[i];
+
+        if (feat->_valid) {
+            if (feat_obs.valid && feat_obs.feat_id == feat->_id) {
+                feat->_visual_obs_buffer.insert({ts_sec, feat_obs});
+                _feature_tracked.push_back(feat);
+            } else {
+                _feature_lost.push_back(feat);
+            }
+        }
+        else {
+            feat->_id = feat_obs.feat_id;
+            feat->_visual_obs_buffer.insert({ts_sec, feat_obs});
+            _feature_new.push_back(feat);
+        }
+    }
 }
 
 bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat)
@@ -213,7 +315,7 @@ void VisualManager::feature_triangulation(std::vector<Feature* > feats, std::map
     }
 }
 
-bool VisualManager::construct_feature_jocabian_full(std::vector<Feature*> feats, Eigen::MatrixXd& Hx_full)
+bool VisualManager::construct_feature_jocabian_full(std::vector<Feature*> feats, Eigen::MatrixXd& Hx_full, Eigen::VectorXd &res)
 {
     constexpr size_t kMinFeatsToUpdate = 15;
     if (feats.size() < kMinFeatsToUpdate) {
@@ -248,6 +350,13 @@ bool VisualManager::construct_feature_jocabian_full(std::vector<Feature*> feats,
         }
     }
     Hx_full.conservativeResize(rows_id, Hx_full.cols());
+
+    // measurements compression
+    mathematical::nullspace_project_inplace(Hx_full, Hx_full.cols() - 1);
+    res.resize(Hx_full.cols() - 1, 1);
+    res = Hx_full.block(0, Hx_full.cols() - 1, Hx_full.cols() - 1, 1);
+    Hx_full.conservativeResize(Hx_full.cols() - 1, Hx_full.cols() - 1);
+
     return true;
 }
 

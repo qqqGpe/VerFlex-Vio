@@ -11,7 +11,7 @@ public:
     eskfSolver() = default;
     ~eskfSolver() { }
 
-    Eigen::MatrixXd construct_involved_covariance(std::shared_ptr<State>& state, const std::vector<std::shared_ptr<Type>>& Hx_order)
+    static Eigen::MatrixXd construct_involved_covariance(std::shared_ptr<State>& state, const std::vector<std::shared_ptr<Type>>& Hx_order)
     {
         int32_t size = 0;
         for (const auto& x : Hx_order) {
@@ -33,9 +33,9 @@ public:
         return covariance_small;
     }
 
-    void update(std::shared_ptr<State>& state, const Eigen::Ref<Eigen::MatrixXd>& Hx, const Eigen::Ref<Eigen::MatrixXd>& res,
-        const std::vector<std::shared_ptr<Type>>& Hx_order, const std::unordered_map<std::shared_ptr<Type>, size_t>& map_hx,
-        const Eigen::MatrixXd& R)
+    static void update(std::shared_ptr<State>& state, const Eigen::Ref<Eigen::MatrixXd>& Hx, const Eigen::Ref<Eigen::MatrixXd>& res,
+                       const std::vector<std::shared_ptr<Type>>& Hx_order, const std::unordered_map<std::shared_ptr<Type>, size_t>& map_hx,
+                       const Eigen::MatrixXd& R)
     {
         assert(R.rows() == res.rows());
         assert(Hx.rows() == res.rows());

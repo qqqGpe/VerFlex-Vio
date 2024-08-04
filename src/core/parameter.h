@@ -21,7 +21,9 @@ public:
         _nh->param<double>("bag_start", bag_start, 0);
         _nh->param<double>("bag_durr", bag_durr, -1);
 
-        _nh->param<int>("max_feat_n", max_feat_n, 500);
+        _nh->param<int>("max_feat_n", max_feat_n, 225);
+        _nh->param<int>("grid_w", grid_w, 15);
+        _nh->param<int>("grid_h", grid_h, 15);
         _nh->param<int>("max_clone_pose", max_clone_pose, 6);
 
         _nh->param<std::string>("log_path", log_path, "");
@@ -29,7 +31,8 @@ public:
         _nh->param<std::string>("cam_topic_0", cam_topic_0, "");
         _nh->param<std::string>("cam_topic_1", cam_topic_1, "");
         _nh->param<std::string>("imu_topic", imu_topic, "");
-        _nh->param<std::string>("feature_topic", feature_topic, "");
+        _nh->param<std::string>("camera_topic_0", camera_topic_0, "");
+        _nh->param<std::string>("camera_topic_1", camera_topic_1, "");
 
         _nh->getParam("intrinsic_cam_0", intrinsic_cam_0);
         _nh->getParam("distortion_cam_0", distortion_cam_0);
@@ -45,13 +48,15 @@ public:
     int img_width, img_height;
     double bag_start, bag_durr;
     int max_feat_n;
+    int grid_h, grid_w;
     int max_clone_pose;
     std::string log_path;
     std::string path_bag;
     std::string cam_topic_0;
     std::string cam_topic_1;
     std::string imu_topic;
-    std::string feature_topic;
+    std::string camera_topic_0;
+    std::string camera_topic_1;
 
     std::vector<double> intrinsic_cam_0;
     std::vector<double> distortion_cam_0;

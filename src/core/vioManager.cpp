@@ -1,3 +1,4 @@
+#include "utils.h"
 #include "vioManager.h"
 #include "format.h"
 #include "mathematical_tools.h"
@@ -6,11 +7,72 @@
 namespace {
     constexpr int kImuOutputHz = 200;
     constexpr double kMaxImuToleranceDelayTime = 1.0 / kImuOutputHz * 10;
+    constexpr uint32_t kNoInputDataCntThres = 100;
 }
 
-// void VioManager::feature_callback(const sensor_msgs::PointCloud::ConstPtr &msg)
-// {
-// }
+void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager)
+{
+    static uint32_t no_input_cnt = 0;
+
+    while (true) {
+        usleep(500); // sleep for 0.05s -> 20Hz
+        if (visual_manager->_input_image_buffer.empty())
+        {
+            no_input_cnt++;
+            if (no_input_cnt > kNoInputDataCntThres)
+            {
+                LOG(ERROR) << "No Input data for vio frontend, going to exit...";
+                exit(0);
+            }
+            continue;
+        }
+
+        no_input_cnt = 0;
+        std::pair<double, cv::Mat> data = visual_manager->_input_image_buffer.front();
+        visual_manager->_input_image_buffer.pop();
+        std::pair<double, std::vector<cam_obs_t>> feature_observes;
+        bool status = visual_manager->vio_frontend->tracking(data, feature_observes);
+
+        if (status == true) {
+            visual_manager->feature_obs_buffer.push(feature_observes);
+        }
+    }
+}
+
+void backend_task_entry(VioManager *vio)
+{
+    while (true) {
+
+        usleep(500); // sleep for 0.05s -> 20Hz
+
+        if(!vio->initializer->is_initialized) {
+            bool status = vio->initializer->static_initialize(vio->state->_imu_state);
+            if (status == false) {
+                LOG(ERROR) << "failed in vio initialization";
+                continue;
+            }
+        }
+
+        if (vio->_visual_manager->feature_obs_buffer.empty()) {
+            continue;
+        }
+
+        std::pair<double, std::vector<cam_obs_t>> feature_observes = vio->_visual_manager->feature_obs_buffer.front();
+        vio->_visual_manager->feature_obs_buffer.pop();
+        vio->_visual_manager->update_feature(feature_observes);
+
+        vio->propagate_state_and_covariance(vio->state, feature_observes.first);
+        vio->_visual_manager->update();
+    }
+}
+
+void VioManager::start_visual_system()
+{
+    std::thread frontend_thread(_visual_manager);
+    std::thread backend_thread(this);
+    frontend_thread.detach();
+    backend_thread.detach();
+}
 
 void VioManager::imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
 {
@@ -19,24 +81,16 @@ void VioManager::imu_callback(const sensor_msgs::Imu::ConstPtr &msg)
     data.wm << msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z;
     data.am << msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z;
 
-    if(!initializer->is_initialized) {
-        initializer->feed_imu_measurement(data);
-    } else {
-        _imu_manager->feed_imu_measurement(data);
-    }
+    initializer->feed_imu_measurement(data);
+    _imu_manager->feed_imu_measurement(data);
+}
 
-    std::thread thread(
-        [&]{
-            if(!initializer->is_initialized) {
-                bool status = initializer->static_initialize(state->_imu_state);
-            } else {
-                LOG(INFO) << "vio has already initialized!";
-            }
-        }
-    );
-    // thread.join();
-    thread.detach();
-
+void VioManager::camera_callback(const sensor_msgs::ImageConstPtr &msg)
+{
+    double ts_sec = msg->header.stamp.toSec();
+    cv::Mat camera_data;
+    Utils::transfer_image(msg, camera_data);
+    _visual_manager->feed_image(std::make_pair(ts_sec, camera_data));
 }
 
 void VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, double ts)

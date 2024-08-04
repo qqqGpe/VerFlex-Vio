@@ -123,5 +123,13 @@ int main()
     visual_manager.set_state(state);
     visual_manager.pnp_ransac_to_reject_outliers(feats);
 
+    Eigen::Matrix3d S;
+    Eigen::Matrix3d mat;
+    mat << 1, 2, 3, 4, 5, 6, 7, 8, 9;
+    S.triangularView<Eigen::Upper>() = mat;
+    std::cout << "S: \n" << S << std::endl;
+    Eigen::Matrix3d x = S.selfadjointView<Eigen::Upper>();
+    std::cout << "S_adj: \n" << x;
+
     return 0;
 }

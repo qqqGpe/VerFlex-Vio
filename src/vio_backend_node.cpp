@@ -31,12 +31,17 @@ int main(int argc, char** argv)
     // initialize vio_backend
     VioManager vio_manager(params);
 
-    for (const rosbag::MessageInstance& msg : view) {
+    // start vio updater
+    vio_manager.start_visual_system();
 
+    // load data from rosbag
+    for (const rosbag::MessageInstance& msg : view) {
         if (msg.getTopic() == params.imu_topic) {
             vio_manager.imu_callback(msg.instantiate<sensor_msgs::Imu>());
         }
+        else if (msg.getTopic() == params.camera_topic_0)
+            vio_manager.camera_callback(msg.instantiate<sensor_msgs::Image>());
     }
 
-    return EXIT_SUCCESS;
+    return 0;
 }

@@ -7,20 +7,19 @@ struct ImuData {
     double ts_sec;
     Eigen::Vector3d am;
     Eigen::Vector3d wm;
-
     bool operator<(const ImuData& other) { return ts_sec < other.ts_sec; }
 };
 
-struct FeatureData {
-    double ts_sec;
-    int cam_id;
-    int keyframe;
-    std::vector<Eigen::Vector2d> cam_obs;
-    std::vector<bool> valid;
-    std::vector<uint32_t> feat_id;
-    std::vector<uint32_t> obs_times;
-    bool operator<(const FeatureData& other) { return ts_sec < other.ts_sec; }
-};
+// struct FeatureData {
+//     double ts_sec;
+//     int cam_id;
+//     int keyframe;
+//     std::vector<Eigen::Vector2d> cam_obs;
+//     std::vector<bool> valid;
+//     std::vector<uint32_t> feat_id;
+//     std::vector<uint32_t> obs_times;
+//     bool operator<(const FeatureData& other) { return ts_sec < other.ts_sec; }
+// };
 
 struct CameraData {
     double ts_sec;
@@ -28,6 +27,39 @@ struct CameraData {
     cv::Mat image;
     cv::Mat mask;
     bool operator<(const CameraData& other) { return ts_sec < other.ts_sec; }
+};
+
+struct cam_obs_t
+{
+    void set_invalid() {
+        feat_id = -1;
+        valid = false;
+        obs_times_n = 0;
+    }
+
+    uint32_t feat_id = -1;
+    bool valid = false;
+    uint32_t obs_times_n = 0;
+    double u, v;
+    double u_norm, v_norm;
+};
+
+struct Feature {
+    Feature() = default;
+    ~Feature();
+
+    void reset() {
+        _id = -1;
+        _valid = false;
+        _is_triangulated = false;
+        _visual_obs_buffer.clear();
+    }
+
+    int _id = -1;
+    bool _valid = false;
+    Eigen::Vector3d _pwf;
+    bool _is_triangulated = false;
+    std::map<double, cam_obs_t> _visual_obs_buffer; // <ts_sec, obs>
 };
 
 #endif
