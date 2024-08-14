@@ -50,7 +50,7 @@ public:
         tic.resize(camera_num, Eigen::Vector3d::Zero());
 
         std::vector<double> Tic;
-        _nh->param("Tic", Tic);
+        _nh->getParam("Tic", Tic);
         for (int cam_id = 0; cam_id < camera_num; cam_id++) {
             const int offset = cam_id * 12;
             Ric[cam_id] << Tic[offset],     Tic[offset + 1], Tic[offset + 2],
