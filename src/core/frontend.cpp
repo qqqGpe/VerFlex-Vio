@@ -5,12 +5,11 @@
 #include <opencv2/core/types.hpp>
 #include <opencv2/opencv.hpp>
 
-#include "utils.h"
 #include "frontend.h"
 #include "geometry_msgs/Point32.h"
 #include "sensor_msgs/ChannelFloat32.h"
 #include "sensor_msgs/PointCloud.h"
-
+#include "utils.h"
 
 double distance(cv::Point2f& pt1, cv::Point2f& pt2)
 {
@@ -65,7 +64,7 @@ void homography_ransac(const std::vector<cv::Point2f> points_prev, const std::ve
 void epipolar_ransac(const std::vector<cv::Point2f> points_prev, const std::vector<cv::Point2f> points_curr, const Eigen::Matrix3d K, std::vector<uchar>* inliers)
 {
     constexpr double kEssentialMatrixProb = 0.95;
-    constexpr double kEssentialThres = 0.05;
+    constexpr double kEssentialThres = 1.0;
     assert(points_prev.size() == points_curr.size());
     *inliers = std::vector<uchar>(points_prev.size(), 0);
 
@@ -103,50 +102,51 @@ VioFrontend::status_t VioFrontend::outlier_rejection(const std::vector<cam_obs_t
         }
     }
 
-    std::vector<uchar> inliers_homography;
+    // std::vector<uchar> inliers_homography;
     std::vector<uchar> inliers_epipolar;
-    std::thread r1 = std::thread(homography_ransac, points_prev, points_curr, &inliers_homography);
-    std::thread r2 = std::thread(epipolar_ransac, points_prev, points_curr, _camera_model->intrinsic(), &inliers_epipolar);
-    r1.join();
-    r2.join();
+    // std::thread r1 = std::thread(homography_ransac, points_prev, points_curr, &inliers_homography);
+    // std::thread r2 = std::thread(epipolar_ransac, points_prev, points_curr, _camera_model->intrinsic(), &inliers_epipolar);
+    // r1.join();
+    // r2.join();
 
-    int sum_h = 0;
-    int sum_e = 0;
-    for (int i = 0; i < inliers_homography.size(); i++) {
-        sum_h += inliers_homography[i];
-        sum_e += inliers_epipolar[i];
-    }
-    inliers = (sum_h > sum_e) ? inliers_homography : inliers_epipolar;
+    epipolar_ransac(points_prev, points_curr, _camera_model->intrinsic(), &inliers_epipolar);
+
+    // int sum_h = 0;
+    // int sum_e = 0;
+    // for (int i = 0; i < inliers_epipolar.size(); i++) {
+    //     sum_h += inliers_homography[i];
+    //     sum_e += inliers_epipolar[i];
+    // }
+
+    // inliers = (sum_h > sum_e) ? inliers_homography : inliers_epipolar;
     // std::cout << cv::format("sum_h: %d, sum_e: %d\n", sum_h, sum_e);
-
+    inliers = inliers_epipolar;
     return STATUS_OK;
 }
 
-bool VioFrontend::tracking(const std::pair<double, cv::Mat> &input_image, std::pair<double, std::vector<cam_obs_t>> &feature_observes)
+bool VioFrontend::tracking(const std::pair<double, cv::Mat>& input_image, std::pair<double, std::vector<cam_obs_t>>& feature_observes)
 {
-    // if (_input_buffer->empty()) {
-    //     LOG(INFO) << "waiting for images....";
-    //     return STATUS_NO_INPUT_DATA;
-    // }
-    // ImageMeas camera_measurement = _input_buffer->front();
-    // _input_buffer->pop_front();
-
     double ts_sec = input_image.first;
-    cur_frame = { ts_sec, input_image.second.clone() };
-    std::vector<cam_obs_t> cur_feat_to_track(ref_feat_to_track.begin(), ref_feat_to_track.end());
+    cur_frame = std::make_pair(ts_sec, input_image.second.clone());
+    std::vector<cam_obs_t> cur_feat_to_track = ref_feat_to_track;
 
     int h_step = _height / _grid_h;
     int w_step = _width / _grid_w;
     std::vector<std::vector<bool>> occupied_mat(_grid_h + 1, std::vector<bool>(_grid_w + 1, false));
 
     if (!is_first_frame) {
+
         if (cur_frame.first <= ref_frame.first) {
             LOG(WARNING) << "invalid image timestamp!";
             return STATUS_ERROR;
         }
+
+        rT = boost::posix_time::microsec_clock::local_time();
         std::vector<cv::Point2f> prev_pts, curr_pts;
         std::vector<int> feat_idx;
+
         assert(ref_feat_to_track.size() == _max_feat_n);
+
         for (int idx = 0; idx < ref_feat_to_track.size(); idx++) {
             if (ref_feat_to_track[idx].valid) {
                 feat_idx.push_back(idx);
@@ -162,10 +162,14 @@ bool VioFrontend::tracking(const std::pair<double, cv::Mat> &input_image, std::p
         cv::calcOpticalFlowPyrLK(cur_frame.second, ref_frame.second, curr_pts, reverse_pts, reverse_status, err, cv::Size(21, 21), 3,
             cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
 
+        rT1 = boost::posix_time::microsec_clock::local_time();
+
         // double check and check if the tracked point is out of bound
         for (int i = 0; i < status.size(); i++) {
             int idx = feat_idx[i];
             if (status[i] && reverse_status[i] && (distance(prev_pts[i], reverse_pts[i]) <= 1) && inBorder(curr_pts[i].x, curr_pts[i].y)) {
+                cur_feat_to_track[idx].u = curr_pts[i].x;
+                cur_feat_to_track[idx].v = curr_pts[i].y;
                 cur_feat_to_track[idx].obs_times_n++;
             } else {
                 cur_feat_to_track[idx].set_invalid();
@@ -180,9 +184,11 @@ bool VioFrontend::tracking(const std::pair<double, cv::Mat> &input_image, std::p
             }
         }
 
+        rT2 = boost::posix_time::microsec_clock::local_time();
+
         std::vector<std::vector<cam_obs_t*>> occupied_feat(_grid_h + 1, std::vector<cam_obs_t*>(_grid_w + 1, nullptr));
         for (int i = 0; i < cur_feat_to_track.size(); i++) {
-            if (false == cur_feat_to_track[i].valid) {
+            if (!cur_feat_to_track[i].valid) {
                 continue;
             }
             int h = cur_feat_to_track[i].v / h_step;
@@ -200,8 +206,10 @@ bool VioFrontend::tracking(const std::pair<double, cv::Mat> &input_image, std::p
         }
     }
 
+    rT3 = boost::posix_time::microsec_clock::local_time();
     // add new features to ref_feat_to_track
-    if (_keyframe || is_first_frame) {
+    // if (_keyframe || is_first_frame) { // debug always keyframe
+    if (1) { // debug: always keyframe
         std::deque<cam_obs_t> feats_new;
         std::vector<cv::Point2f> corners;
         cv::goodFeaturesToTrack(cur_frame.second, corners, _max_feat_n, 0.01, 30);
@@ -220,24 +228,32 @@ bool VioFrontend::tracking(const std::pair<double, cv::Mat> &input_image, std::p
         }
 
         // add new features if ref_feat_to_track[i] is invalid
+        int new_feat_added_num = 0;
         for (int i = 0; i < cur_feat_to_track.size(); i++) {
             if (cur_feat_to_track[i].valid == false && !feats_new.empty()) {
                 cur_feat_to_track[i] = feats_new.front();
                 cur_feat_to_track[i].valid = true;
                 feats_new.pop_front();
+                new_feat_added_num++;
             }
         }
-
         ref_frame = cur_frame;
         ref_feat_to_track = cur_feat_to_track;
     }
 
+    rT4 = boost::posix_time::microsec_clock::local_time();
+
+    double track_duration = (rT1 - rT).total_microseconds() * 1e-6;
+    double outlier_rejection_duration = (rT2 - rT1).total_microseconds() * 1e-6;
+    double add_feat_duration = (rT4 - rT3).total_microseconds() * 1e-6;
+    std::cout << cv::format("tracking duration: %f, outlier rejection duration: %f, add_feat_duration: %f\n",
+                            track_duration, outlier_rejection_duration, add_feat_duration);
+
     std::pair<double, std::vector<cam_obs_t>> frame_output = { ts_sec, cur_feat_to_track };
     feature_observes = frame_output;
 
-    Utils::visualize_feature_tracking_results(cur_frame.second, feature_observes);
-
-    _keyframe->store(0);
+    Utils::visualize_feature_tracking_results(input_image.second.clone(), feature_observes);
     is_first_frame = false;
+    _keyframe->store(0);
     return true;
 }

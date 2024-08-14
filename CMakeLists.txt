@@ -4,7 +4,7 @@ project(vio_backend)
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_BUILD_TYPE Debug) # Debug Release
+set(CMAKE_BUILD_TYPE Debug) # Debug Releasea
 
 find_package(catkin REQUIRED COMPONENTS
   cv_bridge

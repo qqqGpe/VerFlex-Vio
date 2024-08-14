@@ -128,10 +128,10 @@ public:
         }
 
         _dim = _dim - state_to_marg->size();
-        if (std::find(_clone_pose.begin(), _clone_pose.end(), state_to_marg) != _clone_pose.end()) {
-            _clone_pose.erase(std::find(_clone_pose.begin(), _clone_pose.end(), state_to_marg));
+        double timestamp_to_marge = state_to_marg->ts();
+        if (_clone_pose.count(timestamp_to_marge) != 0) {
+            _clone_pose.erase(timestamp_to_marge);
         }
-
         marginalize_covariance();
     }
 

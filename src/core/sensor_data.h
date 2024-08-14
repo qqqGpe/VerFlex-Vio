@@ -29,26 +29,38 @@ struct CameraData {
     bool operator<(const CameraData& other) { return ts_sec < other.ts_sec; }
 };
 
-struct cam_obs_t
-{
-    void set_invalid() {
+struct cam_obs_t {
+    cam_obs_t() { }
+    cam_obs_t(double u, double v, double u_norm, double v_norm)
+        : u(u)
+        , v(v)
+        , u_norm(u_norm)
+        , v_norm(v_norm)
+    {
+        valid = false;
+        feat_id = -1;
+        obs_times_n = 0;
+    }
+
+    void set_invalid()
+    {
         feat_id = -1;
         valid = false;
         obs_times_n = 0;
     }
 
-    uint32_t feat_id = -1;
-    bool valid = false;
-    uint32_t obs_times_n = 0;
+    uint32_t feat_id;
+    bool valid;
+    uint32_t obs_times_n;
     double u, v;
     double u_norm, v_norm;
 };
 
 struct Feature {
     Feature() = default;
-    ~Feature();
 
-    void reset() {
+    void reset()
+    {
         _id = -1;
         _valid = false;
         _is_triangulated = false;

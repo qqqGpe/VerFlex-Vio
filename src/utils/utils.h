@@ -42,7 +42,6 @@ public:
         // cv::imwrite("/home/gao/ws/catkin_vio_ws/src/vio/figure/feature_to_track.png", image_to_show);
         cv::waitKey(1);
     }
-
 };
 
 

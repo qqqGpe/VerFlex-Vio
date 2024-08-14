@@ -1,7 +1,7 @@
 #include <cstdlib>
+#include <glog/logging.h>
 #include <memory>
 #include <ros/ros.h>
-#include <glog/logging.h>
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
 
@@ -17,6 +17,7 @@ int main(int argc, char** argv)
     Param params(nh);
     params.load_params();
 
+    // prepare dataset
     rosbag::Bag bag;
     bag.open(params.path_bag, rosbag::bagmode::Read);
     rosbag::View view_full;
@@ -38,10 +39,12 @@ int main(int argc, char** argv)
     for (const rosbag::MessageInstance& msg : view) {
         if (msg.getTopic() == params.imu_topic) {
             vio_manager.imu_callback(msg.instantiate<sensor_msgs::Imu>());
-        }
-        else if (msg.getTopic() == params.camera_topic_0)
+        } else if (msg.getTopic() == params.camera_topic[0])
             vio_manager.camera_callback(msg.instantiate<sensor_msgs::Image>());
     }
+
+    // waiting for program to exit
+    ros::spin();
 
     return 0;
 }

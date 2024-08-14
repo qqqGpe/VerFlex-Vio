@@ -5,7 +5,7 @@
 #include <memory>
 #include <unistd.h>
 
-#include "camera_model.h"
+#include "cameraModel.h"
 #include "parameter.h"
 #include "sensor_data.h"
 
@@ -24,7 +24,7 @@ public:
         STATUS_ERROR
     };
 
-    VioFrontend(const Param parameters, std::shared_ptr<CameraModel>& camera_model, std::atomic<int> *keyframe)
+    VioFrontend(const Param parameters, std::shared_ptr<CameraModel>& camera_model, std::atomic<int>* keyframe)
     {
         _width = parameters.img_width;
         _height = parameters.img_height;
@@ -34,13 +34,15 @@ public:
 
         _keyframe = keyframe;
         _camera_model = camera_model;
+
+        ref_feat_to_track.resize(_max_feat_n, cam_obs_t());
     }
 
     bool inBorder(int x, int y);
 
     status_t run();
 
-    bool tracking(const std::pair<double, cv::Mat> &input_image, std::pair<double, std::vector<cam_obs_t>> &feature_observes);
+    bool tracking(const std::pair<double, cv::Mat>& input_image, std::pair<double, std::vector<cam_obs_t>>& feature_observes);
 
     // void publish_features(const frontend_frame_t &frame);
 
@@ -59,8 +61,9 @@ private:
     uint32_t _width, _height;
     uint32_t _max_feat_n;
     uint32_t _grid_w, _grid_h;
-    std::atomic<int> *_keyframe;
+    std::atomic<int>* _keyframe;
     std::shared_ptr<CameraModel> _camera_model;
+    boost::posix_time::ptime rT, rT1, rT2, rT3, rT4;
 };
 
 #endif
