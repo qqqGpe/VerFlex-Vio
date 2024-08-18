@@ -1,10 +1,15 @@
 #include "initializer.h"
 #include <glog/logging.h>
 
+namespace {
+    constexpr double kTimeDurationForInit = 1.0f;
+}
+
 void Initializer::feed_imu_measurement(const ImuData & data) {
     imu_data.push_back(data);
     std::sort(imu_data.begin(), imu_data.end());
-    if(imu_data.size() > IMU_QUE_SIZE) {
+    while (imu_data.size() > kInitializeImuQueSize)
+    {
         imu_data.pop_front();
     }
 }
@@ -30,30 +35,29 @@ bool Initializer::static_initialize(std::shared_ptr<IMU_state> &imu_state)
         LOG(WARNING) << "system has already been initialized!";
         return false;
     }
-    if(imu_data.size() < IMU_QUE_SIZE) {
-        LOG(INFO) << "not enough imu data for static initialization!";
+
+    if(imu_data.size() < kInitializeImuQueSize) {
+        LOG(INFO) << "Static initialization failed reason: not enough imu data for initialization";
         return false;
     }
 
     std::vector<ImuData> imu_data_for_init;
     for(const auto &data : imu_data) {
         double start_ts = imu_data.begin()->ts_sec;
-        if(data.ts_sec - start_ts <= init_win_time) {
+        if(data.ts_sec - start_ts <= kTimeDurationForInit) {
             imu_data_for_init.push_back(data);
         }
     }
 
-    Eigen::Vector3d acc_mean;
-    Eigen::Vector3d gyro_mean;
-    acc_mean.setZero();
-    gyro_mean.setZero();
+    Eigen::Vector3d acc_mean = Eigen::Vector3d::Zero();
+    Eigen::Vector3d gyro_mean = Eigen::Vector3d::Zero();
 
     for(const ImuData &data : imu_data_for_init) {
         acc_mean += data.am;
         gyro_mean += data.wm;
     }
-    acc_mean = acc_mean / imu_data_for_init.size();     // 平均加速度
-    gyro_mean = gyro_mean / imu_data_for_init.size();   // 平均角速度
+    acc_mean = acc_mean / imu_data_for_init.size();     // average acceleration
+    gyro_mean = gyro_mean / imu_data_for_init.size();   // average angular velocity
 
     double acc_var = 0.0;
     for(const ImuData &data : imu_data_for_init) {
@@ -62,13 +66,13 @@ bool Initializer::static_initialize(std::shared_ptr<IMU_state> &imu_state)
     acc_var = acc_var / imu_data_for_init.size();       // 加计的方差，若方差小于阈值则认为系统处于静止状态。
 
     if(acc_var > static_acc_var_thres) {
-        LOG(INFO) << "static inialization failed, waiting for static moment";
+        LOG(INFO) << "Static initialization failed reason: platform is moving";
         return false;
     }
 
     Eigen::Matrix3d R_GtoI = Gram_Schmidt(acc_mean);
 
-    Eigen::Vector3d gravity_inG(0, 0, -gravity_mag);
+    Eigen::Vector3d gravity_inG(0, 0, gravity_mag);
     Eigen::Vector3d init_bg = gyro_mean;
     Eigen::Vector3d init_ba = acc_mean - R_GtoI * gravity_inG;
 
@@ -85,8 +89,12 @@ bool Initializer::static_initialize(std::shared_ptr<IMU_state> &imu_state)
     init_imu_covariance.block(3, 3, 3, 3) = std::pow(0.05, 2) * Eigen::Matrix3d::Identity(); // p
     init_imu_covariance.block(6, 6, 3, 3) = std::pow(0.01, 2) * Eigen::Matrix3d::Identity(); // v (static)
     imu_state->set_covariance(init_imu_covariance);
+    imu_state->set_ts(imu_data_for_init.back().ts_sec);
 
-    LOG(INFO) << "static inialization finished!";
+    LOG(INFO) << "static inialization success!";
+    std::cout << "ba: " << imu_state->ba()->vec().transpose() << std::endl;
+    std::cout << "bg: " << imu_state->bg()->vec().transpose() << std::endl;
+
     is_initialized = true;
     return true;
 }

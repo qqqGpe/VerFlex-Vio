@@ -3,7 +3,9 @@
 #include "Imu_state.h"
 #include "sensor_data.h"
 
-#define IMU_QUE_SIZE 500
+namespace {
+    constexpr uint32_t kInitializeImuQueSize = 500;
+}
 
 class Initializer {
 public:
@@ -21,7 +23,7 @@ protected:
 
     double init_win_time = 1.0;     // 用于初始化的IMU窗口长度
     double gravity_mag = 9.81;
-    double static_acc_var_thres = 1.0;  // 静止检测加计阈值
+    double static_acc_var_thres = 0.1;  // 静止检测加计阈值
     std::deque<ImuData> imu_data;
 
 };

@@ -2,7 +2,7 @@
 #include <glog/logging.h>
 
 namespace {
-    constexpr int kMaxImuBufferSize = 1000;
+    constexpr int kMaxImuBufferSize = 10000;
 }
 
 bool ImuManager::feed_imu_measurement(const ImuData &imu_measurement) {

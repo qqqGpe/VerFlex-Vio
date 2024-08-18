@@ -45,6 +45,13 @@ public:
 
     void set_ts_sec(double ts_sec) { _imu_state->set_ts(ts_sec); }  // for debug
 
+    void set_extrinsic(Eigen::Quaterniond qic, Eigen::Vector3d tic)
+    {
+        Eigen::VectorXd extrin_vector = Eigen::VectorXd::Zero(7);
+        extrin_vector << qic.coeffs(), tic;
+        _imu_to_cam_extrinsic->set_value(extrin_vector);
+    }
+
     double ts_sec() { return _imu_state->ts(); }
 
     void stochastic_clone(std::shared_ptr<Type> variable_to_clone)

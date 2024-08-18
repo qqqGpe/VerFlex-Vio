@@ -10,6 +10,7 @@
 
 int main(int argc, char** argv)
 {
+    google::InitGoogleLogging(*argv);
     ros::init(argc, argv, "vio_backend");
     std::shared_ptr<ros::NodeHandle> nh = std::make_shared<ros::NodeHandle>("~");
 
@@ -17,12 +18,13 @@ int main(int argc, char** argv)
     Param params(nh);
     params.load_params();
 
-    // prepare dataset
-    rosbag::Bag bag;
-    bag.open(params.path_bag, rosbag::bagmode::Read);
-    rosbag::View view_full;
-    rosbag::View view;
+    // set log level
+    fLI::FLAGS_stderrthreshold = params.log_level;  // 0: info, 1: warning, 2: error, 3: fatal
 
+    // prepare rosbag
+    rosbag::Bag bag;
+    rosbag::View view, view_full;
+    bag.open(params.path_bag, rosbag::bagmode::Read);
     view_full.addQuery(bag);
     ros::Time time_init = view_full.getBeginTime();
     time_init += ros::Duration(params.bag_start);
@@ -31,20 +33,31 @@ int main(int argc, char** argv)
 
     // initialize vio_backend
     VioManager vio_manager(params);
+    vio_manager.set_initial_timestamp(time_init.toSec());
 
     // start vio updater
-    vio_manager.start_visual_system();
+    if (params.use_multi_thread)
+    {
+        vio_manager.start_visual_system();
+    }
 
     // load data from rosbag
     for (const rosbag::MessageInstance& msg : view) {
-        if (msg.getTopic() == params.imu_topic) {
+        if (msg.getTopic() == params.imu_topic)
+        {
             vio_manager.imu_callback(msg.instantiate<sensor_msgs::Imu>());
-        } else if (msg.getTopic() == params.camera_topic[0])
+        }
+        else if (msg.getTopic() == params.camera_topic[0])
+        {
             vio_manager.camera_callback(msg.instantiate<sensor_msgs::Image>());
+            if (!params.use_multi_thread) {
+                vio_manager.process_measurememt_once();
+            }
+        }
     }
 
     // waiting for program to exit
     ros::spin();
-
+    google::ShutdownGoogleLogging();
     return 0;
 }

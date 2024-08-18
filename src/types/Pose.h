@@ -16,9 +16,10 @@ public:
     virtual void set_ts(const double ts) override
     {
         if (ts <= 0) {
-            LOG(ERROR) << utils::Format("timestamp should > 0, ts: {0}s", ts);
+            LOG(FATAL) << utils::Format("timestamp should > 0, ts: {0}s", ts);
             return;
         }
+        _ts = ts;
         _q->set_ts(ts);
         _p->set_ts(ts);
     }
@@ -34,6 +35,7 @@ public:
         _p->set_local_id(new_id + _q->size());
     }
 
+    // eigen::vector(x, y, z, w)
     virtual void set_value(const Eigen::MatrixXd &new_value) override {
         assert(new_value.rows() == 7);
         assert(new_value.cols() == 1);

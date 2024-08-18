@@ -16,6 +16,8 @@ public:
 
     void load_params()
     {
+        _nh->param<bool>("use_multi_thread", use_multi_thread, false);
+        _nh->param<int>("log_level", log_level, 2);
         _nh->param<int>("camera_num", camera_num, 1);
 
         _nh->param<int>("img_width", img_width, 752);
@@ -60,6 +62,8 @@ public:
         }
     }
 
+    bool use_multi_thread = false;
+    int log_level = 2;
     int camera_num;
     double bag_start, bag_durr;
     int max_feat_n;

@@ -3,6 +3,13 @@
 #include <Eigen/Core>
 #include <opencv2/opencv.hpp>
 
+
+enum class keyframe_flag_e {
+    not_keyframe = 0,
+    large_parallex_flag,
+    feat_lost_too_much
+};
+
 struct ImuData {
     double ts_sec;
     Eigen::Vector3d am;
@@ -37,6 +44,7 @@ struct cam_obs_t {
         , u_norm(u_norm)
         , v_norm(v_norm)
     {
+        ts_sec = 0;
         valid = false;
         feat_id = -1;
         obs_times_n = 0;
@@ -44,11 +52,13 @@ struct cam_obs_t {
 
     void set_invalid()
     {
+        ts_sec = 0;
         feat_id = -1;
         valid = false;
         obs_times_n = 0;
     }
 
+    double ts_sec;
     uint32_t feat_id;
     bool valid;
     uint32_t obs_times_n;

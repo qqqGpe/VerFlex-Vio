@@ -15,31 +15,40 @@ namespace {
     constexpr double kMinTriangDist = 0.2;
     constexpr double kMaxTriangDist = 20;
     constexpr uint32_t kMaxIterationTimes = 5;
+    constexpr uint32_t kMinFeatNumToUpdate = 15;
 }
 
-void VisualManager::update()
+void VisualManager::visual_update()
 {
     constexpr uint32_t kMinFeatToUpdate = 15;
     std::map<double, CameraPose> camera_pose_buffer = _state->access_clone_pose_buffer();
 
     feature_triangulation(_feature_tracked, camera_pose_buffer);
 
-    pnp_ransac_to_reject_outliers(_feature_tracked);
+    if (_feature_mapping_success > kMinFeatToUpdate)
+    {
+        pnp_ransac_to_reject_outliers(_feature_tracked);
 
-    Eigen::MatrixXd Hx_msckf;
-    Eigen::VectorXd res;
-    construct_feature_jocabian_full(_feature_tracked, Hx_msckf, res);
+        Eigen::MatrixXd Hx_msckf;
+        Eigen::VectorXd res;
+        construct_feature_jocabian_full(_feature_tracked, Hx_msckf, res);
 
-    Eigen::MatrixXd R = Eigen::MatrixXd::Identity(Hx_msckf.rows(), Hx_msckf.rows());
+        Eigen::MatrixXd R = Eigen::MatrixXd::Identity(Hx_msckf.rows(), Hx_msckf.rows());
 
-    if (_feature_tracked.size() >= kMinFeatToUpdate && _state->_clone_pose.size() == _max_clone_pose) {
-        eskfSolver::update(_state, Hx_msckf, res, _Hx_order, _map_hx, R);
+        if (_feature_tracked.size() >= kMinFeatToUpdate && _state->_clone_pose.size() == _max_clone_pose) {
+            eskfSolver::update(_state, Hx_msckf, res, _Hx_order, _map_hx, R);
+        }
+    }
+    else
+    {
+        LOG(INFO) << cv::format("Not enough features to update, features_tracked: %d", int(_feature_tracked.size()));
     }
 
     std::shared_ptr<Type> state_to_marginalize = nullptr;
-    if (decide_keyframe(_state, _feature_tracked) > not_keyframe)
+    if (decide_keyframe(_state, _feature_tracked) > keyframe_flag_e::not_keyframe)
     {
         state_to_marginalize = _state->_clone_pose.begin()->second;
+        update_feature_base();
     }
     else if (_state->_clone_pose.size() >= _max_clone_pose)
     {
@@ -56,7 +65,7 @@ keyframe_flag_e VisualManager::decide_keyframe(std::shared_ptr<State> _state, st
     constexpr double kLargeParallexThres = 5.0f; // 大于5个平均像素视差则视为关键帧
 
     if(_state->_clone_pose.size() < _max_clone_pose) {
-        return not_keyframe;
+        return keyframe_flag_e::not_keyframe;
     }
 
     uint32_t cnt = 0;
@@ -75,17 +84,38 @@ keyframe_flag_e VisualManager::decide_keyframe(std::shared_ptr<State> _state, st
             cnt++;
         }
     }
-    pixel_parrallex_avg = pixel_parallex_sum / cnt;
+
+    if (cnt > 0)
+    {
+        pixel_parrallex_avg = pixel_parallex_sum / cnt;
+    }
 
     if (feats.size() < _max_feat_n / 2) {
-        return feat_lost_too_much;
+        return keyframe_flag_e::feat_lost_too_much;
     }
 
     if (pixel_parrallex_avg > kLargeParallexThres) {
-        return large_parallex_flag;
+        return keyframe_flag_e::large_parallex_flag;
     }
 
-    return not_keyframe;
+    return keyframe_flag_e::not_keyframe;
+}
+
+void VisualManager::update_feature_base()
+{
+    for (auto &flost : _feature_lost)
+    {
+        flost->reset();
+    }
+
+    for (const auto &fnew : _feature_new)
+    {
+        auto it =  std::find_if(_feature_base.begin(), _feature_base.end(),
+                                [](const Feature* feat_){return !feat_->_valid; });
+        (*it)->_valid = true;
+        (*it)->_id = fnew.feat_id;
+        (*it)->_visual_obs_buffer.insert({fnew.ts_sec, fnew});
+    }
 }
 
 void VisualManager::update_feature(std::pair<double, std::vector<cam_obs_t>> feature_observes)
@@ -100,7 +130,7 @@ void VisualManager::update_feature(std::pair<double, std::vector<cam_obs_t>> fea
 
     for (int i = 0; i < _feature_base.size(); i++) {
         Feature *feat = _feature_base[i];
-        cam_obs_t feat_obs = feature_obs[i];
+        cam_obs_t &feat_obs = feature_obs[i];
 
         if (feat->_valid) {
             if (feat_obs.valid && feat_obs.feat_id == feat->_id) {
@@ -110,12 +140,11 @@ void VisualManager::update_feature(std::pair<double, std::vector<cam_obs_t>> fea
                 _feature_lost.push_back(feat);
             }
         }
-        else {
-            feat->_id = feat_obs.feat_id;
-            feat->_visual_obs_buffer.insert({ts_sec, feat_obs});
-            _feature_new.push_back(feat);
+        else if (feat_obs.valid){
+            _feature_new.push_back(feat_obs);
         }
     }
+    std::cout << "_feature_tracked.size: " << _feature_tracked.size() << std::endl;
 }
 
 bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat)
@@ -232,7 +261,7 @@ bool VisualManager::gaussian_newton_optimization(std::map<double, CameraPose>& c
     return true;
 }
 
-void VisualManager::pnp_ransac_to_reject_outliers(std::vector<Feature* > feats)
+bool VisualManager::pnp_ransac_to_reject_outliers(std::vector<Feature* > feats)
 {
     double ts = _state->ts_sec();
     std::vector<cv::Point3d> list_points3d;
@@ -240,12 +269,15 @@ void VisualManager::pnp_ransac_to_reject_outliers(std::vector<Feature* > feats)
     for (auto it = feats.begin(); it != feats.end(); it++) {
         if ((*it)->_valid && (*it)->_is_triangulated) {
             assert((*it)->_visual_obs_buffer.find(ts) != (*it)->_visual_obs_buffer.end());
-            cv::Point3d p3d((*it)->_pwf.x(), (*it)->_pwf.y(), (*it)->_pwf.z());
+            list_points3d.emplace_back((*it)->_pwf.x(), (*it)->_pwf.y(), (*it)->_pwf.z());
             cam_obs_t obs_2d = (*it)->_visual_obs_buffer.at(ts);
-            cv::Point2d p2d(obs_2d.u, obs_2d.v);
-            list_points3d.push_back(p3d);
-            list_points2d.push_back(p2d);
+            list_points2d.emplace_back(obs_2d.u, obs_2d.v);
         }
+    }
+    if (list_points3d.size() <= 0)
+    {
+        LOG(INFO) << cv::format("Not enough points for pnpRansac, point triangulated: %d", int(list_points3d.size()));
+        return false;
     }
     cv::Mat intrinsic;
     cv::Mat distortion;
@@ -285,12 +317,13 @@ void VisualManager::pnp_ransac_to_reject_outliers(std::vector<Feature* > feats)
     // Eigen::Vector3d t_, r_;
     // cv::cv2eigen(tvec, t_);
     // std::cout << "translation: " << t_.transpose() << std::endl;
-    return;
+    return true;
 }
 
 void VisualManager::feature_triangulation(std::vector<Feature* > feats, std::map<double, CameraPose> camera_pose_buffer)
 {
     // std::map<double, CameraPose> camera_pose_buffer = _state->access_clone_pose_buffer();
+    _feature_mapping_success = 0;
 
     for (auto it = feats.begin(); it != feats.end(); it++) {
         if ((*it)->_visual_obs_buffer.size() < kMinFeatForMapping) {
@@ -308,6 +341,7 @@ void VisualManager::feature_triangulation(std::vector<Feature* > feats, std::map
 
         if (true == gaussian_newton_optimization(camera_pose_buffer, *it)) {
             (*it)->_is_triangulated = true;
+            _feature_mapping_success ++;
         } else {
             it = feats.erase(it);
             continue;

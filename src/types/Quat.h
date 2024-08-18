@@ -43,7 +43,7 @@ public:
     {
         std::shared_ptr<Quat> clone_variable = std::make_shared<Quat>();
         clone_variable->set_value(this->value());
-        clone_variable->set_fej(this->fej());
+        // clone_variable->set_fej(this->fej());    // disable fej for debug
         return clone_variable;
     }
 

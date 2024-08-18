@@ -48,6 +48,10 @@ public:
 
     Eigen::Matrix3d intrinsic() { return _K; }
 
+    Eigen::Matrix3d Ric() { return _Ric_init; }
+
+    Eigen::Vector3d tic() { return _tic_init; }
+
 private:
     CameraType _type = CameraType::NO_TYPE;
     Eigen::Matrix3d _K;
