@@ -28,18 +28,31 @@ public:
         _imu_to_cam_extrinsic = std::make_shared<Pose>();
 
         // initialize local id
+        _dim = 0;
+        // _imu_state->set_local_id(_dim);
+        // _variables.push_back(_imu_state);
+        // _dim += _imu_state->size();
         _imu_state->set_local_id(_dim);
-        _dim += _imu_state->size();
-        _variables.push_back(_imu_state);
+
+        _variables.push_back(_imu_state->q());
+        _dim += _imu_state->q()->size();
+        _variables.push_back(_imu_state->p());
+        _dim += _imu_state->p()->size();
+        _variables.push_back(_imu_state->v());
+        _dim += _imu_state->v()->size();
+        _variables.push_back(_imu_state->bg());
+        _dim += _imu_state->bg()->size();
+        _variables.push_back(_imu_state->ba());
+        _dim += _imu_state->ba()->size();
 
         if (_do_calibration_update) {
             _imu_to_cam_extrinsic->set_local_id(_dim);
-            _dim += _imu_to_cam_extrinsic->size();
             _variables.push_back(_imu_to_cam_extrinsic);
+            _dim += _imu_to_cam_extrinsic->size();
         }
 
         // initialize state covariance
-        _covariance = Eigen::MatrixXd::Zero(_dim, _dim);   // initialize covariance size;
+        _covariance = Eigen::MatrixXd::Identity(_dim, _dim);   // initialize covariance size;
     }
     ~State(){}
 
@@ -62,19 +75,22 @@ public:
         int new_cols = old_cols + variable_to_clone->size();
         int variable_size = variable_to_clone->size();
 
-        _covariance.conservativeResize(new_rows, new_cols);
+        Eigen::MatrixXd covariance_new = Eigen::MatrixXd::Zero(new_rows, new_cols);
+        covariance_new.block(0, 0, old_rows, old_cols) = _covariance;
+        // _covariance.conservativeResize(new_rows, new_cols);
 
         int old_loc = variable_to_clone->id();
 
-        _covariance.block(old_rows, old_cols, variable_size, variable_size) = _covariance.block(old_loc, old_loc, variable_size, variable_size);
-        _covariance.block(0, old_cols, old_rows, variable_size) = _covariance.block(0, old_loc, old_rows, variable_size);
-        _covariance.block(old_rows, 0, variable_size, old_cols) = _covariance.block(old_loc, 0, variable_size, old_cols);
+        covariance_new.block(old_rows, old_cols, variable_size, variable_size) = _covariance.block(old_loc, old_loc, variable_size, variable_size);
+        covariance_new.block(0, old_cols, old_rows, variable_size) = _covariance.block(0, old_loc, old_rows, variable_size);
+        covariance_new.block(old_rows, 0, variable_size, old_cols) = _covariance.block(old_loc, 0, variable_size, old_cols);
 
         std::shared_ptr<Type> clone = variable_to_clone->clone();
         clone->set_local_id(old_cols);
         _clone_pose.insert(std::make_pair(clone->ts(), std::dynamic_pointer_cast<Pose>(clone)));
         _variables.push_back(clone);
         _dim += clone->size();
+        _covariance = covariance_new;
     }
 
     std::map<double, CameraPose> access_clone_pose_buffer() const
@@ -87,7 +103,7 @@ public:
             Eigen::Matrix3d Ric = _imu_to_cam_extrinsic->quat().toRotationMatrix();
             Eigen::Vector3d pic = _imu_to_cam_extrinsic->p();
             camera_pose.Rwc = camera_pose.Rwi * Ric;
-            camera_pose.pwc = camera_pose.pwi + camera_pose.Rwc * pic;
+            camera_pose.pwc = camera_pose.pwi + camera_pose.Rwi * pic;
             camera_clone_poses.insert(std::make_pair(it->first, camera_pose));
         }
         return camera_clone_poses;

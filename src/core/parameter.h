@@ -48,6 +48,8 @@ public:
         _nh->param<double>("sigma_ba", sigma_ba, 1e-3);
         _nh->param<double>("sigma_bw", sigma_bw, 1e-5);
 
+        _nh->param<double>("gravity_magn", gravity_magn, 9.81);
+
         Ric.resize(camera_num, Eigen::Matrix3d::Identity());
         tic.resize(camera_num, Eigen::Vector3d::Zero());
 
@@ -70,6 +72,7 @@ public:
     int grid_h, grid_w;
     int max_clone_pose;
     int img_width, img_height;
+    double gravity_magn;
 
     std::string log_path;
     std::string path_bag;

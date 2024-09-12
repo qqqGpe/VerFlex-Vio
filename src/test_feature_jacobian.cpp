@@ -138,6 +138,7 @@ int main()
     int total_hx = map_id;
 
     visual_manager.set_state(state);
+    std::cout << "feat size: " << feats.size() << std::endl;
     for (int i = 0; i < feats.size(); i++)
     {
         visual_manager.get_single_feature_jacobian(feats[i], map_hx, total_hx);

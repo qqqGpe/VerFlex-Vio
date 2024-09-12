@@ -1,6 +1,7 @@
 #ifndef __VIO_INITIALIZER__
 #define __VIO_INITIALIZER__
 #include "Imu_state.h"
+#include "state.h"
 #include "sensor_data.h"
 
 namespace {
@@ -14,7 +15,7 @@ public:
     ~Initializer(){};
 
     void feed_imu_measurement(const ImuData & data);
-    bool static_initialize(std::shared_ptr<IMU_state> &imu_state);
+    bool static_initialize(std::shared_ptr<State> &state);
     Eigen::Matrix3d Gram_Schmidt(const Eigen::Vector3d &gravity_body);
 
     bool is_initialized = false;

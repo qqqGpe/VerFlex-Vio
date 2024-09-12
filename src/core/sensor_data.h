@@ -72,6 +72,7 @@ struct Feature {
     void reset()
     {
         _id = -1;
+        _pwf.setZero();
         _valid = false;
         _is_triangulated = false;
         _visual_obs_buffer.clear();

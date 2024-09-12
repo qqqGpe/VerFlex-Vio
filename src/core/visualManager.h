@@ -48,6 +48,8 @@ public:
 
     void update_feature_base();
 
+    void drop_feature_obs(const double timestamp_to_drop);
+
     void feature_triangulation(std::vector<Feature*> feats, std::map<double, CameraPose> camera_pose_buffer);
 
     bool least_square_triangulation(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
@@ -82,8 +84,6 @@ public:
     std::vector<Feature*> _feature_tracked;
     std::vector<Feature*> _feature_lost;
     std::vector<cam_obs_t> _feature_new;
-
-
 
     boost::posix_time::ptime visual_rT, visual_rT1, visual_rT2, visual_rT3, visual_rT4;
 

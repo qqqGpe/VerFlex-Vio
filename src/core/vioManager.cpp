@@ -53,7 +53,7 @@ void backend_task_entry(VioManager* vio)
         usleep(100); // sleep for 0.01s -> 100Hz
         vio->initializer->is_initialized = false; // always initializing for debug
         if (!vio->initializer->is_initialized) {
-            bool status = vio->initializer->static_initialize(vio->state->_imu_state);
+            bool status = vio->initializer->static_initialize(vio->state);
             if (status == false) {
                 continue;
             }
@@ -80,12 +80,21 @@ void VioManager::start_visual_system()
 void VioManager::process_measurememt_once()
 {
     if (!initializer->is_initialized) {
-        if (!initializer->static_initialize(state->_imu_state))
+        if (!initializer->static_initialize(state))
         {
             LOG(ERROR) << "failed to init vio system";
             return;
         }
     }
+
+    // if (_imu_manager->static_status())
+    // {
+    //     _imu_manager->zupt_update(state);   // zero velocity update
+    //     std::cout << "zupt updated" << std::endl;
+    //     std::cout << "ba: " << state->_imu_state->ba()->vec().transpose() << std::endl;
+    //     std::cout << "bg: " << state->_imu_state->bg()->vec().transpose() << std::endl;
+    //     return;
+    // }
 
     while(!_visual_manager->_input_image_buffer.empty())
     {
@@ -110,32 +119,52 @@ void VioManager::process_measurememt_once()
             LOG(INFO) << "frontend tracking failed";
             continue;
         }
+
         vio_rT1 = boost::posix_time::microsec_clock::local_time();
-
-        double feature_observes_timestamp = feature_observes.first;
-        _visual_manager->reset_keyframe();
-        _visual_manager->update_feature(feature_observes);
-        vio_rT2 = boost::posix_time::microsec_clock::local_time();
-
-        if (!propagate_state_and_covariance(state, feature_observes_timestamp))
+        if (!propagate_state_and_covariance(state, feature_observes.first))
         {
             LOG(INFO) << "state propagation failed!";
             continue;
         }
-        vio_rT3 = boost::posix_time::microsec_clock::local_time();
+        vio_rT2 = boost::posix_time::microsec_clock::local_time();
 
-        _visual_manager->visual_update();
-        vio_rT4 = boost::posix_time::microsec_clock::local_time();
+        if (_imu_manager->static_status())
+        {
+            _imu_manager->zupt_update(state);   // zero velocity update
+            std::cout << "zupt updated" << std::endl;
+            // std::cout << "ba: " << state->_imu_state->ba()->vec().transpose() << std::endl;
+            // std::cout << "bg: " << state->_imu_state->bg()->vec().transpose() << std::endl;
+            continue;
+        }
+        else
+        {
+            // pro_rT = boost::posix_time::microsec_clock::local_time();
+            state->stochastic_clone(state->_imu_state->pose());
+            // pro_rT1 = boost::posix_time::microsec_clock::local_time();
 
-        double frontend_tracking_duration = (vio_rT1 - vio_rT).total_microseconds() * 1e-6;
-        double update_feature_duration = (vio_rT2 - vio_rT1).total_microseconds() * 1e-6;
-        double propagate_duration = (vio_rT3 - vio_rT2).total_microseconds() * 1e-6;
-        double visual_update_duration = (vio_rT4 - vio_rT3).total_microseconds() * 1e-6;
-        LOG(INFO) << cv::format("frontend tracking duration: %f", frontend_tracking_duration);
-        LOG(INFO) << cv::format("update obs feature duration: %f", update_feature_duration);
-        LOG(INFO) << cv::format("propagate state duration: %f", propagate_duration);
-        LOG(INFO) << cv::format("visual update duration: %f", visual_update_duration);
+            // double stochastic_clone_duration = (pro_rT1 - pro_rT).total_microseconds() * 1e-6;
+            // LOG(WARNING) << cv::format("stochastic clone cost time: %lf", stochastic_clone_duration);
 
+            _visual_manager->reset_keyframe();
+            _visual_manager->update_feature(feature_observes);  // visual update
+
+            vio_rT3 = boost::posix_time::microsec_clock::local_time();
+
+            _visual_manager->visual_update();
+            vio_rT4 = boost::posix_time::microsec_clock::local_time();
+
+            double frontend_tracking_duration = (vio_rT1 - vio_rT).total_microseconds() * 1e-6;
+            double update_feature_duration = (vio_rT2 - vio_rT1).total_microseconds() * 1e-6;
+            double propagate_duration = (vio_rT3 - vio_rT2).total_microseconds() * 1e-6;
+            double visual_update_duration = (vio_rT4 - vio_rT3).total_microseconds() * 1e-6;
+            // LOG(INFO) << cv::format("frontend tracking duration: %f", frontend_tracking_duration);
+            // LOG(INFO) << cv::format("update obs feature duration: %f", update_feature_duration);
+            // LOG(INFO) << cv::format("propagate state duration: %f", propagate_duration);
+            // LOG(INFO) << cv::format("visual update duration: %f", visual_update_duration);
+        }
+
+        LOG(INFO) << "p: " << state->_imu_state->p()->vec();
+        LOG(INFO) << "v: " << state->_imu_state->v()->vec();
     }
 }
 
@@ -171,7 +200,7 @@ bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, do
         LOG(WARNING) << cv::format("wait for imu data, current image ts: %f, latest imu ts: %f", ts, imu_data.back().ts_sec);
         return false;
     }
-    std::cout << "imu data size: " << imu_data.size() << std::endl;
+    // std::cout << "imu data size: " << imu_data.size() << std::endl;
 
     Eigen::Vector3d new_p_IinG = state->_imu_state->pose()->p();
     Eigen::Matrix3d new_R_ItoG = state->_imu_state->pose()->quat().toRotationMatrix();
@@ -222,7 +251,7 @@ bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, do
             Q.block<3, 3>(v_id, v_id) = Eigen::Matrix3d::Identity() * std::pow(_imu_manager->_sigma_na, 2) * dt;
             Q.block<3, 3>(q_id, q_id) = Eigen::Matrix3d::Identity() * std::pow(_imu_manager->_sigma_nw, 2) * dt;
             Q.block<3, 3>(bg_id, bg_id) = Eigen::Matrix3d::Identity() * std::pow(_imu_manager->_sigma_bw, 2);
-            Q.block<3, 3>(v_id, v_id) = Eigen::Matrix3d::Identity() * std::pow(_imu_manager->_sigma_ba, 2);
+            Q.block<3, 3>(ba_id, ba_id) = Eigen::Matrix3d::Identity() * std::pow(_imu_manager->_sigma_ba, 2);
 
             state->_imu_state->q()->set_value(Eigen::Quaterniond(new_R_ItoG).coeffs());
             state->_imu_state->p()->set_value(new_p_IinG);
@@ -238,13 +267,7 @@ bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, do
 
     state->_imu_state->set_ts(ts);
     state->_imu_state->set_covariance(Qd_new);
-
-    pro_rT = boost::posix_time::microsec_clock::local_time();
-    state->stochastic_clone(state->_imu_state->pose());
-    pro_rT1 = boost::posix_time::microsec_clock::local_time();
-
-    double stochastic_clone_duration = (pro_rT1 - pro_rT).total_microseconds() * 1e-6;
-    LOG(WARNING) << cv::format("stochastic clone cost time: %lf", stochastic_clone_duration);
+    state->_covariance.block(0, 0, state->_imu_state->size(), state->_imu_state->size()) = Qd_new;
 
     return true;
 }

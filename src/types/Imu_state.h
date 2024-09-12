@@ -89,7 +89,7 @@ public:
 
     Eigen::Vector3d last_am = Eigen::Vector3d::Zero();
     Eigen::Vector3d last_wm = Eigen::Vector3d::Zero();
-    Eigen::Vector3d gravity_inG = Eigen::Vector3d(0, 0, 9.81);
+    Eigen::Vector3d gravity_inG = Eigen::Vector3d(0, 0, -9.81);
 
  protected:
     std::shared_ptr<Pose> _pose;

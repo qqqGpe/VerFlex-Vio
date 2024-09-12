@@ -1,5 +1,7 @@
 #include "ImuManager.h"
+#include "mathematical_tools.h"
 #include <glog/logging.h>
+#include <opencv2/opencv.hpp>
 
 namespace {
     constexpr int kMaxImuBufferSize = 10000;
@@ -64,11 +66,150 @@ std::vector<ImuData> ImuManager::access_interval_imu_measurment(const double ts_
     return output;
 }
 
-void ImuManager::delete_old_measurements(const double ts) {
+void ImuManager::zupt_update(std::shared_ptr<State> state)
+{
+    Eigen::MatrixXd Hx;
+    std::unordered_map<std::shared_ptr<Type>, size_t> _map_hx;
+    std::vector<std::shared_ptr<Type>> _Hx_order;
+    Eigen::VectorXd res;
+    ImuData imu_data = _data->back();   // get latest imu data
+    construct_zupt_constraint(state, imu_data, Hx, _Hx_order, _map_hx, res);
+    // std::cout << "res: " << res.transpose() << std::endl;
+    Eigen::MatrixXd R = Eigen::MatrixXd::Identity(res.rows(), res.rows());
+    eskfSolver::update(state, Hx, res, _Hx_order, _map_hx, R);
+}
 
+void ImuManager::construct_zupt_constraint(std::shared_ptr<State> state, ImuData imu_data, Eigen::MatrixXd &Hx,
+                                           std::vector<std::shared_ptr<Type>>& _Hx_order, std::unordered_map<std::shared_ptr<Type>, size_t>& _map_hx, Eigen::VectorXd& res)
+{
+    _Hx_order.push_back(state->_imu_state->q());
+    _Hx_order.push_back(state->_imu_state->bg());
+    _Hx_order.push_back(state->_imu_state->ba());
+    if (_last_static_position_valid)
+    {
+        _Hx_order.push_back(state->_imu_state->p());
+    }
+
+    int total_hx = 0;
+    // insert R_ItoG
+    _map_hx.clear();
+    _map_hx.insert({state->_imu_state->q(), total_hx});
+    total_hx += state->_imu_state->q()->size();
+    // insert ba
+    _map_hx.insert({state->_imu_state->ba(), total_hx});
+    total_hx += state->_imu_state->ba()->size();
+    // insert bg
+    _map_hx.insert({state->_imu_state->bg(), total_hx});
+    total_hx += state->_imu_state->bg()->size();
+    // insert p if static
+    if (_last_static_position_valid)
+    {
+        _map_hx.insert({state->_imu_state->p(), total_hx});
+        total_hx += state->_imu_state->p()->size();
+    }
+
+    if (!_last_static_position_valid)
+    {
+        Hx = Eigen::MatrixXd::Zero(6, total_hx);
+        res = Eigen::VectorXd::Zero(6);
+    }
+    else
+    {
+        Hx = Eigen::MatrixXd::Zero(9, total_hx);
+        res = Eigen::VectorXd::Zero(9);
+    }
+
+    Eigen::Vector3d ba = state->_imu_state->ba()->vec();
+    Eigen::Vector3d bg = state->_imu_state->bg()->vec();
+    Eigen::Vector3d p = state->_imu_state->p()->vec();
+    Eigen::Matrix3d R_ItoG = state->_imu_state->q()->Rot();
+
+    // std::cout << "R_ItoG: " << R_ItoG << std::endl;
+    // std::cout << "am: " << imu_data.am.transpose() << std::endl;
+    // std::cout << "_gravity_magn: \n" << _gravity_magn.transpose() << std::endl;
+    // std::cout << "R_ItoG.transpose() * _gravity_magn: " << (R_ItoG.transpose() * _gravity_magn).transpose() << std::endl;
+    // std::cout << "am.norm: " << imu_data.am.norm() << std::endl;
+    res.segment(0, 3) = -(imu_data.am - ba - R_ItoG.transpose() * _gravity_magn);
+    res.segment(3, 3) = -(imu_data.wm - bg);
+    if (_last_static_position_valid)
+    {
+        res.segment(6, 3) = _last_static_position - p;
+    }
+
+    // jacobian for R_ItoG
+    Hx.block(0, _map_hx[state->_imu_state->q()], 3, 3) = -mathematical::skew(R_ItoG.transpose() * _gravity_magn);
+
+    // jacobian for ba
+    Hx.block(0, _map_hx[state->_imu_state->ba()], 3, 3) = -Eigen::Matrix3d::Identity();
+
+    // jacobian for bg
+    Hx.block(3, _map_hx[state->_imu_state->bg()], 3, 3) = -Eigen::Matrix3d::Identity();
+
+    // jacobian for position if last static position is valid
+    if (_last_static_position_valid)
+    {
+        std::cout << "_last_static_position: " << _last_static_position.transpose() << std::endl;
+        Hx.block(6, _map_hx[state->_imu_state->p()], 3, 3) = Eigen::Matrix3d::Identity();
+    }
+
+    Eigen::MatrixXd weight = Eigen::MatrixXd::Identity(Hx.rows(), Hx.rows()) * 10;
+    if (_last_static_position_valid)
+    {
+        weight.bottomRightCorner(3, 3) = Eigen::Matrix3d::Identity();
+    }
+    Hx = weight * Hx;
+}
+
+void ImuManager::delete_old_measurements(const double ts)
+{
     while(!_data->empty()) {
         if(_data->front().ts_sec < ts) {
             _data->pop_front();
         }
     }
+}
+
+bool ImuManager::static_status()
+{
+    constexpr int kImuLenToCalc = 10;
+    if (_data->size() < kImuLenToCalc)
+    {
+        return false;
+    }
+
+    std::deque<ImuData> data_buffer(_data->end() - kImuLenToCalc, _data->end());
+
+    Eigen::Vector3d acc_mean = Eigen::Vector3d::Zero();
+    Eigen::Vector3d gyro_mean = Eigen::Vector3d::Zero();
+    for (auto it = data_buffer.begin(); it != data_buffer.end(); it++)
+    {
+        acc_mean += it->am;
+        gyro_mean += it->wm;
+    }
+
+    acc_mean = acc_mean / data_buffer.size();
+    gyro_mean = gyro_mean / data_buffer.size();
+
+    double acc_var = 0.0;
+    for (auto it = data_buffer.begin(); it != data_buffer.end(); it++) {
+        acc_var += (it->am - acc_mean).dot(it->am - acc_mean);
+    }
+    acc_var = acc_var / data_buffer.size();       // 加计的方差，若方差小于阈值则认为系统处于静止状态
+
+    std::cout <<cv::format("acc_var: %f, gyro_mean: %f\n", acc_var, gyro_mean.norm());
+    // return acc_mean.norm() < 0.1 && gyro_mean.norm() < 0.1;
+    bool is_static = acc_var < 0.5;
+    if (is_static && (data_buffer.back().ts_sec - _last_static_ts) > 1.0)
+    {
+        _last_static_ts = data_buffer.back().ts_sec;
+        // _last_static_position_valid = true;
+        _last_static_position = _state->_imu_state->p()->vec();
+    }
+    else
+    {
+        _last_static_ts = -1;
+        _last_static_position_valid = false;
+        _last_static_position.setZero();
+    }
+    return is_static;
 }

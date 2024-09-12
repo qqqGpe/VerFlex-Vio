@@ -47,7 +47,8 @@ public:
             H_id.push_back(current_it);
             current_it += meas_var->size();
         }
-
+        // std::cout << "state->variable size: " << state->_variables.size() << std::endl;
+        // std::cout << "state->_covariance: " << state->_covariance << std::endl;
         for (const auto& var : state->_variables) {
             Eigen::MatrixXd M_i = Eigen::MatrixXd::Zero(var->size(), res.rows());
             for (int32_t i = 0; i < Hx_order.size(); i++) {
@@ -57,9 +58,11 @@ public:
             M_all.block(var->id(), 0, var->size(), res.rows()) = M_i;
         }
 
+        // std::cout << "M_all: " << M_all << std::endl;
+
         Eigen::MatrixXd cov_involved = construct_involved_covariance(state, Hx_order);
 
-        // Residual covariance S = H*Cov*H' + R
+        // Residual covariance S = H * Cov * H' + R
         Eigen::MatrixXd S(R.rows(), R.rows());
         S.triangularView<Eigen::Upper>() = Hx * cov_involved * Hx.transpose();
         S.triangularView<Eigen::Upper>() += R;
@@ -74,18 +77,20 @@ public:
         state->_covariance.triangularView<Eigen::Upper>() -= K * M_all.transpose();
         state->_covariance = state->_covariance.selfadjointView<Eigen::Upper>();
         // Cov -= K * M_a.transpose();
-        // Cov = 0.5*(Cov+Cov.transpose());
+        // Cov = 0.5 * (Cov + Cov.transpose());
 
         // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
         Eigen::VectorXd diags = state->_covariance.diagonal();
         for (int i = 0; i < diags.rows(); i++) {
             if (diags(i) < 0.0) {
                 LOG(ERROR) << cv::format("diagonal is negative when update");
+                std::cout << "diags: " << diags.transpose() << std::endl;
                 std::exit(EXIT_FAILURE);
             }
         }
-
+        // std::cout << "K: \n" << K << std::endl;
         Eigen::VectorXd dx = K * res;
+        std::cout << "dx: " << dx.transpose() << std::endl;
         for (size_t i = 0; i < state->_variables.size(); i++) {
             state->_variables[i]->update(dx.block(state->_variables[i]->id(), 0, state->_variables[i]->size(), 1));
         }

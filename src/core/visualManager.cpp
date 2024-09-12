@@ -13,7 +13,7 @@ namespace {
     constexpr uint32_t kMinFeatForMapping = 2;
     constexpr double kMaxConditionNum = 10000.f;
     constexpr double kMinTriangDist = 0.2;
-    constexpr double kMaxTriangDist = 20;
+    constexpr double kMaxTriangDist = 50;
     constexpr uint32_t kMaxIterationTimes = 5;
     constexpr uint32_t kMinFeatNumToUpdate = 15;
 }
@@ -27,34 +27,40 @@ void VisualManager::visual_update()
 
     if (_feature_mapping_success > kMinFeatToUpdate)
     {
-        pnp_ransac_to_reject_outliers(_feature_tracked);
+        // pnp_ransac_to_reject_outliers(_feature_tracked);
 
         Eigen::MatrixXd Hx_msckf;
         Eigen::VectorXd res;
         construct_feature_jocabian_full(_feature_tracked, Hx_msckf, res);
-
+        std::cout << "res: " << res.transpose() << std::endl;
         Eigen::MatrixXd R = Eigen::MatrixXd::Identity(Hx_msckf.rows(), Hx_msckf.rows());
 
         if (_feature_tracked.size() >= kMinFeatToUpdate && _state->_clone_pose.size() == _max_clone_pose) {
             eskfSolver::update(_state, Hx_msckf, res, _Hx_order, _map_hx, R);
         }
+        std::cout << "---------------------------" << std::endl;
+        LOG(INFO) << cv::format("feature updated, feature mapping success: %d", _feature_mapping_success);
+
     }
     else
     {
-        LOG(INFO) << cv::format("Not enough features to update, features_tracked: %d", int(_feature_tracked.size()));
+        LOG(INFO) << cv::format("Not enough features to update, features_tracked: %d, feature mapping success: %d", int(_feature_tracked.size()), _feature_mapping_success);
     }
 
     std::shared_ptr<Type> state_to_marginalize = nullptr;
-    if (decide_keyframe(_state, _feature_tracked) > keyframe_flag_e::not_keyframe)
+    _keyframe = decide_keyframe(_state, _feature_tracked);
+    if (_keyframe != keyframe_flag_e::not_keyframe)
     {
         state_to_marginalize = _state->_clone_pose.begin()->second;
         update_feature_base();
+        drop_feature_obs(state_to_marginalize->ts());
     }
     else if (_state->_clone_pose.size() >= _max_clone_pose)
     {
         auto it = _state->_clone_pose.end();
         it--;
         state_to_marginalize = it->second;
+        drop_feature_obs(state_to_marginalize->ts());
     }
 
     _state->marginalize_state(state_to_marginalize);
@@ -101,6 +107,18 @@ keyframe_flag_e VisualManager::decide_keyframe(std::shared_ptr<State> _state, st
     return keyframe_flag_e::not_keyframe;
 }
 
+void VisualManager::drop_feature_obs(const double timestamp_to_drop)
+{
+    for (auto &feat_base: _feature_base)
+    {
+        if (feat_base->_visual_obs_buffer.count(timestamp_to_drop) != 0)
+        {
+            auto it = feat_base->_visual_obs_buffer.find(timestamp_to_drop);
+            feat_base->_visual_obs_buffer.erase(it);
+        }
+    }
+}
+
 void VisualManager::update_feature_base()
 {
     for (auto &flost : _feature_lost)
@@ -123,6 +141,7 @@ void VisualManager::update_feature(std::pair<double, std::vector<cam_obs_t>> fea
     double ts_sec = feature_observes.first;
     std::vector<cam_obs_t> feature_obs = feature_observes.second;
     assert(feature_obs.size() == _max_feat_n);
+    assert(feature_obs.size() == feature_obs.size());
 
     _feature_lost.clear();
     _feature_new.clear();
@@ -131,6 +150,9 @@ void VisualManager::update_feature(std::pair<double, std::vector<cam_obs_t>> fea
     for (int i = 0; i < _feature_base.size(); i++) {
         Feature *feat = _feature_base[i];
         cam_obs_t &feat_obs = feature_obs[i];
+        auto feat_norm = _camera_model->back_project(Eigen::Vector2d(feat_obs.u, feat_obs.v));
+        feat_obs.u_norm = feat_norm.x();
+        feat_obs.v_norm = feat_norm.y();
 
         if (feat->_valid) {
             if (feat_obs.valid && feat_obs.feat_id == feat->_id) {
@@ -149,6 +171,16 @@ void VisualManager::update_feature(std::pair<double, std::vector<cam_obs_t>> fea
 
 bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat)
 {
+    // std::cout << "feat.size: " << feat->_visual_obs_buffer.size() << std::endl;
+
+    // for (auto x : feat->_visual_obs_buffer)
+    // {
+    //     std::cout << cv::format("feat ts: %f, feat_id:  %d\n", x.first, x.second.feat_id);
+    //     // std::cout << "feat ts: " << x.first << std::endl;
+    //     std::cout << cv::format("feat obs: (%f, %f)\n", x.second.u_norm, x.second.v_norm);
+    // }
+    // std::cout << "--------------------" << std::endl;
+
     auto last_obs = feat->_visual_obs_buffer.end();
     last_obs--;
 
@@ -180,14 +212,16 @@ bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clo
     singularValues.resize(svd.singularValues().rows(), 1);
     singularValues = svd.singularValues();
     double condA = singularValues(0, 0) / singularValues(singularValues.rows() - 1, 0);
-
+    feat->_pwf = p_AinG + R_AtoG * paf;
     // If we have a bad condition number, or it is too close
     // Then set the flag for bad (i.e. set z-axis to nan)
+    int triang_failed_num = 0;
     if (std::abs(condA) > kMaxConditionNum || paf(2, 0) < kMinTriangDist || paf(2, 0) > kMaxTriangDist || std::isnan(paf.norm())) {
+        triang_failed_num++;
         return false;
     }
-    feat->_pwf = p_AinG + R_AtoG * paf;
 
+    std::cout << "triangulation failed num: " << triang_failed_num << std::endl;
     return true;
 }
 
@@ -287,7 +321,7 @@ bool VisualManager::pnp_ransac_to_reject_outliers(std::vector<Feature* > feats)
     cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64FC1);
     cv::solvePnPRansac(list_points3d, list_points2d,
                        intrinsic, distortion,
-                       rvec, tvec, false, 100, 3.f, 0.95,
+                       rvec, tvec, false, 100, 3.f, 0.8,
                        inliers, cv::SOLVEPNP_ITERATIVE);
 
     std::vector<int> inliers_id;
@@ -325,16 +359,44 @@ void VisualManager::feature_triangulation(std::vector<Feature* > feats, std::map
     // std::map<double, CameraPose> camera_pose_buffer = _state->access_clone_pose_buffer();
     _feature_mapping_success = 0;
 
-    for (auto it = feats.begin(); it != feats.end(); it++) {
+    // std::cout << "clone pose size: " << _state->_clone_pose.size() << std::endl;;
+    // for (auto it = camera_pose_buffer.begin(); it != camera_pose_buffer.end(); it++)
+    // {
+    //     std::cout << "ts: " << it->first << std::endl;
+    //     // std::cout << "pose q: " << it->second.Rwc << std::endl;
+    //     std::cout << "pose p: " << it->second.pwc.transpose() << std::endl;
+    //     std::cout << "------------------" << std::endl;
+    // }
+
+    // std::cout << "feat.size: " << feats.size() << std::endl;
+    // for (auto feat : feats)
+    // {
+    //     for (auto x : feat->_visual_obs_buffer)
+    //     {
+    //         std::cout << cv::format("feat ts: %f, feat_id:  %d\n", x.first, x.second.feat_id);
+    //         // std::cout << "feat ts: " << x.first << std::endl;
+    //         std::cout << cv::format("feat obs: (%f, %f)\n", x.second.u, x.second.v);
+    //     }
+    //     std::cout << "--------------------" << std::endl;
+    // }
+
+    int less_obs_delete = 0;
+    int triangulate_failed = 0;
+    int gaussian_newton_failed = 0;
+    for (auto it = feats.begin(); it != feats.end();) {
         if ((*it)->_visual_obs_buffer.size() < kMinFeatForMapping) {
             it = feats.erase(it);
+            less_obs_delete ++;
             continue;
         }
 
+        // if (1)
         if ((*it)->_is_triangulated == false)
         {
             if(false == least_square_triangulation(camera_pose_buffer, *it)) {
+                (*it)->_pwf.setZero();
                 it = feats.erase(it);
+                triangulate_failed ++;
                 continue;
             }
         }
@@ -344,9 +406,19 @@ void VisualManager::feature_triangulation(std::vector<Feature* > feats, std::map
             _feature_mapping_success ++;
         } else {
             it = feats.erase(it);
+            (*it)->_is_triangulated = false;
+            gaussian_newton_failed++;
             continue;
         }
+
+        it++;
     }
+
+    std::cout << "less obs failed: " << less_obs_delete << std::endl;
+    std::cout << "triangulated failed: " << triangulate_failed << std::endl;
+    std::cout << "gaussian_newton_failed: " << gaussian_newton_failed << std::endl;
+
+    // LOG(INFO) << cv::format("mapping success: %d", _feature_mapping_success);
 }
 
 bool VisualManager::construct_feature_jocabian_full(std::vector<Feature*> feats, Eigen::MatrixXd& Hx_full, Eigen::VectorXd &res)
@@ -372,7 +444,7 @@ bool VisualManager::construct_feature_jocabian_full(std::vector<Feature*> feats,
         total_hx += x.second->size();
     }
 
-    Hx_full.resize(2 * feats.size() * _state->_clone_pose.size(), total_hx);
+    Hx_full.resize(2 * feats.size() * _state->_clone_pose.size(), total_hx + 1);
     Hx_full.setZero();
 
     int rows_id = 0;
@@ -401,6 +473,7 @@ Eigen::MatrixXd VisualManager::get_single_feature_jacobian(Feature* feat, std::u
     int obs_size = 2 * feat->_visual_obs_buffer.size();
     Eigen::MatrixXd Hfx = Eigen::MatrixXd::Zero(obs_size, total_hx + kPwfDim + 1); // 3 feature dimension + total_hx + 1 residual
     Eigen::Vector3d p_finG = feat->_pwf;
+    std::cout << "pwf: " << feat->_pwf.transpose() << std::endl;
     int c = 0;
     for (auto& obs : feat->_visual_obs_buffer) {
         double obs_ts = obs.first;
@@ -409,11 +482,13 @@ Eigen::MatrixXd VisualManager::get_single_feature_jacobian(Feature* feat, std::u
         Eigen::Matrix3d R_IitoG = obs_pose->quat().toRotationMatrix();
         Eigen::Vector3d p_IiinG = obs_pose->p();
 
-        Eigen::Matrix3d R_ItoC = _state->_imu_to_cam_extrinsic->quat().toRotationMatrix();
-        Eigen::Vector3d p_IinC = _state->_imu_to_cam_extrinsic->p();
+        // Eigen::Matrix3d R_ItoC = _state->_imu_to_cam_extrinsic->quat().toRotationMatrix().transpose();
+        // Eigen::Vector3d p_IinC = _state->_imu_to_cam_extrinsic->p();
+        Eigen::Matrix3d R_CtoI = _state->_imu_to_cam_extrinsic->quat().toRotationMatrix();
+        Eigen::Vector3d p_CinI = _state->_imu_to_cam_extrinsic->p();
 
-        Eigen::Matrix3d R_CitoG = R_IitoG * R_ItoC.transpose();
-        Eigen::Vector3d p_CiinG = p_IiinG - R_CitoG * p_IinC;
+        Eigen::Matrix3d R_CitoG = R_IitoG * R_CtoI;
+        Eigen::Vector3d p_CiinG = p_IiinG + R_IitoG * p_CinI;
 
         Eigen::Vector3d p_finCi = R_CitoG.transpose() * (p_finG - p_CiinG);
 
@@ -422,6 +497,7 @@ Eigen::MatrixXd VisualManager::get_single_feature_jacobian(Feature* feat, std::u
         uv_norm << p_finCi.x() / p_finCi.z(), p_finCi.y() / p_finCi.z();
         Eigen::Vector2d res = zm - uv_norm;
         Hfx.block<2, 1>(2 * c, Hfx.cols() - 1) = res;
+        // std::cout << "res: " << res.transpose() << std::endl;
 
         // precompute dz_dpcf
         Eigen::MatrixXd dz_dpcf = Eigen::MatrixXd::Zero(2, 3);
@@ -435,58 +511,62 @@ Eigen::MatrixXd VisualManager::get_single_feature_jacobian(Feature* feat, std::u
         // get jacobian wrt extrinsic parameters
         if (_state->_do_calibration_update) {
             Eigen::MatrixXd dpcf_dcalib = Eigen::MatrixXd::Zero(3, 6);
-            dpcf_dcalib.block<3, 3>(0, 0) = -R_ItoC * mathematical::skew(R_IitoG.transpose() * (p_finG - p_IiinG));
-            dpcf_dcalib.block<3, 3>(0, 3) = Eigen::Matrix3d::Identity();
+            // dpcf_dcalib.block<3, 3>(0, 0) = -R_ItoC * mathematical::skew(R_IitoG.transpose() * (p_finG - p_IiinG));
+            dpcf_dcalib.block<3, 3>(0, 0) = mathematical::skew(p_finCi);
+            // dpcf_dcalib.block<3, 3>(0, 3) = Eigen::Matrix3d::Identity();
+            dpcf_dcalib.block<3, 3>(0, 3) = -R_CtoI.transpose();
             Hfx.block<2, 6>(2 * c, kPwfDim + map_hx.at(_state->_imu_to_cam_extrinsic)) = dz_dpcf * dpcf_dcalib;
         }
 
         // get jacobian wrt clone pose
         Eigen::MatrixXd dpcf_dclone = Eigen::MatrixXd::Zero(3, 6);
-        dpcf_dclone.block<3, 3>(0, 0) = R_ItoC * mathematical::skew(R_IitoG.transpose() * (p_finG - p_IiinG));
+        dpcf_dclone.block<3, 3>(0, 0) = R_CtoI.transpose() * mathematical::skew(R_IitoG.transpose() * (p_finG - p_IiinG));
         dpcf_dclone.block<3, 3>(0, 3) = -R_CitoG.transpose();
         Hfx.block<2, 6>(2 * c, kPwfDim + map_hx.at(obs_pose)) = dz_dpcf * dpcf_dclone;
+
+        c++;
 
         // // /*check the correctness of Hx*/
         // // check pwf
         // std::cout << "------------------------\n" << std::endl;
-        // Eigen::Vector3d dpwf(0.01, 0.01, 0.01);
+        // Eigen::Vector3d dpwf(0.1, 0.1, 0.1);
         // Eigen::Vector2d Hx_plus_dpwf = Hfx.block<2, 3>(2 * c, 0) * dpwf;
         // Eigen::Vector3d pcf_dpwf = R_CitoG.transpose() * (p_finG + dpwf - p_CiinG);
         // Eigen::Vector2d uv_dpwf(pcf_dpwf(0) / pcf_dpwf(2), pcf_dpwf(1) / pcf_dpwf(2));
         // std::cout << "uv_dpwf: " << (uv_dpwf - uv_norm - Hx_plus_dpwf).transpose() << std::endl;
 
-        // // check R_ItoC
-        // Eigen::Vector3d dR_ItoC(0.01, 0.01, 0.01);
-        // Eigen::Vector2d Hx_plus_dR_ItoC = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(_state->_imu_to_cam_extrinsic)) * dR_ItoC;
-        // Eigen::Matrix3d dR_ItoC_mat = Eigen::Matrix3d::Identity() + mathematical::skew(dR_ItoC.head(3));
-        // Eigen::Matrix3d R_CitoG_hat = R_IitoG * (R_ItoC * dR_ItoC_mat).transpose();
-        // Eigen::Vector3d p_CiinG_hat = p_IiinG - R_CitoG_hat * p_IinC;
-        // Eigen::Vector3d pcf_dR_ItoC = R_CitoG_hat.transpose() * (p_finG - p_CiinG_hat);
+        // // check R_CtoI
+        // Eigen::Vector3d dR_CtoI(0.1, 0.1, 0.1);
+        // Eigen::Vector2d Hx_plus_dR_ItoC = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(_state->_imu_to_cam_extrinsic)) * dR_CtoI;
+        // Eigen::Matrix3d dR_CtoI_mat = Eigen::Matrix3d::Identity() + mathematical::skew(dR_CtoI.head(3));
+        // Eigen::Matrix3d R_CitoG_hat = R_IitoG * dR_CtoI_mat;
+        // // Eigen::Vector3d p_CiinG = p_IiinG - R_IitoG * p_CinI;
+        // Eigen::Vector3d pcf_dR_ItoC = R_CitoG_hat.transpose() * (p_finG - p_CiinG);
         // Eigen::Vector2d uv_dR_ItoC(pcf_dR_ItoC(0) / pcf_dR_ItoC(2), pcf_dR_ItoC(1) / pcf_dR_ItoC(2));
         // std::cout << "uv_dR_ItoC: " << (uv_dR_ItoC - uv_norm - Hx_plus_dR_ItoC).transpose() << std::endl;
 
         // // check p_IinC
-        // Eigen::Vector3d dp_IinC(0.01, 0.01, 0.01);
-        // Eigen::Vector2d Hx_plus_dp_IinC = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(_state->_imu_to_cam_extrinsic) + 3) * dp_IinC;
-        // p_CiinG_hat = p_IiinG - R_CitoG * (p_IinC + dp_IinC);
+        // Eigen::Vector3d dp_CinI(0.1, 0.1, 0.1);
+        // Eigen::Vector2d Hx_plus_dp_IinC = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(_state->_imu_to_cam_extrinsic) + 3) * dp_CinI;
+        // Eigen::Vector3d p_CiinG_hat = p_IiinG + R_IitoG * (p_CinI + dp_CinI);
         // Eigen::Vector3d pcf_dp_ItoC = R_CitoG.transpose() * (p_finG - p_CiinG_hat);
         // Eigen::Vector2d uv_dp_ItoC(pcf_dp_ItoC(0) / pcf_dp_ItoC(2), pcf_dp_ItoC(1) / pcf_dp_ItoC(2));
         // std::cout << "uv_dp_ItoC: " << (uv_dp_ItoC - uv_norm - Hx_plus_dp_IinC).transpose() << std::endl;
 
         // // check clone_R
-        // Eigen::Vector3d dR_ItoG(0.01, 0.01, 0.01);
+        // Eigen::Vector3d dR_ItoG(0.1, 0.1, 0.1);
         // Eigen::Vector2d Hx_plus_dR_ItoG = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(obs_pose)) * dR_ItoG;
         // Eigen::Matrix3d dR_ItoG_mat = Eigen::Matrix3d::Identity() + mathematical::skew(dR_ItoG.head(3));
-        // R_CitoG_hat = R_IitoG * dR_ItoG_mat * R_ItoC.transpose();
-        // p_CiinG_hat = p_IiinG - R_CitoG_hat * p_IinC;
-        // Eigen::Vector3d pcf_dR_ItoG = R_CitoG_hat.transpose() * (p_finG - p_CiinG_hat);
+        // Eigen::Matrix3d R_IitoG_hat = R_IitoG * dR_ItoG_mat;
+        // p_CiinG_hat = p_IiinG + R_IitoG_hat * p_CinI;
+        // Eigen::Vector3d pcf_dR_ItoG = (R_IitoG * dR_ItoG_mat * R_CtoI).transpose() * (p_finG - p_CiinG_hat);
         // Eigen::Vector2d uv_dR_ItoG(pcf_dR_ItoG(0) / pcf_dR_ItoG(2), pcf_dR_ItoG(1) / pcf_dR_ItoG(2));
         // std::cout << "uv_dR_ItoG: " << (uv_dR_ItoG - uv_norm - Hx_plus_dR_ItoG).transpose() << std::endl;
 
         // // check clone_p
-        // Eigen::Vector3d dp_IinG(0.01, 0.01, 0.01);
+        // Eigen::Vector3d dp_IinG(0.1, 0.1, 0.1);
         // Eigen::Vector2d Hx_plus_dp_IinG = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(obs_pose) + 3) * dp_IinG;
-        // p_CiinG_hat = p_IiinG + dp_IinG - R_CitoG * p_IinC;
+        // p_CiinG_hat = p_IiinG + dp_IinG + R_IitoG * p_CinI;
         // Eigen::Vector3d pcf_dp_IinG = R_CitoG.transpose() * (p_finG - p_CiinG_hat);
         // Eigen::Vector2d uv_dp_IinG(pcf_dp_IinG(0) / pcf_dp_IinG(2), pcf_dp_IinG(1) / pcf_dp_IinG(2));
         // std::cout << "uv_dp_IinG: " << (uv_dp_IinG - uv_norm - Hx_plus_dp_IinG).transpose() << std::endl;

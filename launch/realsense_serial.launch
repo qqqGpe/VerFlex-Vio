@@ -10,8 +10,8 @@
     <arg name="max_cameras" default="1" />
     <arg name="use_stereo"  default="false" />
     <arg name="bag_start"   default="0" /> <!-- v1-2: 0, mh1: 40, mh2: 35, mh3: 17.5, mh4-5: 15 -->
-    <arg name="dataset"     default="MH_02_easy" /> <!-- V1_01_easy, V1_02_medium, V1_03_difficult, V2_02_medium, dataset-room1_512_16 -->
-    <arg name="bag"         default="/media/gao/samsung/dataset/euroc_mav/$(arg dataset).bag" />
+    <arg name="dataset"     default="realsense_imu_only_2024-09-08-23-16-51" /> <!-- V1_01_easy, V1_02_medium, V1_03_difficult, V2_02_medium, dataset-room1_512_16 -->
+    <arg name="bag"         default="/home/gao/$(arg dataset).bag" />
 
     <!-- saving trajectory path and timing information -->
     <arg name="dosave"      default="false" />
@@ -35,8 +35,8 @@
 
         <!-- bag parameters -->
         <param name="path_bag"                 type="str"    value="$(arg bag)" />
-        <param name="bag_start"                type="double" value="25" />
-        <param name="bag_durr"                 type="int"    value="20" />
+        <param name="bag_start"                type="double" value="0" />
+        <param name="bag_durr"                 type="int"    value="-1" />
 
         <param name="img_width"                type="int"    value="752" />
         <param name="img_height"               type="int"    value="480" />
@@ -67,32 +67,9 @@
         <param name="gravity_magn"              type="double" value="9.81" />
 
         <rosparam param="camera_topic">   ["/cam0/image_raw", "/cam1/image_raw"]   </rosparam>
-        <param name="imu_topic"         type="str"    value="/imu0" />
+        <param name="imu_topic"         type="str"    value="/camera/imu" />
 
     </node>
-
-    <!-- <node name="frontend_recoreder" pkg="rosbag" type="record" args="/vio_frontend/vio_frontend_feat_0 -o $(find vio_frontend)/rosbag/features.bag"/> -->
-
-    <!-- record the trajectory if enabled -->
-    <!-- <group if="$(arg dosave)">
-        <node name="recorder_estimate" pkg="ov_eval" type="pose_to_file" output="screen" required="true">
-            <param name="topic"      type="str" value="/ov_msckf/poseimu" />
-            <param name="topic_type" type="str" value="PoseWithCovarianceStamped" />
-            <param name="output"     type="str" value="$(arg path_est)" />
-        </node>
-    </group> -->
-
-    <!-- path viz of aligned gt -->
-    <!-- <group if="$(arg dolivetraj)">
-        <node name="live_align_trajectory" pkg="ov_eval" type="live_align_trajectory" output="log" clear_params="true">
-            <param name="alignment_type" type="str" value="posyaw" />
-            <param name="path_gt"        type="str" value="$(arg path_gt)" />
-        </node>
-    </group> -->
-
-    <!-- <group if="$(arg visualize)">
-        <node pkg="rviz" type="rviz" name="rviz" args="-d $(find ov_msckf)/launch/display.rviz"/>
-    </group> -->
 
 
 </launch>

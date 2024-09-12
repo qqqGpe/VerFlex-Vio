@@ -14,6 +14,12 @@
 #include "state.h"
 #include "visualManager.h"
 
+class VioManager;
+
+void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager);
+
+void backend_task_entry(VioManager* vio);
+
 class VioManager {
 public:
     VioManager() = default;
@@ -22,7 +28,7 @@ public:
         state = std::make_shared<State>();
         initializer = std::make_shared<Initializer>();
         _camera_model_0 = std::make_shared<CameraModel>(CameraType::PINHOLE, params);
-        _imu_manager = std::make_shared<ImuManager>(params);
+        _imu_manager = std::make_shared<ImuManager>(params, state);
         _visual_manager = std::make_shared<VisualManager>(params, state, _camera_model_0);
 
         // set camera extrinsic coeff
@@ -54,7 +60,3 @@ public:
     boost::posix_time::ptime vio_rT, vio_rT1, vio_rT2, vio_rT3, vio_rT4;
     boost::posix_time::ptime pro_rT, pro_rT1, pro_rT2, pro_rT3, pro_rT4;
 };
-
-void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager);
-
-void backend_task_entry(VioManager* vio);

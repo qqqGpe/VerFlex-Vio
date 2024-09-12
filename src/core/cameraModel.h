@@ -44,7 +44,11 @@ public:
 
     Eigen::Vector2d project(Eigen::Vector3d p3d_norm);
 
-    Eigen::Vector3d back_project(Eigen::Vector2d uv_2d);
+    Eigen::Vector3d back_project(Eigen::Vector2d uv_2d)
+    {
+        Eigen::Vector3d feat_norm((uv_2d.x() - _K(0, 2)) / _K(0, 0), (uv_2d.y() - _K(1, 2)) / _K(1, 1), 1.0);
+        return feat_norm;
+    }
 
     Eigen::Matrix3d intrinsic() { return _K; }
 

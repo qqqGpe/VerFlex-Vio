@@ -208,8 +208,9 @@ bool VioFrontend::track(const std::pair<double, cv::Mat>& input_image, std::pair
 
     frontend_rT3 = boost::posix_time::microsec_clock::local_time();
     // add new features to ref_feat_to_track
-    // if (*_keyframe != keyframe_flag_e::not_keyframe || is_first_frame) { // debug always keyframe
-    if (1) { // debug: always keyframe
+    // std::cout << cv::format("keyframe: %d", static_cast<int>(*_keyframe));
+    if (*_keyframe != keyframe_flag_e::not_keyframe || is_first_frame) { // debug always keyframe
+    // if (1) { // debug: always keyframe
         std::deque<cam_obs_t> feats_new;
         std::vector<cv::Point2f> corners;
         cv::goodFeaturesToTrack(cur_frame.second, corners, _max_feat_n, 0.01, 30);
