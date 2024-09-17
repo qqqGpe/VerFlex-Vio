@@ -13,6 +13,7 @@
 #include "sensor_data.h"
 #include "state.h"
 #include "visualManager.h"
+#include "logger.h"
 
 class VioManager;
 
@@ -30,6 +31,7 @@ public:
         _camera_model_0 = std::make_shared<CameraModel>(CameraType::PINHOLE, params);
         _imu_manager = std::make_shared<ImuManager>(params, state);
         _visual_manager = std::make_shared<VisualManager>(params, state, _camera_model_0);
+        vio_logger = std::make_shared<utils::Logger>(params.log_path);
 
         // set camera extrinsic coeff
         Eigen::Quaterniond qic(params.Ric[0]);
@@ -56,6 +58,7 @@ public:
     std::shared_ptr<ImuManager> _imu_manager;
     std::shared_ptr<VisualManager> _visual_manager;
     std::shared_ptr<CameraModel> _camera_model_0;
+    std::shared_ptr<utils::Logger> vio_logger;
 
     boost::posix_time::ptime vio_rT, vio_rT1, vio_rT2, vio_rT3, vio_rT4;
     boost::posix_time::ptime pro_rT, pro_rT1, pro_rT2, pro_rT3, pro_rT4;

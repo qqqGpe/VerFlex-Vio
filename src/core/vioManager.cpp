@@ -98,6 +98,8 @@ void VioManager::process_measurememt_once()
 
     while(!_visual_manager->_input_image_buffer.empty())
     {
+        utils::LogValue log_value;
+
         vio_rT = boost::posix_time::microsec_clock::local_time();
         std::pair<double, cv::Mat> image_data = _visual_manager->_input_image_buffer.front();
         _visual_manager->_input_image_buffer.pop();
@@ -163,8 +165,20 @@ void VioManager::process_measurememt_once()
             // LOG(INFO) << cv::format("visual update duration: %f", visual_update_duration);
         }
 
-        LOG(INFO) << "p: " << state->_imu_state->p()->vec();
-        LOG(INFO) << "v: " << state->_imu_state->v()->vec();
+        // LOG(INFO) << "p: " << state->_imu_state->p()->vec();
+        // LOG(INFO) << "v: " << state->_imu_state->v()->vec();
+        log_value.timestamp = feature_observes.first;
+        log_value.px = state->_imu_state->p()->vec().x();
+        log_value.py = state->_imu_state->p()->vec().y();
+        log_value.pz = state->_imu_state->p()->vec().z();
+        log_value.vx = state->_imu_state->v()->vec().x();
+        log_value.vy = state->_imu_state->v()->vec().y();
+        log_value.vz = state->_imu_state->v()->vec().z();
+
+        Eigen::Vector3d euler_angle = mathematical::rotation_matrix_to_euler_angles(state->_imu_state->q()->Rot());
+        log_value.roll = euler_angle.x();
+        log_value.pitch = euler_angle.y();
+        log_value.yaw = euler_angle.z();
     }
 }
 

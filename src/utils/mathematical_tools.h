@@ -44,6 +44,18 @@ static void nullspace_project_inplace(Eigen::MatrixXd &Hfx, int cols) {
   }
 }
 
+inline static Eigen::Vector3d rotation_matrix_to_euler_angles(const Eigen::Matrix3d& R)
+{
+    //euler (Z-Y-X，i.e. RPY) make sure in range [-pi/2, pi/2]
+    Eigen::Vector3d euler_angle;
+    Eigen::Matrix3d rot = R;
+   euler_angle(0) = std::atan2(rot(2, 1), rot(2, 2));
+   euler_angle(1) = std::atan2(-rot(2, 0), std::sqrt(rot(2, 1) * rot(2, 1) + rot(2, 2) * rot(2, 2)));
+   euler_angle(2) = std::atan2(rot(1, 0), rot(0, 0));
+
+    return euler_angle;
+}
+
 };
 
 

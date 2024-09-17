@@ -7,7 +7,6 @@
 
 #include "core/parameter.h"
 #include "core/vioManager.h"
-#include "utils/logger.h"
 
 int main(int argc, char** argv)
 {
@@ -18,8 +17,6 @@ int main(int argc, char** argv)
     // load vio_backend parameters
     Param params(nh);
     params.load_params();
-
-    utils::Logger logger(params.log_path);
 
     // set log level
     fLI::FLAGS_stderrthreshold = params.log_level;  // 0: info, 1: warning, 2: error, 3: fatal
