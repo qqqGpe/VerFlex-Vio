@@ -101,5 +101,12 @@ target_link_libraries(test_pnp_ransac
                       ${thirdparty_libraries})
 
 add_executable(test_rotation_matrix_to_euler src/test_rotation_matrix_to_euler.cpp)
+
+add_executable(test_show_mat src/test_mat_show.cpp)
+target_link_libraries(test_show_mat
+                      CORE_LIB
+                      ${catkin_LIBRARIES}
+                      ${thirdparty_libraries}
+)
 # target_link_libraries(test_rotation_matrix_to_euler
 #                       ${thirdparty_libraries})

@@ -168,6 +168,7 @@ public:
             file << log_value.sigma_vz << ", ";
             file << log_value.sigma_roll << ", ";
             file << log_value.sigma_pitch << ", ";
+            file << log_value.sigma_yaw << ", ";
             file << log_value.sigma_bias_acc_x << ", ";
             file << log_value.sigma_bias_acc_y << ", ";
             file << log_value.sigma_bias_acc_z << ", ";

@@ -2,9 +2,13 @@
 #define __UTILS__
 
 #include "sensor_data.h"
-#include <glog/logging.h>
 #include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.h>
+#include <opencv2/opencv.hpp>
+
+
+#define RAD2DEG 180 / M_PI
+#define DEG2RAD M_PI / 180
 
 class Utils {
 public:
@@ -14,7 +18,7 @@ public:
         try {
             cv_ptr = cv_bridge::toCvShare(msg, sensor_msgs::image_encodings::MONO8);
         } catch (cv_bridge::Exception& e) {
-            LOG(ERROR) << "cv_bridge exception: " << e.what();
+            std::cerr << e.what() << std::endl;
             return false;
         }
         cv::Mat image = cv_ptr->image.clone();
@@ -41,6 +45,33 @@ public:
         cv::imshow("feat_to_track", image_to_show);
         // cv::imwrite("/home/gao/ws/catkin_vio_ws/src/vio/figure/feature_to_track.png", image_to_show);
         cv::waitKey(1);
+    }
+
+    static void show_eigen_matrix(const Eigen::MatrixXd matrix, const std::string win_name)
+    {
+        constexpr int kBlockSize = 20;
+        int rows = matrix.rows();
+        int cols = matrix.cols();
+
+        int image_width = cols * kBlockSize;
+        int image_height = rows * kBlockSize;
+
+        cv::Mat image(image_height, image_width, CV_8UC1);
+
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                uint32_t mag = 20 * log10(abs(matrix(i, j)) / 1e-8);
+                mag = (mag > 255) ? 254 : mag;
+                mag = (mag < 0) ? 0 : mag;
+                for (int w = 0; w < kBlockSize; w++){
+                    for (int h = 0; h < kBlockSize; h++) {
+                        image.at<uchar>(i * kBlockSize + w, j * kBlockSize + h) = mag;
+                    }
+                }
+            }
+        }
+        cv::imshow(win_name, image);
+        cv::waitKey(0);
     }
 };
 
