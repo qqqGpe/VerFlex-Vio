@@ -87,15 +87,6 @@ void VioManager::process_measurememt_once()
         }
     }
 
-    // if (_imu_manager->static_status())
-    // {
-    //     _imu_manager->zupt_update(state);   // zero velocity update
-    //     std::cout << "zupt updated" << std::endl;
-    //     std::cout << "ba: " << state->_imu_state->ba()->vec().transpose() << std::endl;
-    //     std::cout << "bg: " << state->_imu_state->bg()->vec().transpose() << std::endl;
-    //     return;
-    // }
-
     while(!_visual_manager->_input_image_buffer.empty())
     {
         utils::LogValue log_value;
@@ -103,74 +94,77 @@ void VioManager::process_measurememt_once()
         bool zupt_updated = false;
 
         vio_rT = boost::posix_time::microsec_clock::local_time();
-        std::pair<double, cv::Mat> image_data = _visual_manager->_input_image_buffer.front();
-        _visual_manager->_input_image_buffer.pop();
-        std::pair<double, std::vector<cam_obs_t>> feature_observes;
 
-        if (image_data.first < state->ts_sec())
+        if (_visual_manager->_input_image_buffer.front().first >= _imu_manager->_imu_latest_timestamp - 0.1)
         {
+            LOG(ERROR) << cv::format("Latest input image timestamp: %f, is later than latest imu timestamp: %f, wating for imu data",
+                                     _visual_manager->_input_image_buffer.front().first, _imu_manager->_imu_latest_timestamp - 0.1);
+            break;
+        }
+
+        if (_visual_manager->_input_image_buffer.front().first < state->ts_sec()) {
             LOG(ERROR) << cv::format("Input image ts: %f, is older than current state ts: %f, skip current image",
-                                     image_data.first, state->ts_sec());
-            while(_visual_manager->_input_image_buffer.front().first < state->ts_sec())
-            {
+                _visual_manager->_input_image_buffer.front().first, state->ts_sec());
+            while (!_visual_manager->_input_image_buffer.empty() && _visual_manager->_input_image_buffer.front().first < state->ts_sec()) {
                 _visual_manager->_input_image_buffer.pop();
             }
             continue;
         }
 
-        if (!_visual_manager->vio_frontend->track(image_data, feature_observes))
-        {
-            LOG(INFO) << "frontend tracking failed";
-            continue;
-        }
-
-        vio_rT1 = boost::posix_time::microsec_clock::local_time();
-        if (!propagate_state_and_covariance(state, feature_observes.first))
-        {
-            LOG(INFO) << "state propagation failed!";
-            continue;
-        }
-        vio_rT2 = boost::posix_time::microsec_clock::local_time();
+        std::pair<double, cv::Mat> image_data = _visual_manager->_input_image_buffer.front();
+        _visual_manager->_input_image_buffer.pop();
 
         if (_imu_manager->static_status())
         {
-            _imu_manager->zupt_update(state);   // zero velocity update
+            propagate_state_and_covariance(state, _imu_manager->_imu_latest_timestamp - 0.1);
+            _imu_manager->zupt_update(state);
             zupt_updated = true;
             std::cout << "zupt updated" << std::endl;
-            // std::cout << "ba: " << state->_imu_state->ba()->vec().transpose() << std::endl;
-            // std::cout << "bg: " << state->_imu_state->bg()->vec().transpose() << std::endl;
         }
-        else
-        {
-            // pro_rT = boost::posix_time::microsec_clock::local_time();
-            state->stochastic_clone(state->_imu_state->pose());
-            // pro_rT1 = boost::posix_time::microsec_clock::local_time();
+        else {
+            // std::pair<double, std::vector<cam_obs_t>> feature_observes;
+            // if (!_visual_manager->vio_frontend->track(image_data, feature_observes))
+            // {
+            //     LOG(INFO) << "frontend tracking failed";
+            //     continue;
+            // }
 
-            // double stochastic_clone_duration = (pro_rT1 - pro_rT).total_microseconds() * 1e-6;
-            // LOG(WARNING) << cv::format("stochastic clone cost time: %lf", stochastic_clone_duration);
+            // vio_rT1 = boost::posix_time::microsec_clock::local_time();
+            // if (!propagate_state_and_covariance(state, feature_observes.first))
+            // {
+            //     LOG(INFO) << "state propagation failed!";
+            //     continue;
+            // }
+            // vio_rT2 = boost::posix_time::microsec_clock::local_time();
 
-            _visual_manager->reset_keyframe();
-            _visual_manager->update_feature(feature_observes);  // visual update
+            // // pro_rT = boost::posix_time::microsec_clock::local_time();
+            // state->stochastic_clone(state->_imu_state->pose());
+            // // pro_rT1 = boost::posix_time::microsec_clock::local_time();
 
-            vio_rT3 = boost::posix_time::microsec_clock::local_time();
+            // // double stochastic_clone_duration = (pro_rT1 - pro_rT).total_microseconds() * 1e-6;
+            // // LOG(WARNING) << cv::format("stochastic clone cost time: %lf", stochastic_clone_duration);
 
-            _visual_manager->visual_update();
-            visual_updated = true;
-            vio_rT4 = boost::posix_time::microsec_clock::local_time();
+            // _visual_manager->reset_keyframe();
+            // _visual_manager->update_feature(feature_observes);  // visual update
 
-            double frontend_tracking_duration = (vio_rT1 - vio_rT).total_microseconds() * 1e-6;
-            double update_feature_duration = (vio_rT2 - vio_rT1).total_microseconds() * 1e-6;
-            double propagate_duration = (vio_rT3 - vio_rT2).total_microseconds() * 1e-6;
-            double visual_update_duration = (vio_rT4 - vio_rT3).total_microseconds() * 1e-6;
+            // vio_rT3 = boost::posix_time::microsec_clock::local_time();
+
+            // _visual_manager->visual_update();
+            // visual_updated = true;
+            // vio_rT4 = boost::posix_time::microsec_clock::local_time();
+
+            // double frontend_tracking_duration = (vio_rT1 - vio_rT).total_microseconds() * 1e-6;
+            // double update_feature_duration = (vio_rT2 - vio_rT1).total_microseconds() * 1e-6;
+            // double propagate_duration = (vio_rT3 - vio_rT2).total_microseconds() * 1e-6;
+            // double visual_update_duration = (vio_rT4 - vio_rT3).total_microseconds() * 1e-6;
             // LOG(INFO) << cv::format("frontend tracking duration: %f", frontend_tracking_duration);
             // LOG(INFO) << cv::format("update obs feature duration: %f", update_feature_duration);
             // LOG(INFO) << cv::format("propagate state duration: %f", propagate_duration);
             // LOG(INFO) << cv::format("visual update duration: %f", visual_update_duration);
+
         }
 
-        // LOG(INFO) << "p: " << state->_imu_state->p()->vec();
-        // LOG(INFO) << "v: " << state->_imu_state->v()->vec();
-        log_value.timestamp = feature_observes.first;
+        log_value.timestamp = state->_imu_state->ts();
         log_value.px = state->_imu_state->p()->vec().x();
         log_value.py = state->_imu_state->p()->vec().y();
         log_value.pz = state->_imu_state->p()->vec().z();
@@ -221,13 +215,12 @@ void VioManager::camera_callback(const sensor_msgs::ImageConstPtr& msg)
 bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, double ts)
 {
     if (ts <= state->_imu_state->ts()) {
-        LOG(WARNING) << cv::format("curent timestamp: %f, must be later than imu_state ts: %f", ts, state->_imu_state->ts());
+        LOG(WARNING) << cv::format("curent state timestamp: %f, must be later than imu_state ts: %f", ts, state->_imu_state->ts());
         return false;
     }
     std::vector<ImuData> imu_data = _imu_manager->access_interval_imu_measurment(state->_imu_state->ts(), ts);
-    if (imu_data.back().ts_sec != ts)
-    {
-        LOG(WARNING) << cv::format("wait for imu data, current image ts: %f, latest imu ts: %f", ts, imu_data.back().ts_sec);
+    if (imu_data.empty() || imu_data.back().ts_sec < ts) {
+        LOG(WARNING) << cv::format("wait for imu data, current state timestamp: %f but latest imu ts: %f", state->ts_sec(), _imu_manager->_imu_latest_timestamp - 0.1);
         return false;
     }
     // std::cout << "imu data size: " << imu_data.size() << std::endl;

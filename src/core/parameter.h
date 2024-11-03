@@ -50,6 +50,9 @@ public:
 
         _nh->param<double>("gravity_magn", gravity_magn, 9.81);
 
+        _nh->param<double>("imu_acc_var_static_thres", imu_acc_var_static_thres, 0.5);
+        _nh->param<double>("imu_gyro_static_thres", imu_gyro_static_thres, 0.5);
+
         Ric.resize(camera_num, Eigen::Matrix3d::Identity());
         tic.resize(camera_num, Eigen::Vector3d::Zero());
 
@@ -73,6 +76,8 @@ public:
     int max_clone_pose;
     int img_width, img_height;
     double gravity_magn;
+    double imu_acc_var_static_thres;
+    double imu_gyro_static_thres;
 
     std::string log_path;
     std::string path_bag;

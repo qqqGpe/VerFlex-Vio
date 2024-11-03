@@ -25,17 +25,19 @@ void VisualManager::visual_update()
 
     feature_triangulation(_feature_tracked, camera_pose_buffer);
 
-    if (_feature_mapping_success > kMinFeatToUpdate)
-    {
-        // pnp_ransac_to_reject_outliers(_feature_tracked);
+    calculate_feature_parallex(_feature_tracked);
 
+    std::vector<Feature*> feat_msckf = select_msckf_features(_feature_tracked);
+
+    if (feat_msckf.size() > kMinFeatToUpdate)
+    {
+        // pnp_ransac_to_reject_outliers(feat_msckf);
         Eigen::MatrixXd Hx_msckf;
         Eigen::VectorXd res;
-        construct_feature_jocabian_full(_feature_tracked, Hx_msckf, res);
-        std::cout << "res: " << res.transpose() << std::endl;
+        construct_feature_jocabian_full(feat_msckf, Hx_msckf, res);
         Eigen::MatrixXd R = Eigen::MatrixXd::Identity(Hx_msckf.rows(), Hx_msckf.rows());
 
-        if (_feature_tracked.size() >= kMinFeatToUpdate && _state->_clone_pose.size() == _max_clone_pose) {
+        if (feat_msckf.size() >= kMinFeatToUpdate && _state->_clone_pose.size() == _max_clone_pose) {
             eskfSolver::update(_state, Hx_msckf, res, _Hx_order, _map_hx, R);
         }
         std::cout << "---------------------------" << std::endl;
@@ -44,11 +46,11 @@ void VisualManager::visual_update()
     }
     else
     {
-        LOG(INFO) << cv::format("Not enough features to update, features_tracked: %d, feature mapping success: %d", int(_feature_tracked.size()), _feature_mapping_success);
+        LOG(INFO) << cv::format("Not enough features to update, features_msckf: %d, feature mapping success: %d", int(feat_msckf.size()), _feature_mapping_success);
     }
 
     std::shared_ptr<Type> state_to_marginalize = nullptr;
-    _keyframe = decide_keyframe(_state, _feature_tracked);
+    _keyframe = decide_keyframe(_state, feat_msckf);
     if (_keyframe != keyframe_flag_e::not_keyframe)
     {
         state_to_marginalize = _state->_clone_pose.begin()->second;
@@ -221,7 +223,7 @@ bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clo
         return false;
     }
 
-    std::cout << "triangulation failed num: " << triang_failed_num << std::endl;
+    // std::cout << "triangulation failed num: " << triang_failed_num << std::endl;
     return true;
 }
 
@@ -240,8 +242,8 @@ bool VisualManager::gaussian_newton_optimization(std::map<double, CameraPose>& c
     double alpha = paf.x() / paf.z();
     double beta = paf.y() / paf.z();
     double rho = 1 / paf.z();
-    int iter_time = kMaxIterationTimes;
-    while (iter_time > 0) {
+    int iter_time = 0;
+    while (iter_time < kMaxIterationTimes) {
         Eigen::Matrix3d ATA = Eigen::Matrix3d::Zero();
         Eigen::Vector3d ATb = Eigen::Vector3d::Zero();
         for (auto it = feat->_visual_obs_buffer.begin(); it != feat->_visual_obs_buffer.end(); it++) {
@@ -285,12 +287,17 @@ bool VisualManager::gaussian_newton_optimization(std::map<double, CameraPose>& c
         alpha += delta_x.x();
         beta += delta_x.y();
         rho += delta_x.z();
-        iter_time--;
+        iter_time ++;
     }
 
     Eigen::Vector3d paf_opt;
     paf_opt << alpha/rho, beta/rho, 1/rho;
     feat->_pwf = p_AinG + R_AtoG * paf_opt;
+
+    if (feat->_pwf.norm() > 50 || iter_time == kMaxIterationTimes)
+    {
+        return false;
+    }
 
     return true;
 }
@@ -421,13 +428,47 @@ void VisualManager::feature_triangulation(std::vector<Feature* > feats, std::map
     // LOG(INFO) << cv::format("mapping success: %d", _feature_mapping_success);
 }
 
+void VisualManager::calculate_feature_parallex(std::vector<Feature *> feats)
+{
+    for (auto it = feats.begin(); it != feats.end(); it++)
+    {
+        auto first_obv = (*it)->_visual_obs_buffer.begin();
+        auto last_obv = (*it)->_visual_obs_buffer.end(); last_obv--;
+        double dx = first_obv->second.u - last_obv->second.u;
+        double dy = first_obv->second.v - last_obv->second.v;
+        double cur_parallex = sqrt(dx * dx + dy * dy);
+        if (cur_parallex > (*it)->parallex)
+        {
+            (*it)->parallex = cur_parallex;
+        }
+    }
+}
+
+std::vector<Feature*> VisualManager::select_msckf_features(std::vector<Feature*> feats)
+{
+    constexpr double kMinParallexForUse = 2.0;
+    std::vector<Feature*> feat_msckf;
+    for (int i = 0; i < feats.size(); i++) {
+        if (feats[i]->_is_triangulated && feats[i]->parallex > kMinParallexForUse) {
+            feat_msckf.push_back(feats[i]);
+        }
+    }
+
+    if (feat_msckf.size() > _max_visual_feat_to_use) {
+        std::sort(feat_msckf.begin(), feat_msckf.end(), [](Feature* feat_a, Feature* feat_b) { return feat_a->parallex > feat_b->parallex; });
+        feat_msckf.resize(_max_visual_feat_to_use);
+    }
+
+    return feat_msckf;
+}
+
 bool VisualManager::construct_feature_jocabian_full(std::vector<Feature*> feats, Eigen::MatrixXd& Hx_full, Eigen::VectorXd &res)
 {
-    constexpr size_t kMinFeatsToUpdate = 15;
-    if (feats.size() < kMinFeatsToUpdate) {
-        LOG(INFO) << cv::format("Too few features to update, feature size: %d", int(feats.size()));
-        return false;
-    }
+    // constexpr size_t kMinFeatsToUpdate = 15;
+    // if (feats.size() < kMinFeatsToUpdate) {
+    //     LOG(INFO) << cv::format("Too few features to update, feature size: %d", int(feats.size()));
+    //     return false;
+    // }
 
     _map_hx.clear();
     _Hx_order.clear();
@@ -458,10 +499,17 @@ bool VisualManager::construct_feature_jocabian_full(std::vector<Feature*> feats,
     Hx_full.conservativeResize(rows_id, Hx_full.cols());
 
     // measurements compression
-    mathematical::nullspace_project_inplace(Hx_full, Hx_full.cols() - 1);
-    res.resize(Hx_full.cols() - 1, 1);
-    res = Hx_full.block(0, Hx_full.cols() - 1, Hx_full.cols() - 1, 1);
-    Hx_full.conservativeResize(Hx_full.cols() - 1, Hx_full.cols() - 1);
+    if (Hx_full.rows() > Hx_full.cols()) {
+        mathematical::nullspace_project_inplace(Hx_full, Hx_full.cols() - 1);
+        res.resize(Hx_full.cols() - 1, 1);
+        res = Hx_full.block(0, Hx_full.cols() - 1, Hx_full.cols() - 1, 1);
+        Hx_full.conservativeResize(Hx_full.cols() - 1, Hx_full.cols() - 1);
+    }
+    else {
+        res.resize(Hx_full.rows(), 1);
+        res = Hx_full.block(0, Hx_full.cols() - 1, Hx_full.rows(), 1);
+        Hx_full.conservativeResize(Hx_full.rows(), Hx_full.cols() - 1);
+    }
 
     return true;
 }

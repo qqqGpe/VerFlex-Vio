@@ -6,8 +6,11 @@ namespace {
 }
 
 void Initializer::feed_imu_measurement(const ImuData & data) {
+    if (!imu_data.empty() && data.ts_sec <= imu_data.back().ts_sec)
+    {
+        return;
+    }
     imu_data.push_back(data);
-    std::sort(imu_data.begin(), imu_data.end());
     while (imu_data.size() > kInitializeImuQueSize)
     {
         imu_data.pop_front();
@@ -16,12 +19,23 @@ void Initializer::feed_imu_measurement(const ImuData & data) {
 
 // Gram-Schmidt正交化
 Eigen::Matrix3d Initializer::Gram_Schmidt(const Eigen::Vector3d &gravity_inI) {
-    Eigen::Vector3d e1(0, 1.0, 0);
-    Eigen::Vector3d z_axis = -gravity_inI.normalized();
-    Eigen::Vector3d x_axis = z_axis.cross(e1);
-    x_axis = x_axis.eval().normalized();
-    Eigen::Vector3d y_axis = z_axis.cross(x_axis);
-    y_axis = y_axis.eval().normalized();
+    Eigen::Vector3d z_axis = -gravity_inI / gravity_inI.norm();
+    Eigen::Vector3d x_axis, y_axis;
+    Eigen::Vector3d e_1(1.0, 0.0, 0.0);
+    Eigen::Vector3d e_2(0.0, 1.0, 0.0);
+    double inner1 = e_1.dot(z_axis) / z_axis.norm();
+    double inner2 = e_2.dot(z_axis) / z_axis.norm();
+    if (fabs(inner1) < fabs(inner2)) {
+      x_axis = z_axis.cross(e_1);
+      x_axis = x_axis / x_axis.norm();
+      y_axis = z_axis.cross(x_axis);
+      y_axis = y_axis / y_axis.norm();
+    } else {
+      x_axis = z_axis.cross(e_2);
+      x_axis = x_axis / x_axis.norm();
+      y_axis = z_axis.cross(x_axis);
+      y_axis = y_axis / y_axis.norm();
+    }
     Eigen::Matrix3d R_GtoI;
     R_GtoI.block<3, 1>(0, 0) = x_axis;
     R_GtoI.block<3, 1>(0, 1) = y_axis;
@@ -64,9 +78,9 @@ bool Initializer::static_initialize(std::shared_ptr<State> &state)
     for(const ImuData &data : imu_data_for_init) {
         acc_var += (data.am - acc_mean).dot(data.am - acc_mean);
     }
-    acc_var = acc_var / imu_data_for_init.size();       // 加计的方差，若方差小于阈值则认为系统处于静止状态。
+    acc_var = acc_var / imu_data_for_init.size();
 
-    if(acc_var > static_acc_var_thres) {
+    if(acc_var > static_acc_var_thres && abs(acc_mean.norm() - gravity_mag) < 0.5) {
         LOG(INFO) << "Static initialization failed reason: platform is moving";
         return false;
     }

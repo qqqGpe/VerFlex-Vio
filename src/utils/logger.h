@@ -2,7 +2,6 @@
 #define __LOGGER__
 #include <iostream>
 #include <fstream>
-#include <sstream>
 #include <ctime>
 #include <glog/logging.h>
 

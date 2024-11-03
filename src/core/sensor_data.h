@@ -75,6 +75,7 @@ struct Feature {
         _pwf.setZero();
         _valid = false;
         _is_triangulated = false;
+        parallex = 0.f;
         _visual_obs_buffer.clear();
     }
 
@@ -82,6 +83,7 @@ struct Feature {
     bool _valid = false;
     Eigen::Vector3d _pwf;
     bool _is_triangulated = false;
+    double parallex = 0.f;
     std::map<double, cam_obs_t> _visual_obs_buffer; // <ts_sec, obs>
 };
 

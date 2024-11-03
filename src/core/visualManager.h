@@ -62,6 +62,10 @@ public:
 
     bool pnp_ransac_to_reject_outliers(std::vector<Feature*> feats);
 
+    void calculate_feature_parallex(std::vector<Feature*> feats);
+
+    std::vector<Feature*> select_msckf_features(std::vector<Feature*> feats);
+
     void set_state(std::shared_ptr<State> state) { _state = state; } // for debug
 
     void feed_image(const std::pair<double, cv::Mat> input_data)
@@ -76,6 +80,7 @@ public:
     uint32_t _max_feat_n = 0;
     uint32_t _feature_mapping_success = 0;
     uint32_t _feature_mapping_in = 0;
+    uint32_t _max_visual_feat_to_use = 40;
 
     std::queue<std::pair<double, cv::Mat>> _input_image_buffer;
     std::queue<std::pair<double, std::vector<cam_obs_t>>> feature_obs_buffer;

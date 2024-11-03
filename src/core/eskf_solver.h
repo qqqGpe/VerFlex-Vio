@@ -2,6 +2,7 @@
 #define __ESKF_SOLVER__
 
 #include "state.h"
+#include "utils.h"
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <opencv2/core/core.hpp>
@@ -58,6 +59,8 @@ public:
             M_all.block(var->id(), 0, var->size(), res.rows()) = M_i;
         }
 
+        // Utils::show_eigen_matrix(M_all, "M_all");
+
         // std::cout << "M_all: " << M_all << std::endl;
 
         Eigen::MatrixXd cov_involved = construct_involved_covariance(state, Hx_order);
@@ -90,7 +93,7 @@ public:
         }
         // std::cout << "K: \n" << K << std::endl;
         Eigen::VectorXd dx = K * res;
-        std::cout << "dx: " << dx.transpose() << std::endl;
+        // std::cout << "dx: " << dx.transpose() << std::endl;
         for (size_t i = 0; i < state->_variables.size(); i++) {
             state->_variables[i]->update(dx.block(state->_variables[i]->id(), 0, state->_variables[i]->size(), 1));
         }

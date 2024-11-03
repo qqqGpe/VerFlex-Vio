@@ -1,31 +1,31 @@
 #include "ImuManager.h"
 #include "mathematical_tools.h"
+#include "utils.h"
 #include <glog/logging.h>
 #include <opencv2/opencv.hpp>
 
 namespace {
-    constexpr int kMaxImuBufferSize = 10000;
+    constexpr int kMaxImuBufferSize = 2000;
 }
 
 bool ImuManager::feed_imu_measurement(const ImuData &imu_measurement) {
 
     if(_data->empty()) {
         _data->push_back(imu_measurement);
-        return true;
     }
-
-    if(imu_measurement.ts_sec <= _data->back().ts_sec) {
+    else if (imu_measurement.ts_sec <= _data->back().ts_sec) {
         LOG(WARNING) << "latest imu data ts: " << _data->back().ts_sec << ", input imu ts: " << imu_measurement.ts_sec;
         return false;
-    } else {
-        if(_data->size() < kMaxImuBufferSize) {
-            _data->push_back(imu_measurement);
-        } else {
+    }
+    else {
+        _data->push_back(imu_measurement);
+        if (_data->size() > kMaxImuBufferSize)
+        {
             _data->pop_front();
-            _data->push_back(imu_measurement);
         }
     }
-
+    _imu_latest_timestamp = _data->back().ts_sec;
+    // std::cout << "_imu_latest_timestamp: " << _imu_latest_timestamp << std::endl;
     return true;
 }
 
@@ -41,6 +41,17 @@ ImuData ImuManager::interpolate_data(const ImuData &imu_1, const ImuData &imu_2,
     return data;
 }
 
+ImuData ImuManager::get_imu_data(double timestamp)
+{
+    auto it = std::lower_bound(_data->begin(), _data->end(), timestamp, [](ImuData imu_data, double timestamp) { return imu_data.ts_sec < timestamp; });
+    assert(it->ts_sec >= timestamp);
+    if (_data->size() > 1 && it != _data->end() - 1) {
+        ImuData ret = interpolate_data(*it, *(it + 1), timestamp);
+        return ret;
+    } else {
+        return *it;
+    }
+}
 
 std::vector<ImuData> ImuManager::access_interval_imu_measurment(const double ts_start, const double ts_end) {
 
@@ -72,19 +83,22 @@ void ImuManager::zupt_update(std::shared_ptr<State> state)
     std::unordered_map<std::shared_ptr<Type>, size_t> _map_hx;
     std::vector<std::shared_ptr<Type>> _Hx_order;
     Eigen::VectorXd res;
-    ImuData imu_data = _data->back();   // get latest imu data
+    // ImuData imu_data = _data->back();   // get latest imu data
+    ImuData imu_data = get_imu_data(state->ts_sec());
     construct_zupt_constraint(state, imu_data, Hx, _Hx_order, _map_hx, res);
-    // std::cout << "res: " << res.transpose() << std::endl;
+    // Utils::show_eigen_matrix(Hx, "zupt_Hx");
+    // std::cout << "Hx: " << Hx << std::endl;
     Eigen::MatrixXd R = Eigen::MatrixXd::Identity(res.rows(), res.rows());
     eskfSolver::update(state, Hx, res, _Hx_order, _map_hx, R);
 }
 
-void ImuManager::construct_zupt_constraint(std::shared_ptr<State> state, ImuData imu_data, Eigen::MatrixXd &Hx,
-                                           std::vector<std::shared_ptr<Type>>& _Hx_order, std::unordered_map<std::shared_ptr<Type>, size_t>& _map_hx, Eigen::VectorXd& res)
+void ImuManager::construct_zupt_constraint(std::shared_ptr<State> state, ImuData imu_data, Eigen::MatrixXd& Hx,
+    std::vector<std::shared_ptr<Type>>& _Hx_order, std::unordered_map<std::shared_ptr<Type>, size_t>& _map_hx, Eigen::VectorXd& res)
 {
     _Hx_order.push_back(state->_imu_state->q());
     _Hx_order.push_back(state->_imu_state->bg());
     _Hx_order.push_back(state->_imu_state->ba());
+    _Hx_order.push_back(state->_imu_state->v());
     if (_last_static_position_valid)
     {
         _Hx_order.push_back(state->_imu_state->p());
@@ -95,12 +109,19 @@ void ImuManager::construct_zupt_constraint(std::shared_ptr<State> state, ImuData
     _map_hx.clear();
     _map_hx.insert({state->_imu_state->q(), total_hx});
     total_hx += state->_imu_state->q()->size();
-    // insert ba
-    _map_hx.insert({state->_imu_state->ba(), total_hx});
-    total_hx += state->_imu_state->ba()->size();
+
     // insert bg
     _map_hx.insert({state->_imu_state->bg(), total_hx});
     total_hx += state->_imu_state->bg()->size();
+
+    // insert ba
+    _map_hx.insert({state->_imu_state->ba(), total_hx});
+    total_hx += state->_imu_state->ba()->size();
+
+    //insert v
+    _map_hx.insert({state->_imu_state->v(), total_hx});
+    total_hx += state->_imu_state->v()->size();
+
     // insert p if static
     if (_last_static_position_valid)
     {
@@ -110,31 +131,30 @@ void ImuManager::construct_zupt_constraint(std::shared_ptr<State> state, ImuData
 
     if (!_last_static_position_valid)
     {
-        Hx = Eigen::MatrixXd::Zero(6, total_hx);
-        res = Eigen::VectorXd::Zero(6);
+        Hx = Eigen::MatrixXd::Zero(9, total_hx);
+        res = Eigen::VectorXd::Zero(9);
     }
     else
     {
-        Hx = Eigen::MatrixXd::Zero(9, total_hx);
-        res = Eigen::VectorXd::Zero(9);
+        Hx = Eigen::MatrixXd::Zero(12, total_hx);
+        res = Eigen::VectorXd::Zero(12);
     }
 
     Eigen::Vector3d ba = state->_imu_state->ba()->vec();
     Eigen::Vector3d bg = state->_imu_state->bg()->vec();
     Eigen::Vector3d p = state->_imu_state->p()->vec();
+    Eigen::Vector3d v = state->_imu_state->v()->vec();
     Eigen::Matrix3d R_ItoG = state->_imu_state->q()->Rot();
 
-    // std::cout << "R_ItoG: " << R_ItoG << std::endl;
-    // std::cout << "am: " << imu_data.am.transpose() << std::endl;
-    // std::cout << "_gravity_magn: \n" << _gravity_magn.transpose() << std::endl;
-    // std::cout << "R_ItoG.transpose() * _gravity_magn: " << (R_ItoG.transpose() * _gravity_magn).transpose() << std::endl;
-    // std::cout << "am.norm: " << imu_data.am.norm() << std::endl;
     res.segment(0, 3) = -(imu_data.am - ba - R_ItoG.transpose() * _gravity_magn);
     res.segment(3, 3) = -(imu_data.wm - bg);
+    res.segment(6, 3) = -v;
     if (_last_static_position_valid)
     {
         res.segment(6, 3) = _last_static_position - p;
     }
+
+    std::cout << "res: " << res.transpose() << std::endl;
 
     // jacobian for R_ItoG
     Hx.block(0, _map_hx[state->_imu_state->q()], 3, 3) = -mathematical::skew(R_ItoG.transpose() * _gravity_magn);
@@ -145,14 +165,18 @@ void ImuManager::construct_zupt_constraint(std::shared_ptr<State> state, ImuData
     // jacobian for bg
     Hx.block(3, _map_hx[state->_imu_state->bg()], 3, 3) = -Eigen::Matrix3d::Identity();
 
+    //jacobian for v
+    Hx.block(6, _map_hx[state->_imu_state->v()], 3, 3) = Eigen::Matrix3d::Identity();
+
     // jacobian for position if last static position is valid
     if (_last_static_position_valid)
     {
         std::cout << "_last_static_position: " << _last_static_position.transpose() << std::endl;
-        Hx.block(6, _map_hx[state->_imu_state->p()], 3, 3) = Eigen::Matrix3d::Identity();
+        Hx.block(9, _map_hx[state->_imu_state->p()], 3, 3) = Eigen::Matrix3d::Identity();
     }
 
-    Eigen::MatrixXd weight = Eigen::MatrixXd::Identity(Hx.rows(), Hx.rows()) * 10;
+    // Eigen::MatrixXd weight = Eigen::MatrixXd::Identity(Hx.rows(), Hx.rows()) * 10;
+    Eigen::MatrixXd weight = Eigen::MatrixXd::Identity(Hx.rows(), Hx.rows());
     if (_last_static_position_valid)
     {
         weight.bottomRightCorner(3, 3) = Eigen::Matrix3d::Identity();
@@ -172,6 +196,9 @@ void ImuManager::delete_old_measurements(const double ts)
 bool ImuManager::static_status()
 {
     constexpr int kImuLenToCalc = 10;
+    static int is_static_cnt = 0;
+    constexpr int kIsStaticCntThres = 5;
+
     if (_data->size() < kImuLenToCalc)
     {
         return false;
@@ -197,19 +224,28 @@ bool ImuManager::static_status()
     acc_var = acc_var / data_buffer.size();       // 加计的方差，若方差小于阈值则认为系统处于静止状态
 
     std::cout <<cv::format("acc_var: %f, gyro_mean: %f\n", acc_var, gyro_mean.norm());
-    // return acc_mean.norm() < 0.1 && gyro_mean.norm() < 0.1;
-    bool is_static = acc_var < 0.5;
-    if (is_static && (data_buffer.back().ts_sec - _last_static_ts) > 1.0)
+
+    bool is_static = false;
+
+    if (acc_var < _imu_acc_var_static_thres && gyro_mean.norm() < _imu_gyro_static_thres)
     {
-        _last_static_ts = data_buffer.back().ts_sec;
-        // _last_static_position_valid = true;
-        _last_static_position = _state->_imu_state->p()->vec();
+        if (is_static_cnt < kIsStaticCntThres)
+        {
+            is_static_cnt++;
+        }
     }
     else
     {
-        _last_static_ts = -1;
-        _last_static_position_valid = false;
-        _last_static_position.setZero();
+        if (is_static_cnt > 0)
+        {
+            is_static_cnt--;
+        }
     }
+
+    if (is_static_cnt == kIsStaticCntThres)
+    {
+        is_static = true;
+    }
+
     return is_static;
 }

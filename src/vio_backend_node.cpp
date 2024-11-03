@@ -4,15 +4,23 @@
 #include <ros/ros.h>
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
+#include <signal.h>
 
 #include "core/parameter.h"
 #include "core/vioManager.h"
+
+void mySigintHandler(int sig)
+{
+  ros::shutdown();
+}
 
 int main(int argc, char** argv)
 {
     google::InitGoogleLogging(*argv);
     ros::init(argc, argv, "vio_backend");
     std::shared_ptr<ros::NodeHandle> nh = std::make_shared<ros::NodeHandle>("~");
+
+    signal(SIGINT, mySigintHandler);
 
     // load vio_backend parameters
     Param params(nh);
@@ -54,7 +62,6 @@ int main(int argc, char** argv)
                 vio_manager.process_measurememt_once();
             }
         }
-        // vio_manager.process_measurememt_once();
     }
 
     // waiting for program to exit

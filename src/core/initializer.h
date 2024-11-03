@@ -5,7 +5,7 @@
 #include "sensor_data.h"
 
 namespace {
-    constexpr uint32_t kInitializeImuQueSize = 500;
+    constexpr uint32_t kInitializeImuQueSize = 200;
 }
 
 class Initializer {
