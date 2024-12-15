@@ -209,15 +209,18 @@ bool VioFrontend::track(const std::pair<double, cv::Mat>& input_image, std::pair
     frontend_rT3 = boost::posix_time::microsec_clock::local_time();
     // add new features to ref_feat_to_track
     // std::cout << cv::format("keyframe: %d", static_cast<int>(*_keyframe));
-    if (*_keyframe != keyframe_flag_e::not_keyframe || is_first_frame) { // debug always keyframe
+    if (*_keyframe != keyframe_flag_e::not_keyframe || is_first_frame)
+    { // debug always keyframe
     // if (1) { // debug: always keyframe
         std::deque<cam_obs_t> feats_new;
         std::vector<cv::Point2f> corners;
         cv::goodFeaturesToTrack(cur_frame.second, corners, _max_feat_n, 0.01, 30);
-        for (auto& feat_new : corners) {
+        for (auto& feat_new : corners)
+        {
             int h = feat_new.y / h_step;
             int w = feat_new.x / w_step;
-            if (occupied_mat[h][w] == false) {
+            if (occupied_mat[h][w] == false)
+            {
                 cam_obs_t feat;
                 feat.feat_id = feat_id++;
                 feat.obs_times_n = 1;
@@ -230,8 +233,10 @@ bool VioFrontend::track(const std::pair<double, cv::Mat>& input_image, std::pair
 
         // add new features if ref_feat_to_track[i] is invalid
         int new_feat_added_num = 0;
-        for (int i = 0; i < cur_feat_to_track.size(); i++) {
-            if (cur_feat_to_track[i].valid == false && !feats_new.empty()) {
+        for (int i = 0; i < cur_feat_to_track.size(); i++)
+        {
+            if (cur_feat_to_track[i].valid == false && !feats_new.empty())
+            {
                 cur_feat_to_track[i] = feats_new.front();
                 cur_feat_to_track[i].valid = true;
                 feats_new.pop_front();
@@ -244,9 +249,9 @@ bool VioFrontend::track(const std::pair<double, cv::Mat>& input_image, std::pair
 
     frontend_rT4 = boost::posix_time::microsec_clock::local_time();
 
-    double track_duration = (frontend_rT1 - frontend_rT).total_microseconds() * 1e-6;
-    double outlier_rejection_duration = (frontend_rT2 - frontend_rT1).total_microseconds() * 1e-6;
-    double add_feat_duration = (frontend_rT4 - frontend_rT3).total_microseconds() * 1e-6;
+    // double track_duration = (frontend_rT1 - frontend_rT).total_microseconds() * 1e-6;
+    // double outlier_rejection_duration = (frontend_rT2 - frontend_rT1).total_microseconds() * 1e-6;
+    // double add_feat_duration = (frontend_rT4 - frontend_rT3).total_microseconds() * 1e-6;
     // LOG(INFO) << cv::format("tracking duration: %f, outlier rejection duration: %f, add_feat_duration: %f\n",
     //                         track_duration, outlier_rejection_duration, add_feat_duration);
 

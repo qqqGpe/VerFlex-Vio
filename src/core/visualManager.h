@@ -40,7 +40,7 @@ public:
 
     void update_feature(std::pair<double, std::vector<cam_obs_t>> feature_observes);
 
-    void visual_update();
+    bool visual_update();
 
     void reset_keyframe() { _keyframe = keyframe_flag_e::not_keyframe; }
 
@@ -50,7 +50,7 @@ public:
 
     void drop_feature_obs(const double timestamp_to_drop);
 
-    void feature_triangulation(std::vector<Feature*> feats, std::map<double, CameraPose> camera_pose_buffer);
+    void feature_triangulation(std::vector<Feature*> &feats, std::map<double, CameraPose> camera_pose_buffer);
 
     bool least_square_triangulation(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
 
@@ -62,9 +62,9 @@ public:
 
     bool pnp_ransac_to_reject_outliers(std::vector<Feature*> feats);
 
-    void calculate_feature_parallex(std::vector<Feature*> feats);
+    void calculate_feature_parallex(std::vector<Feature*> &feats);
 
-    std::vector<Feature*> select_msckf_features(std::vector<Feature*> feats);
+    std::vector<Feature*> select_msckf_features(const std::vector<Feature*> feats);
 
     void set_state(std::shared_ptr<State> state) { _state = state; } // for debug
 
@@ -75,6 +75,10 @@ public:
         }
         _input_image_buffer.push(input_data);
     }
+
+    keyframe_flag_e get_keyframe() { return _keyframe; }
+
+    std::vector<Feature*> get_feature_base() { return _feature_base; }
 
     uint32_t _max_clone_pose = 6;
     uint32_t _max_feat_n = 0;
@@ -88,7 +92,8 @@ public:
     std::vector<Feature*> _feature_base;
     std::vector<Feature*> _feature_tracked;
     std::vector<Feature*> _feature_lost;
-    std::vector<cam_obs_t> _feature_new;
+    std::vector<Feature*> _feature_new_base;
+    std::vector<cam_obs_t> _feature_obs_new;
 
     boost::posix_time::ptime visual_rT, visual_rT1, visual_rT2, visual_rT3, visual_rT4;
 
@@ -99,11 +104,11 @@ public:
     friend VioFrontend;
 
 protected:
-
     std::shared_ptr<State> _state;
     std::shared_ptr<CameraModel> _camera_model;
     std::unordered_map<std::shared_ptr<Type>, size_t> _map_hx;
     std::vector<std::shared_ptr<Type>> _Hx_order;
+    int _origin_feature_tracked = 0.f;
 };
 
 #endif

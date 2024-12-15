@@ -7,6 +7,7 @@ class Quat : public Type {
 public:
     Quat() : Type(3)
     {
+        state_name = "Quat";
         _quat.setIdentity();
         _quat_fej.setIdentity();
     }

@@ -33,8 +33,8 @@
 
         <!-- bag parameters -->
         <param name="path_bag"                 type="str"    value="$(arg bag)" />
-        <param name="bag_start"                type="double" value="25" />
-        <param name="bag_durr"                 type="int"    value="-1" />
+        <param name="bag_start"                type="double" value="35" />
+        <param name="bag_durr"                 type="int"    value="20" />
 
         <param name="img_width"                type="int"    value="752" />
         <param name="img_height"               type="int"    value="480" />
@@ -58,7 +58,7 @@
         <param name="max_feat_n"                type="int"    value="225" />
         <param name="grid_w"                    type="int"    value="15" />
         <param name="grid_h"                    type="int"    value="15" />
-        <param name="max_clone_pose"            type="int"    value="6" />
+        <param name="max_clone_pose"            type="int"    value="2" />
         <param name="verbosity"                 type="str"    value="$(arg verbosity)" />
         <param name="log_path"                  type="str"    value="$(arg log_path)" />
 

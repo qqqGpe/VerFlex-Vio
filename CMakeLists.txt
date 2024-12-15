@@ -18,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf
 )
 
+find_package(Sophus REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV 4 REQUIRED)
 find_package(glog 0.7.0 REQUIRED)
@@ -32,6 +33,7 @@ include_directories(
   ${EIGEN3_INCLUDE_DIR}
   ${Boost_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
+  ${Sophus_INCLUDE_DIRS}
   src/states/
   src/types/
   src/utils/
@@ -42,6 +44,8 @@ list(APPEND thirdparty_libraries
         ${Boost_LIBRARIES}
         ${OpenCV_LIBRARIES}
         ${catkin_LIBRARIES}
+        ${Sophus_LIBRARIES}
+        fmt
         glog::glog
 )
 

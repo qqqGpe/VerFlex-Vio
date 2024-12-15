@@ -9,6 +9,7 @@
 class Pose : public Type {
 public:
     Pose() : Type(6) {
+        state_name = "Pose";
         _q = std::make_shared<Quat>();
         _p = std::make_shared<Vec>();
     }

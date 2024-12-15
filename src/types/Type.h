@@ -43,6 +43,8 @@ public:
         _fej = new_fej;
     }
 
+    std::string state_name = "no_name";
+
 protected:
     double _ts = 0;
     int _size = -1;

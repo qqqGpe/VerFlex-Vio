@@ -8,6 +8,7 @@
 class IMU_state : public Type {
 public:
     IMU_state() : Type(15) {
+        state_name = "Imu_state";
         _pose = std::make_shared<Pose>();
         _v = std::make_shared<Vec>();
         _bg = std::make_shared<Vec>();

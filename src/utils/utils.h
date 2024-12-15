@@ -44,7 +44,7 @@ public:
 
         cv::imshow("feat_to_track", image_to_show);
         // cv::imwrite("/home/gao/ws/catkin_vio_ws/src/vio/figure/feature_to_track.png", image_to_show);
-        cv::waitKey(1);
+        cv::waitKey(0);
     }
 
     static void show_eigen_matrix(const Eigen::MatrixXd matrix, const std::string win_name)
@@ -72,6 +72,42 @@ public:
         }
         cv::imshow(win_name, image);
         cv::waitKey(0);
+    }
+
+    static void draw_grid_with_images(const std::vector<cv::Mat>& images) {
+        constexpr uint8_t scale = 2;
+        int height = 2 * images[0].rows / scale;
+        int width = 3 * images[0].cols / scale;
+        cv::Mat gridImage = cv::Mat::zeros(height, width, CV_8UC1);
+
+        int rows = 2;
+        int cols = 3;
+
+        int cellWidth = width / cols;
+        int cellHeight = height / rows;
+
+        for (int i = 0; i < images.size(); ++i) {
+            cv::Mat img = images[i];
+
+            cv::resize(img, img, cv::Size(cellWidth, cellHeight));
+
+            int row = i / cols;
+            int col = i % cols;
+            cv::Rect roi(col * cellWidth, row * cellHeight, cellWidth, cellHeight);
+
+            img.copyTo(gridImage(roi));
+        }
+
+        for (int i = 0; i < rows; ++i) {
+            for (int j = 0; j < cols; ++j) {
+                cv::Point topLeft(j * cellWidth, i * cellHeight);
+                cv::Point bottomRight((j + 1) * cellWidth, (i + 1) * cellHeight);
+                cv::rectangle(gridImage, topLeft, bottomRight, cv::Scalar(255, 255, 255), 1);
+            }
+        }
+
+        cv::imshow("keyframes", gridImage);
+        cv::waitKey(1);
     }
 };
 

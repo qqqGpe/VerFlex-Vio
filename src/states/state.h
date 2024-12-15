@@ -98,12 +98,12 @@ public:
         std::map<double, CameraPose> camera_clone_poses;
         for (auto it = _clone_pose.begin(); it != _clone_pose.end(); it++) {
             CameraPose camera_pose;
-            camera_pose.Rwi = it->second->quat().toRotationMatrix();
+            camera_pose.Rwi = it->second->quat().normalized().toRotationMatrix();
             camera_pose.pwi = it->second->p();
-            Eigen::Matrix3d Ric = _imu_to_cam_extrinsic->quat().toRotationMatrix();
-            Eigen::Vector3d pic = _imu_to_cam_extrinsic->p();
-            camera_pose.Rwc = camera_pose.Rwi * Ric;
-            camera_pose.pwc = camera_pose.pwi + camera_pose.Rwi * pic;
+            Eigen::Matrix3d R_CtoI = _imu_to_cam_extrinsic->quat().normalized().toRotationMatrix();
+            Eigen::Vector3d p_CinI = _imu_to_cam_extrinsic->p();
+            camera_pose.Rwc = camera_pose.Rwi * R_CtoI;
+            camera_pose.pwc = camera_pose.pwi + camera_pose.Rwi * p_CinI;
             camera_clone_poses.insert(std::make_pair(it->first, camera_pose));
         }
         return camera_clone_poses;
@@ -130,6 +130,11 @@ public:
 
     void marginalize_state(std::shared_ptr<Type>& state_to_marg)
     {
+        if (state_to_marg == nullptr)
+        {
+            return;
+        }
+
         if (std::find(_variables.begin(), _variables.end(), state_to_marg) == _variables.end()) {
             LOG(ERROR) << "marginalization failed, no such variable in states";
             return;

@@ -55,6 +55,7 @@ struct LogValue
 
         "visual_updated",
         "zupt_updated",
+        "keyframe",
 
         "diff_px",
         "diff_py",
@@ -97,6 +98,7 @@ struct LogValue
 
     int visual_updated = 0;
     int zupt_updated = 0;
+    int keyframe = 0;
 
     // pvdiff
     double diff_px = 0;
@@ -176,6 +178,7 @@ public:
             file << log_value.sigma_bias_gyro_z << ", ";
             file << log_value.visual_updated << ", ";
             file << log_value.zupt_updated << ", ";
+            file << log_value.keyframe << ", ";
             file << log_value.diff_px << ", ";
             file << log_value.diff_py << ", ";
             file << log_value.diff_pz << std::endl;
