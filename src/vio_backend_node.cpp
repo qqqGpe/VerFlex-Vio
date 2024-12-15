@@ -44,23 +44,80 @@ int main(int argc, char** argv)
     vio_manager.set_initial_timestamp(time_init.toSec());
 
     // start vio updater
-    if (params.use_multi_thread)
-    {
-        vio_manager.start_visual_system();
-    }
+    // if (params.use_multi_thread)
+    // {
+    //     vio_manager.start_visual_system();
+    // }
 
     // load data from rosbag
-    for (const rosbag::MessageInstance& msg : view) {
+    std::vector<rosbag::MessageInstance> msgs;
+    for (const rosbag::MessageInstance& msg : view)
+    {
+        if (!ros::ok())
+        {
+            break;
+        }
         if (msg.getTopic() == params.imu_topic)
         {
-            vio_manager.imu_callback(msg.instantiate<sensor_msgs::Imu>());
+            msgs.push_back(msg);
         }
-        else if (msg.getTopic() == params.camera_topic[0])
+
+        for (int i = 0; i < params.camera_num; i++)
         {
-            vio_manager.camera_callback(msg.instantiate<sensor_msgs::Image>());
-            if (!params.use_multi_thread) {
-                vio_manager.process_measurememt_once();
+            if (msg.getTopic() == params.camera_topic[i])
+            {
+                msgs.push_back(msg);
             }
+        }
+    }
+
+    for (int m = 0; m < msgs.size(); m++)
+    {
+        if (!ros::ok())
+        {
+            break;
+        }
+        if (msgs.at(m).getTopic() == params.imu_topic)
+        {
+            vio_manager.imu_callback(msgs.at(m).instantiate<sensor_msgs::Imu>());
+        }
+
+        for (int cam_id = 0; cam_id < params.camera_num; cam_id++)
+        {
+            if (msgs.at(m).getTopic() != params.camera_topic.at(cam_id))
+            {
+                continue;
+            }
+
+            std::map<int, int> camid_to_msg_index;
+            double meas_time = msgs.at(m).getTime().toSec();
+            for (int cam_idt = 0; cam_idt < params.camera_num; cam_idt++) {
+                if (cam_idt == cam_id) {
+                camid_to_msg_index.insert({cam_id, m});
+                continue;
+                }
+                int cam_idt_idx = -1;
+                for (int mt = m; mt < (int)msgs.size(); mt++) {
+                if (msgs.at(mt).getTopic() != params.camera_topic.at(cam_idt))
+                    continue;
+                if (std::abs(msgs.at(mt).getTime().toSec() - meas_time) < 0.02)
+                    cam_idt_idx = mt;
+                break;
+                }
+                if (cam_idt_idx != -1) {
+                    camid_to_msg_index.insert({cam_idt, cam_idt_idx});
+                }
+            }
+
+            if ((int)camid_to_msg_index.size() != params.camera_num)
+            {
+                continue;
+            }
+
+            auto msg0 = msgs.at(camid_to_msg_index.at(0));
+            auto msg1 = msgs.at(camid_to_msg_index.at(1));
+            vio_manager.camera_callback(msg0.instantiate<sensor_msgs::Image>(), msg1.instantiate<sensor_msgs::Image>());
+            vio_manager.process_measurememt_once();
         }
     }
 

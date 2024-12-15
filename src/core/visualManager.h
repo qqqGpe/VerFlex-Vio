@@ -68,13 +68,7 @@ public:
 
     void set_state(std::shared_ptr<State> state) { _state = state; } // for debug
 
-    void feed_image(const std::pair<double, cv::Mat> input_data)
-    {
-        while (_input_image_buffer.size() > kMaxImageBufferSize) {
-            _input_image_buffer.pop();
-        }
-        _input_image_buffer.push(input_data);
-    }
+    void feed_image(const std::pair<double, std::pair<cv::Mat, cv::Mat>> input);
 
     keyframe_flag_e get_keyframe() { return _keyframe; }
 
@@ -86,7 +80,7 @@ public:
     uint32_t _feature_mapping_in = 0;
     uint32_t _max_visual_feat_to_use = 40;
 
-    std::queue<std::pair<double, cv::Mat>> _input_image_buffer;
+    std::queue<std::pair<double, std::pair<cv::Mat, cv::Mat>>> _input_image_buffer;
     std::queue<std::pair<double, std::vector<cam_obs_t>>> feature_obs_buffer;
 
     std::vector<Feature*> _feature_base;

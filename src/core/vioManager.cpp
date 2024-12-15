@@ -30,11 +30,11 @@ void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager)
             no_input_cnt = 0;
         }
 
-        std::pair<double, cv::Mat> data = visual_manager->_input_image_buffer.front();
+        std::pair<double, std::pair<cv::Mat, cv::Mat>> data = visual_manager->_input_image_buffer.front();
         visual_manager->_input_image_buffer.pop();
         std::pair<double, std::vector<cam_obs_t>> feature_observes;
         auto feature_base = visual_manager->get_feature_base();
-        bool status = visual_manager->vio_frontend->track(data, feature_observes);
+        bool status = visual_manager->vio_frontend->track_monocular(data, feature_observes);
         if (status == true) {
             if (visual_manager->_keyframe != keyframe_flag_e::not_keyframe)
             {
@@ -112,7 +112,7 @@ void VioManager::process_measurememt_once()
             continue;
         }
 
-        std::pair<double, cv::Mat> image_data = _visual_manager->_input_image_buffer.front();
+        std::pair<double, std::pair<cv::Mat, cv::Mat>> image_data = _visual_manager->_input_image_buffer.front();
         _visual_manager->_input_image_buffer.pop();
 
         if (_imu_manager->static_status())
@@ -125,7 +125,7 @@ void VioManager::process_measurememt_once()
         else {
             std::pair<double, std::vector<cam_obs_t>> feature_observes;
             std::vector<Feature* > feature_base = _visual_manager->get_feature_base();
-            if (!_visual_manager->vio_frontend->track(image_data, feature_observes))
+            if (!_visual_manager->vio_frontend->track_monocular(image_data, feature_observes))
             {
                 LOG(INFO) << "frontend tracking failed";
                 continue;
@@ -175,7 +175,7 @@ void VioManager::process_measurememt_once()
                 double ts_sec = it->first;
                 if (image_bak.find(it->first) != image_bak.end())
                 {
-                    keyframe_images.push_back(image_bak[it->first]);
+                    keyframe_images.push_back(image_bak[it->first].first);
                     keyframe_ts.push_back(ts_sec);
                 }
             }
@@ -237,12 +237,14 @@ void VioManager::imu_callback(const sensor_msgs::Imu::ConstPtr& msg)
     _imu_manager->feed_imu_measurement(data);
 }
 
-void VioManager::camera_callback(const sensor_msgs::ImageConstPtr& msg)
+void VioManager::camera_callback(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1)
 {
-    double ts_sec = msg->header.stamp.toSec() - _initial_timestamp;
-    cv::Mat image;
-    Utils::transfer_image(msg, image);
-    _visual_manager->feed_image(std::make_pair(ts_sec, image));
+    double ts_sec = msg0->header.stamp.toSec() - _initial_timestamp;
+    cv::Mat image_l;
+    cv::Mat image_r;
+    Utils::transfer_image(msg0, image_l);
+    Utils::transfer_image(msg1, image_r);
+    _visual_manager->feed_image({ts_sec, {image_l, image_r}});
 }
 
 bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, double ts)

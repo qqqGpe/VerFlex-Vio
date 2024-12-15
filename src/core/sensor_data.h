@@ -56,6 +56,12 @@ struct cam_obs_t {
         feat_id = -1;
         valid = false;
         obs_times_n = 0;
+        u = 0;
+        v = 0;
+        u_norm = 0;
+        v_norm = 0;
+        ur = 0;
+        vr = 0;
     }
 
     double ts_sec;
@@ -64,6 +70,7 @@ struct cam_obs_t {
     uint32_t obs_times_n;
     double u, v;
     double u_norm, v_norm;
+    double ur, vr;
 };
 
 struct Feature {

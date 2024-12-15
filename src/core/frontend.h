@@ -42,7 +42,9 @@ public:
 
     status_t run();
 
-    bool track(const std::pair<double, cv::Mat>& input_image, std::pair<double, std::vector<cam_obs_t>>& feature_observes);
+    bool track_monocular(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& input_image, std::pair<double, std::vector<cam_obs_t>>& feature_observes);
+
+    bool track_stereo(const double timestamp, cv::Mat image_l, cv::Mat image_r, std::pair<double, std::vector<cam_obs_t>>& feature_observes);
 
     // void publish_features(const frontend_frame_t &frame);
 

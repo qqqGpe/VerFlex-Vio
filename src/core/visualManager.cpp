@@ -349,6 +349,14 @@ bool VisualManager::gaussian_newton_optimization(std::map<double, CameraPose>& c
     return true;
 }
 
+void VisualManager::feed_image(const std::pair<double, std::pair<cv::Mat, cv::Mat>> input)
+{
+    while (_input_image_buffer.size() > kMaxImageBufferSize) {
+        _input_image_buffer.pop();
+    }
+    _input_image_buffer.push(input);
+}
+
 bool VisualManager::pnp_ransac_to_reject_outliers(std::vector<Feature* > feats)
 {
     double ts = _state->ts_sec();

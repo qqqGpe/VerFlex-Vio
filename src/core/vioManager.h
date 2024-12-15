@@ -48,7 +48,7 @@ public:
 
     void imu_callback(const sensor_msgs::Imu::ConstPtr& msg);
 
-    void camera_callback(const sensor_msgs::ImageConstPtr& msg);
+    void camera_callback(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1);
 
     bool propagate_state_and_covariance(std::shared_ptr<State> state, double ts);
 
@@ -59,7 +59,7 @@ public:
     std::shared_ptr<VisualManager> _visual_manager;
     std::shared_ptr<CameraModel> _camera_model_0;
     std::shared_ptr<utils::Logger> vio_logger;
-    std::map<double, cv::Mat> image_bak;
+    std::map<double, std::pair<cv::Mat, cv::Mat>> image_bak;
 
     boost::posix_time::ptime vio_rT, vio_rT1, vio_rT2, vio_rT3, vio_rT4;
     boost::posix_time::ptime pro_rT, pro_rT1, pro_rT2, pro_rT3, pro_rT4;

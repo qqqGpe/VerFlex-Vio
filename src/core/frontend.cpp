@@ -124,10 +124,10 @@ VioFrontend::status_t VioFrontend::outlier_rejection(const std::vector<cam_obs_t
     return STATUS_OK;
 }
 
-bool VioFrontend::track(const std::pair<double, cv::Mat>& input_image, std::pair<double, std::vector<cam_obs_t>>& feature_observes)
+bool VioFrontend::track_monocular(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& input_image, std::pair<double, std::vector<cam_obs_t>>& feature_observes)
 {
     double ts_sec = input_image.first;
-    cur_frame = std::make_pair(ts_sec, input_image.second.clone());
+    cur_frame = std::make_pair(ts_sec, input_image.second.first.clone());
     std::vector<cam_obs_t> cur_feat_to_track = ref_feat_to_track;
 
     int h_step = _height / _grid_h;
@@ -263,7 +263,7 @@ bool VioFrontend::track(const std::pair<double, cv::Mat>& input_image, std::pair
 
     feature_observes = { ts_sec, cur_feat_to_track };
 
-    Utils::visualize_feature_tracking_results(input_image.second.clone(), feature_observes);
+    Utils::visualize_feature_tracking_results(input_image.second.first.clone(), feature_observes);
     is_first_frame = false;
     // *_keyframe = keyframe_flag_e::not_keyframe;
     return true;
