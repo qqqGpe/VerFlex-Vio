@@ -32,16 +32,16 @@ void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager)
 
         std::pair<double, std::pair<cv::Mat, cv::Mat>> data = visual_manager->_input_image_buffer.front();
         visual_manager->_input_image_buffer.pop();
-        std::pair<double, std::vector<cam_obs_t>> feature_observes;
+        std::pair<double, std::vector<CameraObs>> feature_observes;
         auto feature_base = visual_manager->get_feature_base();
-        bool status = visual_manager->vio_frontend->track_monocular(data, feature_observes);
+        bool status = visual_manager->vio_frontend->TrackMonocular(data, feature_observes);
         if (status == true) {
-            if (visual_manager->_keyframe != keyframe_flag_e::not_keyframe)
+            if (visual_manager->_keyframe != KeyFrameType::not_keyframe)
             {
                 while (!visual_manager->feature_obs_buffer.empty()) {
                     visual_manager->feature_obs_buffer.pop();
                 }
-                visual_manager->_keyframe = keyframe_flag_e::not_keyframe;
+                visual_manager->_keyframe = KeyFrameType::not_keyframe;
             }
             visual_manager->feature_obs_buffer.push(feature_observes);
         }
@@ -62,7 +62,7 @@ void backend_task_entry(VioManager* vio)
         if (vio->_visual_manager->feature_obs_buffer.empty()) {
             continue;
         }
-        // std::pair<double, std::vector<cam_obs_t>> feature_observes = vio->_visual_manager->feature_obs_buffer.front();
+        // std::pair<double, std::vector<CameraObs>> feature_observes = vio->_visual_manager->feature_obs_buffer.front();
         // vio->_visual_manager->feature_obs_buffer.pop();
         // vio->_visual_manager->update_feature(feature_observes);
         // vio->propagate_state_and_covariance(vio->state, feature_observes.first);
@@ -83,7 +83,7 @@ void VioManager::process_measurememt_once()
     if (!initializer->is_initialized) {
         if (!initializer->static_initialize(state))
         {
-            LOG(ERROR) << "failed to init vio system";
+            LOG(ERROR) << "failed to initialize vio system";
             return;
         }
     }
@@ -123,9 +123,14 @@ void VioManager::process_measurememt_once()
             std::cout << "zupt updated" << std::endl;
         }
         else {
-            std::pair<double, std::vector<cam_obs_t>> feature_observes;
+            std::pair<double, std::vector<CameraObs>> feature_observes;
             std::vector<Feature* > feature_base = _visual_manager->get_feature_base();
-            if (!_visual_manager->vio_frontend->track_monocular(image_data, feature_observes))
+            // if (!_visual_manager->vio_frontend->TrackMonocular(image_data, feature_observes))
+            // {
+            //     LOG(INFO) << "frontend tracking failed";
+            //     continue;
+            // }
+            if (!_visual_manager->vio_frontend->TrackStereo(image_data, feature_observes))
             {
                 LOG(INFO) << "frontend tracking failed";
                 continue;
@@ -250,6 +255,7 @@ void VioManager::camera_callback(const sensor_msgs::ImageConstPtr& msg0, const s
 bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, double ts)
 {
     using namespace Sophus;
+
     if (ts <= state->_imu_state->ts()) {
         LOG(WARNING) << cv::format("curent state timestamp: %f, must be later than imu_state ts: %f", ts, state->_imu_state->ts());
         return false;
@@ -259,7 +265,6 @@ bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, do
         LOG(WARNING) << cv::format("wait for imu data, current state timestamp: %f but latest imu ts: %f", state->ts_sec(), _imu_manager->_imu_latest_timestamp - 0.1);
         return false;
     }
-    // std::cout << "imu data size: " << imu_data.size() << std::endl;
 
     Eigen::Vector3d new_p_IinG = state->_imu_state->pose()->p();
     Eigen::Matrix3d new_R_ItoG = state->_imu_state->pose()->quat().toRotationMatrix();
@@ -287,8 +292,6 @@ bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, do
         if (dt > 0 && dt < kMaxImuToleranceDelayTime) {
             Eigen::Vector3d am_mid = 0.5 * (imu_data.at(i).am + imu_data.at(i + 1).am) - ba;
             Eigen::Vector3d wm_mid = 0.5 * (imu_data.at(i).wm + imu_data.at(i + 1).wm) - bg;
-
-
 
             new_p_IinG = new_p_IinG + new_v_IinG * dt - 0.5 * state->_imu_state->gravity_inG * dt * dt + 0.5 * (new_R_ItoG * am_mid * dt * dt);
             new_v_IinG = new_v_IinG - state->_imu_state->gravity_inG * dt + new_R_ItoG * am_mid * dt;

@@ -26,7 +26,7 @@ public:
         return true;
     }
 
-    static void visualize_feature_tracking_results(const cv::Mat &image, const std::pair<double, std::vector<cam_obs_t>> &frame_output) {
+    static void visualize_feature_tracking_results(const cv::Mat &image, const std::pair<double, std::vector<CameraObs>> &frame_output) {
         double fr = 1.333;
         double fg = 2.333;
         double fb = 3.333;

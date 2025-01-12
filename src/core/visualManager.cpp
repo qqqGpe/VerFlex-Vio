@@ -1,13 +1,16 @@
 #include <vector>
-#include "visualManager.h"
-#include "mathematical_tools.h"
-#include "eskf_solver.h"
+#include <unordered_set>
+#include <unordered_map>
 
 #include <Eigen/Dense>
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+
+#include "visualManager.h"
+#include "mathematical_tools.h"
+#include "eskf_solver.h"
 
 namespace {
     constexpr uint32_t kMinFeatForMapping = 2;
@@ -65,7 +68,7 @@ bool VisualManager::visual_update()
     if (_state->_clone_pose.size() > _max_clone_pose)
     {
         _keyframe = decide_keyframe(_state, feat_origin_input);
-        if (_keyframe != keyframe_flag_e::not_keyframe)
+        if (_keyframe != KeyFrameType::not_keyframe)
         {
             state_to_marginalize = _state->_clone_pose.begin()->second;
             update_feature_base();
@@ -83,12 +86,12 @@ bool VisualManager::visual_update()
     return visual_updated;
 }
 
-keyframe_flag_e VisualManager::decide_keyframe(std::shared_ptr<State> _state, std::vector<Feature*> feats)
+KeyFrameType VisualManager::decide_keyframe(std::shared_ptr<State> _state, std::vector<Feature*> feats)
 {
     constexpr double kLargeParallexThres = 10.0f; // 大于5个平均像素视差则视为关键帧
 
     if(_state->_clone_pose.size() < _max_clone_pose) {
-        return keyframe_flag_e::not_keyframe;
+        return KeyFrameType::not_keyframe;
     }
 
     uint32_t cnt = 0;
@@ -105,8 +108,8 @@ keyframe_flag_e VisualManager::decide_keyframe(std::shared_ptr<State> _state, st
         double sub_last_ts = sub_last_it->first;
 
         assert(sub_last_ts < last_ts);
-        cam_obs_t curr_obs = last_it->second;
-        cam_obs_t prev_obs = sub_last_it->second;
+        CameraObs curr_obs = last_it->second;
+        CameraObs prev_obs = sub_last_it->second;
         double diff_u = curr_obs.u - prev_obs.u;
         double diff_v = curr_obs.v - prev_obs.v;
         pixel_parallex = std::sqrt(std::pow(diff_u, 2) + std::pow(diff_v, 2));
@@ -116,22 +119,20 @@ keyframe_flag_e VisualManager::decide_keyframe(std::shared_ptr<State> _state, st
     pixel_parallex_avg = pixel_parallex_avg / cnt;
     std::cout << "pixel_parallex_avg: " << pixel_parallex_avg << std::endl;
     if (pixel_parallex_avg > kLargeParallexThres) {
-        return keyframe_flag_e::large_parallex_flag;
+        return KeyFrameType::large_parallex_flag;
     }
 
     if (_origin_feature_tracked < 20) {
-        return keyframe_flag_e::feat_lost_too_much;
+        return KeyFrameType::feat_lost_too_much;
     }
 
-    return keyframe_flag_e::not_keyframe;
+    return KeyFrameType::not_keyframe;
 }
 
 void VisualManager::drop_feature_obs(const double timestamp_to_drop)
 {
-    for (auto &feat_base: _feature_base)
-    {
-        if (feat_base->_visual_obs_buffer.count(timestamp_to_drop) != 0)
-        {
+    for (auto& feat_base : _feature_base) {
+        if (feat_base->_visual_obs_buffer.count(timestamp_to_drop) != 0) {
             auto it = feat_base->_visual_obs_buffer.find(timestamp_to_drop);
             feat_base->_visual_obs_buffer.erase(it);
         }
@@ -141,58 +142,58 @@ void VisualManager::drop_feature_obs(const double timestamp_to_drop)
 void VisualManager::update_feature_base()
 {
     // std::cout << "feat_lost.size: " << _feature_lost.size() << std::endl;
-    for (auto &feat_lost : _feature_lost)
-    {
+    for (auto& feat_lost : _feature_lost) {
         feat_lost->reset();
     }
 
-    // std::cout << "feat_new.size: " << _feature_obs_new.size() << std::endl;
-    for (int i = 0; i < _feature_new_base.size(); i++)
-    {
-        _feature_new_base[i]->_valid = true;
-        _feature_new_base[i]->_id = _feature_obs_new[i].feat_id;
-        _feature_new_base[i]->_visual_obs_buffer.insert({_feature_obs_new[i].ts_sec, _feature_obs_new[i]});
+    // std::cout << "feat_new.size: " << _feature_new.size() << std::endl;
+    for (auto& feat : _feature_new) {
+        auto it = std::find_if(_feature_base.begin(), _feature_base.end(), [](Feature* x) { return x->_valid == false; });
+        (*it)->_valid = true;
+        (*it)->_id = feat.feat_id;
+        (*it)->_visual_obs_buffer.insert({ feat.ts_sec, feat });
     }
 }
 
-void VisualManager::update_feature(std::pair<double, std::vector<cam_obs_t>> feature_observes)
+void VisualManager::update_feature(std::pair<double, std::vector<CameraObs>> feature_observes)
 {
     double ts_sec = feature_observes.first;
-    std::vector<cam_obs_t> feature_obs = feature_observes.second;
-    assert(feature_obs.size() == _max_feat_n);
-    assert(feature_obs.size() == feature_obs.size());
+    std::vector<CameraObs> feature_obs = feature_observes.second;
+    std::unordered_map<uint32_t, CameraObs> feature_obsrv_umap;
+    std::unordered_set<uint32_t> feature_tracked_id_uset;
+
+    for (auto& feat_obsrv : feature_observes.second) {
+        _camera_model->back_project_stereo(feat_obsrv);
+        feature_obsrv_umap.insert({ feat_obsrv.feat_id, feat_obsrv });
+    }
 
     _feature_lost.clear();
-    _feature_obs_new.clear();
+    _feature_new.clear();
     _feature_tracked.clear();
-    _feature_new_base.clear();
 
     for (int i = 0; i < _feature_base.size(); i++) {
-        Feature *feat = _feature_base[i];
-        cam_obs_t &feat_obs = feature_obs[i];
-        auto feat_norm = _camera_model->back_project(Eigen::Vector2d(feat_obs.u, feat_obs.v));
-        feat_obs.u_norm = feat_norm.x();
-        feat_obs.v_norm = feat_norm.y();
-
-        if (feat->_valid) {
-            if (feat_obs.valid && feat_obs.feat_id == feat->_id) {
-                feat->_visual_obs_buffer.insert({ts_sec, feat_obs});
-                _feature_tracked.push_back(feat);
-            } else {
-                _feature_lost.push_back(feat);
-                _feature_obs_new.push_back(feat_obs);
-                _feature_new_base.push_back(feat);
-            }
+        Feature* feature = _feature_base[i];
+        if (!feature->_valid) {
+            continue;
         }
-        else if (feat_obs.valid){
-            _feature_obs_new.push_back(feat_obs);
-            _feature_new_base.push_back(feat);
+        if (feature_obsrv_umap.find(feature->_id) != feature_obsrv_umap.end()) {
+            _feature_tracked.push_back(feature);
+            feature_tracked_id_uset.insert(feature->_id);
+            feature->_visual_obs_buffer.insert({ ts_sec, feature_obsrv_umap[feature->_id] });
+        } else {
+            _feature_lost.push_back(feature);
+        }
+    }
+
+    for (int i = 0; i < feature_observes.second.size(); i++) {
+        if (feature_tracked_id_uset.find(feature_observes.second[i].feat_id) == feature_tracked_id_uset.end()) {
+            _feature_new.push_back(feature_observes.second[i]);
         }
     }
 
     // std::cout << "feature tracked: " << _feature_tracked.size() << std::endl;
     // std::cout << "feature lost: " << _feature_lost.size() << std::endl;
-    // std::cout << "feature new: " << _feature_obs_new.size() << std::endl;
+    // std::cout << "feature new: " << _feature_new.size() << std::endl;
 }
 
 bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat)
@@ -225,7 +226,7 @@ bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clo
         Eigen::Matrix3d R_CitoA = R_AtoG.transpose() * R_CitoG;
         Eigen::Vector3d p_CiinA = R_AtoG.transpose() * (p_CiinG - p_AinG);
 
-        std::cout << "p_CiinA: " << p_CiinA.transpose() << std::endl;
+        // std::cout << "p_CiinA: " << p_CiinA.transpose() << std::endl;
         // std::cout << "R_CitoA: \n" << R_CitoA << std::endl;
 
         Eigen::Vector3d b_i;
@@ -366,7 +367,7 @@ bool VisualManager::pnp_ransac_to_reject_outliers(std::vector<Feature* > feats)
         if ((*it)->_valid && (*it)->_is_triangulated) {
             assert((*it)->_visual_obs_buffer.find(ts) != (*it)->_visual_obs_buffer.end());
             list_points3d.emplace_back((*it)->_pwf.x(), (*it)->_pwf.y(), (*it)->_pwf.z());
-            cam_obs_t obs_2d = (*it)->_visual_obs_buffer.at(ts);
+            CameraObs obs_2d = (*it)->_visual_obs_buffer.at(ts);
             list_points2d.emplace_back(obs_2d.u, obs_2d.v);
         }
     }

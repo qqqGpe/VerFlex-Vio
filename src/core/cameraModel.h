@@ -1,6 +1,7 @@
 #ifndef __CAM_MODEL__
 #define __CAM_MODEL__
 
+#include "sensor_data.h"
 #include "parameter.h"
 #include <Eigen/Core>
 
@@ -48,6 +49,17 @@ public:
     {
         Eigen::Vector3d feat_norm((uv_2d.x() - _K(0, 2)) / _K(0, 0), (uv_2d.y() - _K(1, 2)) / _K(1, 1), 1.0);
         return feat_norm;
+    }
+
+    void back_project_stereo(CameraObs &obs)
+    {
+        Eigen::Vector3d feat_norm_left((obs.u - _K(0, 2)) / _K(0, 0), (obs.v - _K(1, 2)) / _K(1, 1), 1.0);
+        Eigen::Vector3d feat_norm_right((obs.ur - _K(0, 2)) / _K(0, 0), (obs.vr - _K(1, 2)) / _K(1, 1), 1.0);
+
+        obs.u_norm = feat_norm_left.x();
+        obs.v_norm = feat_norm_left.y();
+        obs.ur_norm = feat_norm_right.x();
+        obs.vr_norm = feat_norm_right.y();
     }
 
     Eigen::Matrix3d intrinsic() { return _K; }

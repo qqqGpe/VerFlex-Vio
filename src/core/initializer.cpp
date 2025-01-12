@@ -3,6 +3,9 @@
 
 namespace {
     constexpr double kTimeDurationForInit = 1.0f;
+    constexpr double kVisualParallexForInit = 5.f;
+    constexpr int kMaxVisualStereoSize = 5;
+    constexpr int kMinStereoFeaturesForInit = 25;
 }
 
 void Initializer::feed_imu_measurement(const ImuData & data) {
@@ -41,6 +44,87 @@ Eigen::Matrix3d Initializer::Gram_Schmidt(const Eigen::Vector3d &gravity_inI) {
     R_GtoI.block<3, 1>(0, 1) = y_axis;
     R_GtoI.block<3, 1>(0, 2) = z_axis;
     return R_GtoI;
+}
+
+double Initializer::PixelDistance(CameraObs obs_a, CameraObs obs_b) const {
+    double dx = obs_a.u_norm - obs_b.u_norm;
+    double dy = obs_a.v_norm - obs_b.v_norm;
+    return sqrt(dx * dx + dy * dy);
+}
+
+double Initializer::calcVisualObsParallex(std::unordered_map<uint32_t, CameraObs> visual_obs_a, std::unordered_map<uint32_t, CameraObs> visual_obs_b) const
+{
+    double average_parallex = 0.0;
+    int count = 0;
+    for (const auto& [feature_id, obs_a] : visual_obs_a) {
+        if (visual_obs_b.find(feature_id) != visual_obs_b.end()) {
+            CameraObs obs_b = visual_obs_b.at(feature_id);
+            double parallex = PixelDistance(obs_a, obs_b);
+            average_parallex += parallex;
+            count++;
+        }
+    }
+    if (count > 0) {
+        average_parallex = average_parallex / count;
+    }
+    return average_parallex;
+}
+
+bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<CameraObs>> feature_observes, std::shared_ptr<State> &state)
+{
+    LOG(INFO) << "trying to initialize with stereo visual measurements";
+
+    double ts_sec = feature_observes.first;
+    std::unordered_map<uint32_t, CameraObs> current_feature_umap;
+    for (auto& obs : feature_observes.second) {
+        current_feature_umap.insert({ obs.feat_id, obs });
+    }
+
+    // Push stereo visual observations for first entry
+    if (feature_obs_buffer_.empty()) {
+        if (current_feature_umap.size() > kMinStereoFeaturesForInit) {
+            feature_obs_buffer_.push_back(current_feature_umap);
+        }
+        LOG(INFO) << "Stereo visual initialization failed reason: first entry, exit";
+        return false;
+    }
+
+    // Calculate visual parallex between current and previous observations
+    std::unordered_map<uint32_t, CameraObs> candidate_obs_umap;
+    double max_average_parallex = 0.f;
+    for (const auto& prev_obs_umap : feature_obs_buffer_) {
+        double average_parallex = calcVisualObsParallex(prev_obs_umap, current_feature_umap);
+        if (average_parallex > kVisualParallexForInit && average_parallex > max_average_parallex) {
+            max_average_parallex = average_parallex;
+            candidate_obs_umap = prev_obs_umap;
+        }
+    }
+    if (candidate_obs_umap.empty()) {
+        LOG(INFO) << "Stereo visual initialization failed reason: no candidate observations";
+        feature_obs_buffer_.push_back(current_feature_umap);
+        if (feature_obs_buffer_.size() > kMaxVisualStereoSize) {
+            feature_obs_buffer_.pop_front();
+        }
+        return false;
+    }
+
+    // prepare stereo observation pairs
+    std::vector<std::pair<CameraObs, CameraObs>> stereo_obs_pairs;
+    for (const auto& [feature_id, prev_obs] : candidate_obs_umap) {
+        if (current_feature_umap.find(feature_id) != current_feature_umap.end()) {
+            CameraObs cur_obs = current_feature_umap.at(feature_id);
+            stereo_obs_pairs.push_back({ prev_obs, cur_obs });
+        }
+    }
+    if (stereo_obs_pairs.size() < kMinStereoFeaturesForInit)
+    {
+        LOG(INFO) << "Stereo visual initialization failed reason: not enough stereo observations";
+        return false;
+    }
+
+    // todo: implement stereo visual initialization
+
+    return true;
 }
 
 bool Initializer::static_initialize(std::shared_ptr<State> &state)

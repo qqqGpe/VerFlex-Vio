@@ -24,46 +24,44 @@ public:
         STATUS_ERROR
     };
 
-    VioFrontend(const Param parameters, std::shared_ptr<CameraModel>& camera_model, keyframe_flag_e *keyframe)
+    VioFrontend(const Param parameters, std::shared_ptr<CameraModel>& camera_model, KeyFrameType *keyframe)
     {
-        _width = parameters.img_width;
-        _height = parameters.img_height;
+        width_ = parameters.img_width;
+        height_ = parameters.img_height;
         _max_feat_n = parameters.max_feat_n;
-        _grid_w = parameters.grid_w;
-        _grid_h = parameters.grid_h;
+        grid_w_ = parameters.grid_w;
+        grid_h_ = parameters.grid_h;
 
         _keyframe = keyframe;
         _camera_model = camera_model;
 
-        ref_feat_to_track.resize(_max_feat_n, cam_obs_t());
+        ref_feat_to_track_.resize(_max_feat_n, CameraObs());
     }
 
-    bool inBorder(int x, int y);
+    bool InBorder(int x, int y);
 
     status_t run();
 
-    bool track_monocular(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& input_image, std::pair<double, std::vector<cam_obs_t>>& feature_observes);
+    bool TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& input_image, std::pair<double, std::vector<CameraObs>>& feature_observes);
 
-    bool track_stereo(const double timestamp, cv::Mat image_l, cv::Mat image_r, std::pair<double, std::vector<cam_obs_t>>& feature_observes);
+    bool TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& input_image, std::pair<double, std::vector<CameraObs>>& feature_observes);
 
-    // void publish_features(const frontend_frame_t &frame);
+    std::vector<bool> TrackFeatures(const cv::Mat image_left, const cv::Mat image_right, const std::vector<cv::Point2f> pts_to_track, std::vector<cv::Point2f>& pts_tracked);
 
-    // keyframe_flag_e decide_keyframe(const std::vector<FeatObs> &ref_feat_to_track, const std::vector<FeatObs> &cur_feat_to_track);
+    status_t OutlierRejection(const std::vector<CameraObs>& obs_prev, const std::vector<CameraObs>& obs_curr, std::vector<uchar>& inliers);
 
-    status_t outlier_rejection(const std::vector<cam_obs_t>& obs_prev, const std::vector<cam_obs_t>& obs_curr, std::vector<uchar>& inliers);
-
-    bool is_first_frame = true;
     std::pair<double, cv::Mat> ref_frame; // (ts_sec, image)
     std::pair<double, cv::Mat> cur_frame;
-    std::vector<cam_obs_t> ref_feat_to_track; // valid, (x, y)
+    std::vector<CameraObs> ref_feat_to_track_; // valid, (x, y)
 
 private:
+    bool is_first_frame_ = true;
     uint32_t frame_id = 0;
-    uint32_t feat_id = 0;
-    uint32_t _width, _height;
+    uint32_t global_feature_id_ = 0;
+    uint32_t width_, height_;
     uint32_t _max_feat_n;
-    uint32_t _grid_w, _grid_h;
-    keyframe_flag_e *_keyframe;
+    uint32_t grid_w_, grid_h_;
+    KeyFrameType *_keyframe;
     std::shared_ptr<CameraModel> _camera_model;
     boost::posix_time::ptime frontend_rT, frontend_rT1, frontend_rT2, frontend_rT3, frontend_rT4;
 };

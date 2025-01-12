@@ -3,14 +3,14 @@
     <!-- what config we are going to run (should match folder name) -->
     <arg name="verbosity"   default="INFO" /> <!-- ALL, DEBUG, INFO, WARNING, ERROR, SILENT -->
     <arg name="config"      default="euroc_mav" /> <!-- euroc_mav, tum_vi, rpng_aruco, kaist -->
-    <arg name="log_path" default="/home/gao/ws/catkin_vio_ws/src/vio_backend/log" />
+    <arg name="log_path" default="/home/gao/ws/catkin_ws/src/vio_backend/log" />
 
     <!-- mono or stereo and what ros bag to play -->
     <arg name="max_cameras" default="1" />
     <arg name="use_stereo"  default="false" />
     <arg name="bag_start"   default="0" /> <!-- v1-2: 0, mh1: 40, mh2: 35, mh3: 17.5, mh4-5: 15 -->
     <arg name="dataset"     default="MH_01_easy" /> <!-- V1_01_easy, V1_02_medium, V1_03_difficult, V2_02_medium, dataset-room1_512_16 -->
-    <arg name="bag"         default="/media/gao/samsung/dataset/euroc_mav/$(arg dataset).bag" />
+    <arg name="bag"         default="/home/gao/dataset/euroc_mav/$(arg dataset).bag" />
 
     <!-- saving trajectory path and timing information -->
     <arg name="dosave"      default="false" />
@@ -34,7 +34,7 @@
         <!-- bag parameters -->
         <param name="path_bag"                 type="str"    value="$(arg bag)" />
         <param name="bag_start"                type="double" value="35" />
-        <param name="bag_durr"                 type="int"    value="20" />
+        <param name="bag_durr"                 type="int"    value="40" />
 
         <param name="img_width"                type="int"    value="752" />
         <param name="img_height"               type="int"    value="480" />

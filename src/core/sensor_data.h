@@ -4,16 +4,16 @@
 #include <opencv2/opencv.hpp>
 
 
-enum class keyframe_flag_e {
+enum class KeyFrameType {
     not_keyframe = 0,
     large_parallex_flag,
     feat_lost_too_much
 };
 
 struct ImuData {
-    double ts_sec;
-    Eigen::Vector3d am;
-    Eigen::Vector3d wm;
+    double ts_sec = 0.f;
+    Eigen::Vector3d am = Eigen::Vector3d::Zero();
+    Eigen::Vector3d wm = Eigen::Vector3d::Zero();;
     bool operator<(const ImuData& other) { return ts_sec < other.ts_sec; }
 };
 
@@ -29,26 +29,29 @@ struct ImuData {
 // };
 
 struct CameraData {
-    double ts_sec;
-    int cam_id;
+    double ts_sec = 0.f;
+    int cam_id = 0;
     cv::Mat image;
     cv::Mat mask;
     bool operator<(const CameraData& other) { return ts_sec < other.ts_sec; }
 };
 
-struct cam_obs_t {
-    cam_obs_t() { }
-    cam_obs_t(double u, double v, double u_norm, double v_norm)
+struct CameraObs {
+    CameraObs() { }
+    CameraObs(double ts_sec, float u, float v, float ur, float vr)
+        : ts_sec(ts_sec)
+        , u(u)
+        , v(v)
+        , ur(ur)
+        , vr(vr)
+    {}
+
+    CameraObs(float u, float v, float u_norm, float v_norm)
         : u(u)
         , v(v)
         , u_norm(u_norm)
         , v_norm(v_norm)
-    {
-        ts_sec = 0;
-        valid = false;
-        feat_id = -1;
-        obs_times_n = 0;
-    }
+    {}
 
     void set_invalid()
     {
@@ -56,21 +59,37 @@ struct cam_obs_t {
         feat_id = -1;
         valid = false;
         obs_times_n = 0;
+
         u = 0;
         v = 0;
         u_norm = 0;
         v_norm = 0;
+
         ur = 0;
         vr = 0;
+        ur_norm = 0;
+        vr_norm = 0;
     }
 
-    double ts_sec;
-    uint32_t feat_id;
-    bool valid;
-    uint32_t obs_times_n;
-    double u, v;
-    double u_norm, v_norm;
-    double ur, vr;
+    double ts_sec = 0;
+    int32_t feat_id = -1;
+    bool valid = false;
+    uint32_t obs_times_n = 0;
+    float u = 0.f;
+    float v = 0.f;
+    float u_norm = 0.f;
+    float v_norm = 0.f;
+    float ur = 0.f;
+    float vr = 0.f;
+    float ur_norm = 0.f;
+    float vr_norm = 0.f;
+};
+
+class CamObsHash {
+    public:
+    std::size_t operator()(const CameraObs &camObs) const {
+        return std::hash<uint32_t>()(camObs.feat_id);
+    }
 };
 
 struct Feature {
@@ -88,10 +107,10 @@ struct Feature {
 
     int _id = -1;
     bool _valid = false;
-    Eigen::Vector3d _pwf;
+    Eigen::Vector3d _pwf = Eigen::Vector3d::Zero();
     bool _is_triangulated = false;
     double parallex = 0.f;
-    std::map<double, cam_obs_t> _visual_obs_buffer; // <ts_sec, obs>
+    std::map<double, CameraObs> _visual_obs_buffer; // <ts_sec, obs>
 };
 
 #endif

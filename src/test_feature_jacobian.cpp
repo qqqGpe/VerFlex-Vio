@@ -86,7 +86,7 @@ void project_to_camera()
             // if (OOB(uv)) {
             //     continue;
             // }
-            cam_obs_t obs = { uv.x(), uv.y(), p_norm.x(), p_norm.y() };
+            CameraObs obs(uv.x(), uv.y(), p_norm.x(), p_norm.y());
             feat->_visual_obs_buffer.insert(make_pair(camera_ts[j], obs));
             feat->_valid = true;
         }
@@ -102,8 +102,7 @@ int main()
     pts_g = MatrixXd::Random(3, POINT_NUM_N).array().abs();
     pts_g.block<2, POINT_NUM_N>(0, 0) *= 1;
     pts_g.block<1, POINT_NUM_N>(2, 0) *= 5;
-    std::cout << "generated pwf: \n"
-              << std::endl;
+    std::cout << "generated pwf: \n" << std::endl;
     std::cout << pts_g << std::endl;
 
     VisualManager visual_manager;

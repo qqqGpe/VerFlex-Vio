@@ -38,13 +38,13 @@ public:
         }
     }
 
-    void update_feature(std::pair<double, std::vector<cam_obs_t>> feature_observes);
+    void update_feature(std::pair<double, std::vector<CameraObs>> feature_observes);
 
     bool visual_update();
 
-    void reset_keyframe() { _keyframe = keyframe_flag_e::not_keyframe; }
+    void reset_keyframe() { _keyframe = KeyFrameType::not_keyframe; }
 
-    keyframe_flag_e decide_keyframe(std::shared_ptr<State> _state, std::vector<Feature*> feats);
+    KeyFrameType decide_keyframe(std::shared_ptr<State> _state, std::vector<Feature*> feats);
 
     void update_feature_base();
 
@@ -70,7 +70,7 @@ public:
 
     void feed_image(const std::pair<double, std::pair<cv::Mat, cv::Mat>> input);
 
-    keyframe_flag_e get_keyframe() { return _keyframe; }
+    KeyFrameType get_keyframe() { return _keyframe; }
 
     std::vector<Feature*> get_feature_base() { return _feature_base; }
 
@@ -81,17 +81,17 @@ public:
     uint32_t _max_visual_feat_to_use = 40;
 
     std::queue<std::pair<double, std::pair<cv::Mat, cv::Mat>>> _input_image_buffer;
-    std::queue<std::pair<double, std::vector<cam_obs_t>>> feature_obs_buffer;
+    std::queue<std::pair<double, std::vector<CameraObs>>> feature_obs_buffer;
 
     std::vector<Feature*> _feature_base;
     std::vector<Feature*> _feature_tracked;
     std::vector<Feature*> _feature_lost;
     std::vector<Feature*> _feature_new_base;
-    std::vector<cam_obs_t> _feature_obs_new;
+    std::vector<CameraObs> _feature_new;
 
     boost::posix_time::ptime visual_rT, visual_rT1, visual_rT2, visual_rT3, visual_rT4;
 
-    keyframe_flag_e _keyframe = keyframe_flag_e::not_keyframe;
+    KeyFrameType _keyframe = KeyFrameType::not_keyframe;
 
     std::shared_ptr<VioFrontend> vio_frontend;
 

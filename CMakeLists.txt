@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(vio_backend)
 
-## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_BUILD_TYPE Debug) # Debug Releasea
@@ -21,7 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(Sophus REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV 4 REQUIRED)
-find_package(glog 0.7.0 REQUIRED)
+find_package(glog REQUIRED)
 
 catkin_package(
  LIBRARIES vio_backend
@@ -38,6 +37,7 @@ include_directories(
   src/types/
   src/utils/
   src/core/
+  /usr/include/glog/
 )
 
 list(APPEND thirdparty_libraries
@@ -61,14 +61,7 @@ src/types/
 src/utils/)
 target_link_libraries(CORE_LIB glog::glog)
 
-# add_subdirectory(src/states)
-# add_subdirectory(src/types)
 add_subdirectory(src/core)
-# add_subdirectory(src/utils)
-
-# aux_source_directory(src DIR_SRCS)
-# message(lib_list)
-# add_library(backend_lib lib_list)
 
 add_executable(${PROJECT_NAME}_node src/vio_backend_node.cpp)
 target_link_libraries(${PROJECT_NAME}_node
