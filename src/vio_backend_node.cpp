@@ -36,9 +36,7 @@ int main(int argc, char **argv) {
   view_full.addQuery(bag);
   ros::Time time_init = view_full.getBeginTime();
   time_init += ros::Duration(params.bag_start);
-  ros::Time time_finish = (params.bag_durr < 0)
-                              ? view_full.getEndTime()
-                              : time_init + ros::Duration(params.bag_durr);
+  ros::Time time_finish = (params.bag_durr < 0) ? view_full.getEndTime() : time_init + ros::Duration(params.bag_durr);
   view.addQuery(bag, time_init, time_finish);
 
   // initialize vio_backend
@@ -90,11 +88,14 @@ int main(int argc, char **argv) {
         }
         int cam_idt_idx = -1;
         for (int mt = m; mt < (int)msgs.size(); mt++) {
-          if (msgs.at(mt).getTopic() != params.camera_topic.at(cam_idt))
-            continue;
-          if (std::abs(msgs.at(mt).getTime().toSec() - meas_time) < kStereoTimeDeviation)
-            cam_idt_idx = mt;
-          break;
+            if (msgs.at(mt).getTopic() != params.camera_topic.at(cam_idt)) {
+                continue;
+            }
+
+            if (std::abs(msgs.at(mt).getTime().toSec() - meas_time) < kStereoTimeDeviation) {
+                cam_idt_idx = mt;
+            }
+            break;
         }
         if (cam_idt_idx != -1) {
           camid_to_msg_index.insert({cam_idt, cam_idt_idx});

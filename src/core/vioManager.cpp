@@ -210,7 +210,7 @@ void VioManager::process_measurememt_once()
         log_value.vy = state->_imu_state->v()->vec().y();
         log_value.vz = state->_imu_state->v()->vec().z();
 
-        Eigen::Vector3d euler_angle = mathematical::rotation_matrix_to_euler_angles(state->_imu_state->q()->Rot()) * RAD2DEG;
+        Eigen::Vector3d euler_angle = mathematical::RotationMatrixToEulerAngles(state->_imu_state->q()->Rot()) * RAD2DEG;
         log_value.roll = euler_angle.x();
         log_value.pitch = euler_angle.y();
         log_value.yaw = euler_angle.z();

@@ -84,7 +84,7 @@ VioFrontend::status_t VioFrontend::OutlierRejection(const std::vector<CameraObs>
     // r1.join();
     // r2.join();
 
-    EpipolarRansac(points_prev, points_curr, _camera_model->intrinsic(), &inliers_epipolar);
+    EpipolarRansac(points_prev, points_curr, _camera_model->K_l(), &inliers_epipolar);
 
     // int sum_h = 0;
     // int sum_e = 0;

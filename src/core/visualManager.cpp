@@ -379,7 +379,7 @@ bool VisualManager::pnp_ransac_to_reject_outliers(std::vector<Feature* > feats)
     cv::Mat intrinsic;
     cv::Mat distortion;
     cv::Mat inliers;
-    cv::eigen2cv(_camera_model->intrinsic(), intrinsic);
+    cv::eigen2cv(_camera_model->K_l(), intrinsic);
     cv::Mat rvec = cv::Mat::zeros(3, 1, CV_64FC1);
     cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64FC1);
     cv::solvePnPRansac(list_points3d, list_points2d,
@@ -561,7 +561,7 @@ bool VisualManager::construct_feature_jocabian_full(std::vector<Feature*> feats,
 
     // measurements compression
     if (Hx_full.rows() > Hx_full.cols()) {
-        mathematical::nullspace_project_inplace(Hx_full, Hx_full.cols() - 1);
+        mathematical::NullSpaceProjectInplace(Hx_full, Hx_full.cols() - 1);
         res.resize(Hx_full.cols() - 1, 1);
         res = Hx_full.block(0, Hx_full.cols() - 1, Hx_full.cols() - 1, 1);
         Hx_full.conservativeResize(Hx_full.cols() - 1, Hx_full.cols() - 1);
@@ -682,7 +682,7 @@ Eigen::MatrixXd VisualManager::get_single_feature_jacobian(Feature* feat, std::u
     }
 
     // project Hfx to feature left null space
-    mathematical::nullspace_project_inplace(Hfx, 3);
+    mathematical::NullSpaceProjectInplace(Hfx, 3);
     Eigen::MatrixXd Hx = Eigen::MatrixXd::Zero(Hfx.rows() - 3, Hfx.cols() - 3);
     Hx.noalias() = Hfx.block(3, 3, Hfx.rows() - 3, Hfx.cols() - 3);
 

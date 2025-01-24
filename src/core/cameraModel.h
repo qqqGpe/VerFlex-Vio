@@ -16,45 +16,57 @@ public:
     CameraModel() = default;
     ~CameraModel() { }
 
-    void set_camera_intrin_matrix(const std::vector<double>& intrinsic_coeff) {
-        _K.setIdentity();
-        _K(0, 0) = intrinsic_coeff[0];
-        _K(1, 1) = intrinsic_coeff[1];
-        _K(0, 2) = intrinsic_coeff[2];
-        _K(1, 2) = intrinsic_coeff[3];
+    void set_camera_intrin_matrix(const std::vector<double>& intrinsic_coeff, Eigen::Matrix3d& K)
+    {
+        K.setIdentity();
+        K(0, 0) = intrinsic_coeff[0];
+        K(1, 1) = intrinsic_coeff[1];
+        K(0, 2) = intrinsic_coeff[2];
+        K(1, 2) = intrinsic_coeff[3];
     }
 
-    void set_camera_distort_coeff(const std::vector<double>& distort_coeff) {
+    void set_camera_distort_coeff(const std::vector<double>& distort_coeff, Eigen::VectorXd& param)
+    {
         if (distort_coeff.empty()) {
             return;
         }
-        _distort_coeff = Eigen::VectorXd::Zero(distort_coeff.size());
+        param = Eigen::VectorXd::Zero(distort_coeff.size());
         for (size_t i = 0; i < distort_coeff.size(); i++) {
-            _distort_coeff(i) = distort_coeff[i];
+            param(i) = distort_coeff[i];
         }
     }
 
     CameraModel(const CameraType &type, const Param params)
     {
         _type = type;
-        _Ric_init = params.Ric[0];
-        _tic_init = params.tic[0];
-        set_camera_intrin_matrix(params.intrinsic_cam_0);
-        set_camera_distort_coeff(params.distortion_cam_0);
+
+        Ric_0_ = params.Ric[0];
+        tic_0_ = params.tic[0];
+        set_camera_intrin_matrix(params.intrinsic_cam_0, K_l_);
+        set_camera_intrin_matrix(params.intrinsic_cam_1, K_r_);
+
+        Ric_1_ = params.Ric[1];
+        tic_1_ = params.tic[1];
+        set_camera_distort_coeff(params.distortion_cam_0, distort_param_l);
+        set_camera_distort_coeff(params.distortion_cam_1, distort_param_r);
+
+        R_rl_ = Ric_0_.transpose() * Ric_1_;
+        t_rl_ = Ric_0_.transpose() * (tic_1_ - tic_0_);
+        baseline = t_rl_.norm();
     }
 
     Eigen::Vector2d project(Eigen::Vector3d p3d_norm);
 
     Eigen::Vector3d back_project(Eigen::Vector2d uv_2d)
     {
-        Eigen::Vector3d feat_norm((uv_2d.x() - _K(0, 2)) / _K(0, 0), (uv_2d.y() - _K(1, 2)) / _K(1, 1), 1.0);
+        Eigen::Vector3d feat_norm((uv_2d.x() - K_l_(0, 2)) / K_l_(0, 0), (uv_2d.y() - K_l_(1, 2)) / K_l_(1, 1), 1.0);
         return feat_norm;
     }
 
     void back_project_stereo(CameraObs &obs)
     {
-        Eigen::Vector3d feat_norm_left((obs.u - _K(0, 2)) / _K(0, 0), (obs.v - _K(1, 2)) / _K(1, 1), 1.0);
-        Eigen::Vector3d feat_norm_right((obs.ur - _K(0, 2)) / _K(0, 0), (obs.vr - _K(1, 2)) / _K(1, 1), 1.0);
+        Eigen::Vector3d feat_norm_left((obs.u - K_l_(0, 2)) / K_l_(0, 0), (obs.v - K_l_(1, 2)) / K_l_(1, 1), 1.0);
+        Eigen::Vector3d feat_norm_right((obs.ur - K_r_(0, 2)) / K_r_(0, 0), (obs.vr - K_r_(1, 2)) / K_r_(1, 1), 1.0);
 
         obs.u_norm = feat_norm_left.x();
         obs.v_norm = feat_norm_left.y();
@@ -62,17 +74,31 @@ public:
         obs.vr_norm = feat_norm_right.y();
     }
 
-    Eigen::Matrix3d intrinsic() { return _K; }
+    Eigen::Matrix3d Ric_l() { return Ric_0_; }
 
-    Eigen::Matrix3d Ric() { return _Ric_init; }
+    Eigen::Vector3d tic_l() { return tic_0_; }
 
-    Eigen::Vector3d tic() { return _tic_init; }
+    Eigen::Matrix3d Ric_r() { return Ric_1_; }
+
+    Eigen::Vector3d tic_r() { return tic_1_; }
+
+    Eigen::Matrix3d K_l() { return K_l_; }
+
+    Eigen::Matrix3d K_r() { return K_r_; }
 
 private:
     CameraType _type = CameraType::NO_TYPE;
-    Eigen::Matrix3d _K;
-    Eigen::VectorXd _distort_coeff;
-    Eigen::Matrix3d _Ric_init;
-    Eigen::Vector3d _tic_init;
+    Eigen::VectorXd distort_param_l;
+    Eigen::VectorXd distort_param_r;
+    Eigen::Matrix3d Ric_0_ = Eigen::Matrix3d::Identity();
+    Eigen::Vector3d tic_0_ = Eigen::Vector3d::Zero();
+    Eigen::Matrix3d Ric_1_ = Eigen::Matrix3d::Identity();
+    Eigen::Vector3d tic_1_ = Eigen::Vector3d::Zero();
+    Eigen::Matrix3d K_l_ = Eigen::Matrix3d::Identity();
+    Eigen::Matrix3d K_r_ = Eigen::Matrix3d::Identity();
+
+    Eigen::Matrix3d R_rl_ = Eigen::Matrix3d::Identity();
+    Eigen::Vector3d t_rl_ = Eigen::Vector3d::Zero();
+    double baseline = 0.f;
 };
 #endif
