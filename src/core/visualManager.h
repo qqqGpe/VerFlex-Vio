@@ -48,9 +48,19 @@ public:
 
     void update_feature_base();
 
+    void ResetFeatureBase();
+
+    void InitFeatureBase(std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_feature_triangulated);
+
     void drop_feature_obs(const double timestamp_to_drop);
 
     void feature_triangulation(std::vector<Feature*> &feats, std::map<double, CameraPose> camera_pose_buffer);
+
+    bool StereoTriangulation(const std::shared_ptr<CameraModel> camera_model, CameraObs& cam_obs, Eigen::Vector3d& pwf) const;
+
+    bool PnpRansac(const std::shared_ptr<CameraModel> camera_model,
+                   std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_obs_triangulated,
+                   Eigen::Matrix3d& R_21, Eigen::Vector3d& p_21) const;
 
     bool least_square_triangulation(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
 
@@ -66,7 +76,7 @@ public:
 
     std::vector<Feature*> select_msckf_features(const std::vector<Feature*> feats);
 
-    void set_state(std::shared_ptr<State> state) { _state = state; } // for debug
+    void set_state(std::shared_ptr<State> state) { _state = state; } // only for debug
 
     void feed_image(const std::pair<double, std::pair<cv::Mat, cv::Mat>> input);
 
@@ -82,6 +92,8 @@ public:
 
     std::queue<std::pair<double, std::pair<cv::Mat, cv::Mat>>> _input_image_buffer;
     std::queue<std::pair<double, std::vector<CameraObs>>> feature_obs_buffer;
+
+    std::map<double, std::pair<cv::Mat, cv::Mat>> stored_images_;
 
     std::vector<Feature*> _feature_base;
     std::vector<Feature*> _feature_tracked;

@@ -17,16 +17,19 @@ struct ImuData {
     bool operator<(const ImuData& other) { return ts_sec < other.ts_sec; }
 };
 
-// struct FeatureData {
-//     double ts_sec;
-//     int cam_id;
-//     int keyframe;
-//     std::vector<Eigen::Vector2d> cam_obs;
-//     std::vector<bool> valid;
-//     std::vector<uint32_t> feat_id;
-//     std::vector<uint32_t> obs_times;
-//     bool operator<(const FeatureData& other) { return ts_sec < other.ts_sec; }
-// };
+class GroundTruth {
+public:
+    GroundTruth() = default;
+    GroundTruth(double ts_sec, Eigen::Vector3d p, Eigen::Vector3d v)
+        : ts_sec(ts_sec)
+        , p_(p)
+        , v_(v)
+    {}
+
+    double ts_sec = 0.f;
+    Eigen::Vector3d p_ = Eigen::Vector3d::Zero();
+    Eigen::Vector3d v_ = Eigen::Vector3d::Zero();
+};
 
 struct CameraData {
     double ts_sec = 0.f;
@@ -37,7 +40,7 @@ struct CameraData {
 };
 
 struct CameraObs {
-    CameraObs() { }
+    CameraObs() = default;
     CameraObs(double ts_sec, float u, float v, float ur, float vr)
         : ts_sec(ts_sec)
         , u(u)

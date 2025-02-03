@@ -52,10 +52,22 @@ public:
 
         R_rl_ = Ric_0_.transpose() * Ric_1_;
         t_rl_ = Ric_0_.transpose() * (tic_1_ - tic_0_);
-        baseline = t_rl_.norm();
+        baseline_ = t_rl_.norm();
     }
 
-    Eigen::Vector2d project(Eigen::Vector3d p3d_norm);
+    Eigen::Vector2d project_left(Eigen::Vector3d p3d_norm)
+    {
+        Eigen::Vector2d feature_norm(K_l_(0, 0) * p3d_norm.x() / p3d_norm.z() + K_l_(0, 2),
+                                     K_l_(1, 1) * p3d_norm.y() / p3d_norm.z() + K_l_(1, 2));
+        return feature_norm;
+    }
+
+    Eigen::Vector2d project_right(Eigen::Vector3d p3d_norm)
+    {
+        Eigen::Vector2d feature_norm(K_r_(0, 0) * p3d_norm.x() / p3d_norm.z() + K_r_(0, 2),
+                                     K_r_(1, 1) * p3d_norm.y() / p3d_norm.z() + K_r_(1, 2));
+        return feature_norm;
+    }
 
     Eigen::Vector3d back_project(Eigen::Vector2d uv_2d)
     {
@@ -74,6 +86,8 @@ public:
         obs.vr_norm = feat_norm_right.y();
     }
 
+    double baseline() const { return baseline_; }
+
     Eigen::Matrix3d Ric_l() { return Ric_0_; }
 
     Eigen::Vector3d tic_l() { return tic_0_; }
@@ -85,6 +99,8 @@ public:
     Eigen::Matrix3d K_l() { return K_l_; }
 
     Eigen::Matrix3d K_r() { return K_r_; }
+
+    Eigen::Matrix3d R_rl() { return R_rl_; }
 
 private:
     CameraType _type = CameraType::NO_TYPE;
@@ -99,6 +115,6 @@ private:
 
     Eigen::Matrix3d R_rl_ = Eigen::Matrix3d::Identity();
     Eigen::Vector3d t_rl_ = Eigen::Vector3d::Zero();
-    double baseline = 0.f;
+    double baseline_ = 0.f;
 };
 #endif

@@ -74,7 +74,7 @@ public:
         cv::waitKey(0);
     }
 
-    static void draw_grid_with_images(const std::vector<cv::Mat>& images) {
+    static void ShowGridImages(const std::vector<cv::Mat>& images) {
         constexpr uint8_t scale = 2;
         int height = 2 * images[0].rows / scale;
         int width = 3 * images[0].cols / scale;
@@ -108,6 +108,32 @@ public:
 
         cv::imshow("keyframes", gridImage);
         cv::waitKey(1);
+    }
+
+    // Function to draw matches between two images in one image
+    static void visualizeStereoMatches(const cv::Mat& img1, const cv::Mat& img2,
+                                       const std::vector<cv::Point2f>& points1,
+                                       const std::vector<cv::Point2f>& points2)
+    {
+        // Create an output image to display matches
+        cv::Mat outImg;
+        cv::hconcat(img1, img2, outImg);
+        cv::cvtColor(outImg, outImg, cv::COLOR_GRAY2BGR);
+
+        // Draw lines between matching points
+        for (size_t i = 0; i < points1.size(); ++i) {
+            cv::Point2f pt1 = points1[i];
+            cv::Point2f pt2 = points2[i];
+            pt2.x += img1.cols; // Offset the x-coordinate for the second image
+
+            cv::line(outImg, pt1, pt2, cv::Scalar(0, 255, 0), 2);
+            cv::circle(outImg, pt1, 5, cv::Scalar(0, 0, 255), -1);
+            cv::circle(outImg, pt2, 5, cv::Scalar(0, 0, 255), -1);
+        }
+
+        // Display the image with matches
+        cv::imshow("Stereo Matches", outImg);
+        cv::waitKey(0);
     }
 };
 

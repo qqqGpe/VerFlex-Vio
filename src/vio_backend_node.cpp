@@ -66,14 +66,23 @@ int main(int argc, char **argv) {
     }
   }
 
+  std::string ground_truth_topic = "/leica/position";
   for (int m = 0; m < msgs.size(); m++) {
     if (!ros::ok()) {
       break;
     }
+
+    // get groundtruth msgs
+    if (msgs.at(m).getTopic() == ground_truth_topic) {
+        vio_manager.groundtruth_callback(msgs.at(m).instantiate<geometry_msgs::PointStamped>());
+    }
+
+    // get imu msgs
     if (msgs.at(m).getTopic() == params.imu_topic) {
       vio_manager.imu_callback(msgs.at(m).instantiate<sensor_msgs::Imu>());
     }
 
+    // get stereo visual msgs
     for (int cam_id = 0; cam_id < params.camera_num; cam_id++) {
       if (msgs.at(m).getTopic() != params.camera_topic.at(cam_id)) {
         continue;

@@ -196,6 +196,28 @@ void VisualManager::update_feature(std::pair<double, std::vector<CameraObs>> fea
     // std::cout << "feature new: " << _feature_new.size() << std::endl;
 }
 
+void VisualManager::ResetFeatureBase()
+{
+    _feature_base.clear();
+    _feature_new.clear();
+    _feature_lost.clear();
+    _feature_tracked.clear();
+}
+
+void VisualManager::InitFeatureBase(std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_feature_triangulated)
+{
+    for (auto &[feature_id, feature_obs] : stereo_feature_triangulated)
+    {
+        Feature* feature = new Feature();
+        feature->_id = feature_id;
+        feature->_pwf = feature_obs.second;
+        feature->_valid = true;
+        feature->_is_triangulated = true;
+        feature->_visual_obs_buffer.insert({ feature_obs.first.ts_sec, feature_obs.first });
+        _feature_base.push_back(feature);
+    }
+}
+
 bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat)
 {
     // std::cout << "feat.size: " << feat->_visual_obs_buffer.size() << std::endl;
@@ -356,6 +378,7 @@ void VisualManager::feed_image(const std::pair<double, std::pair<cv::Mat, cv::Ma
         _input_image_buffer.pop();
     }
     _input_image_buffer.push(input);
+    stored_images_.insert(input);
 }
 
 bool VisualManager::pnp_ransac_to_reject_outliers(std::vector<Feature* > feats)
@@ -406,14 +429,71 @@ bool VisualManager::pnp_ransac_to_reject_outliers(std::vector<Feature* > feats)
         }
     }
 
-    // for debugging
-    // for (int i = 0; i < inliers.rows; i++)
-    // {
-    //     std::cout << inliers.at<int>(i) << std::endl;
-    // }
-    // Eigen::Vector3d t_, r_;
-    // cv::cv2eigen(tvec, t_);
-    // std::cout << "translation: " << t_.transpose() << std::endl;
+    return true;
+}
+
+bool VisualManager::PnpRansac(const std::shared_ptr<CameraModel> camera_model,
+    std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_obs_triangulated,
+    Eigen::Matrix3d& R_12, Eigen::Vector3d& p_12) const
+{
+    constexpr int kMinFeaturesForPnp = 10;
+
+    std::vector<cv::Point3f> points_3d;
+    std::vector<cv::Point2f> points_2d;
+    for (auto& [feat_id, obs_pwf] : stereo_obs_triangulated) {
+        points_3d.push_back(cv::Point3f(obs_pwf.second.x(), obs_pwf.second.y(), obs_pwf.second.z()));
+        points_2d.push_back(cv::Point2f(obs_pwf.first.u, obs_pwf.first.v));
+    }
+
+    cv::Mat rvec, tvec;
+    cv::Mat inliers;
+    cv::Mat intrinsic;
+    cv::Mat distortion;
+    cv::eigen2cv(camera_model->K_l(), intrinsic);
+    cv::solvePnPRansac(points_3d, points_2d, intrinsic, distortion, rvec, tvec, false, 100, 3.0, 0.99, inliers, cv::SOLVEPNP_ITERATIVE);
+
+    if (inliers.rows < kMinFeaturesForPnp) {
+        LOG(ERROR) << cv::format("PnpRansac failed: inliers.rows: %d < %d", inliers.rows, kMinFeaturesForPnp);
+        return false;
+    }
+
+    cv::Mat R;
+    cv::Rodrigues(rvec, R);
+    cv::cv2eigen(R, R_12);
+    cv::cv2eigen(tvec, p_12);
+    return true;
+}
+
+bool VisualManager::StereoTriangulation(const std::shared_ptr<CameraModel> camera_model, CameraObs& cam_obs, Eigen::Vector3d& pwf) const
+{
+    constexpr double kMaxStereoEipolarErrorThres = 8.0;
+    constexpr double kMinStereoTriangulationParallex = 1.0;
+    constexpr double kMaxStereoDepth = 20.0;
+
+    camera_model->back_project_stereo(cam_obs);
+    Eigen::Vector3d uv_norm_right(cam_obs.ur_norm, cam_obs.vr_norm, 1.0);
+    Eigen::Vector3d uv_norm_undistort = camera_model->R_rl() * uv_norm_right;
+    uv_norm_undistort = uv_norm_undistort / uv_norm_undistort.z();
+    Eigen::Vector2d uv_undistort = camera_model->project_right(uv_norm_undistort);
+
+    double diff_x = abs(cam_obs.u - uv_undistort.x());
+    double diff_y = abs(cam_obs.v - uv_undistort.y());
+    if (diff_y > kMaxStereoEipolarErrorThres) {
+        LOG(ERROR) << cv::format("Stereo triangulation failed: diff y: %f too large!", diff_y);
+        return false;
+    } else if (diff_x < kMinStereoTriangulationParallex) {
+        LOG(ERROR) << cv::format("Stereo triangulation failed: diff x: %f too small!", diff_x);
+        return false;
+    }
+
+    camera_model->back_project_stereo(cam_obs);
+    double z_depth = camera_model->K_l()(0, 0) * camera_model->baseline() * abs(cam_obs.u_norm - uv_norm_undistort.x());
+    if (z_depth < 0 || z_depth > kMaxStereoDepth) {
+        LOG(ERROR) << cv::format("Stereo triangulation failed: z_depth < 0 or z_depth > %f, z_depth: %f", kMaxStereoDepth, z_depth);
+        return false;
+    }
+    Eigen::Vector3d p3d_norm(cam_obs.u_norm, cam_obs.v_norm, 1.0);
+    pwf = z_depth * p3d_norm;
     return true;
 }
 

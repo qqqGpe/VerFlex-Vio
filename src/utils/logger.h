@@ -59,7 +59,9 @@ struct LogValue
 
         "diff_px",
         "diff_py",
-        "diff_pz"
+        "diff_pz",
+        "init_vnorm",
+        "ground_truth_vnorm"
     };
 
     double timestamp = 0;
@@ -104,6 +106,8 @@ struct LogValue
     double diff_px = 0;
     double diff_py = 0;
     double diff_pz = 0;
+    double init_vnorm = 0;
+    double groundtruth_vnorm = 0;
 };
 
 class Logger {
@@ -181,7 +185,9 @@ public:
             file << log_value.keyframe << ", ";
             file << log_value.diff_px << ", ";
             file << log_value.diff_py << ", ";
-            file << log_value.diff_pz << std::endl;
+            file << log_value.diff_pz << ", ";
+            file << log_value.init_vnorm << ", ";
+            file << log_value.groundtruth_vnorm << std::endl;
 
             last_log_value = log_value; // backup current log value
             // 写入数据到文件

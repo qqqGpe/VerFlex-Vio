@@ -70,8 +70,20 @@ double Initializer::calcVisualObsParallex(std::unordered_map<uint32_t, CameraObs
     return average_parallex;
 }
 
-bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<CameraObs>> feature_observes, std::shared_ptr<State> &state)
+bool Initializer::is_initialized()
 {
+    return is_orientation_initialized && is_bias_initialized && is_position_initialized && is_velocity_initialized;
+}
+
+bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<CameraObs>> feature_observes)
+{
+    if (is_initialized()) {
+        return false;
+    } else if (is_orientation_initialized == false || is_bias_initialized == false) {
+        LOG(INFO) << "Stereo visual initialization failed reason: orientation or bias not initialized!";
+        return false;
+    }
+
     LOG(INFO) << "trying to initialize with stereo visual measurements";
 
     double ts_sec = feature_observes.first;
@@ -80,35 +92,38 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
         current_feature_umap.insert({ obs.feat_id, obs });
     }
 
-    // Push stereo visual observations for first entry
-    if (feature_obs_buffer_.empty()) {
-        if (current_feature_umap.size() > kMinStereoFeaturesForInit) {
-            feature_obs_buffer_.push_back(current_feature_umap);
+    // Store current feature maps
+    if (current_feature_umap.size() > kMinStereoFeaturesForInit) {
+        feature_obs_buffer_.push_back(current_feature_umap);
+        if (feature_obs_buffer_.size() > kMaxVisualStereoSize) {
+            feature_obs_buffer_.pop_front();
         }
+    }
+
+    // Store stereo visual observations for first entry
+    if (feature_obs_buffer_.size() < 2) {
         LOG(INFO) << "Stereo visual initialization failed reason: first entry, exit";
         return false;
     }
 
     // Calculate visual parallex between current and previous observations
     std::unordered_map<uint32_t, CameraObs> candidate_obs_umap;
-    double max_average_parallex = 0.f;
+    double max_average_parallex = -1.f;
     for (const auto& prev_obs_umap : feature_obs_buffer_) {
         double average_parallex = calcVisualObsParallex(prev_obs_umap, current_feature_umap);
-        if (average_parallex > kVisualParallexForInit && average_parallex > max_average_parallex) {
+        // std::cout << cv::format("average_parallex: %f, feature_obs_buffer_.size(): %d\n", average_parallex, static_cast<int>(feature_obs_buffer_.size()));
+        if (average_parallex > max_average_parallex) {
             max_average_parallex = average_parallex;
             candidate_obs_umap = prev_obs_umap;
         }
     }
+
     if (candidate_obs_umap.empty()) {
-        LOG(INFO) << "Stereo visual initialization failed reason: no candidate observations";
-        feature_obs_buffer_.push_back(current_feature_umap);
-        if (feature_obs_buffer_.size() > kMaxVisualStereoSize) {
-            feature_obs_buffer_.pop_front();
-        }
+        LOG(INFO) << "Stereo visual initialization failed reason: not enough parallex!";
         return false;
     }
 
-    // prepare stereo observation pairs
+    // Prepare stereo observation pairs
     std::vector<std::pair<CameraObs, CameraObs>> stereo_obs_pairs;
     for (const auto& [feature_id, prev_obs] : candidate_obs_umap) {
         if (current_feature_umap.find(feature_id) != current_feature_umap.end()) {
@@ -122,16 +137,70 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
         return false;
     }
 
-    // todo: implement stereo visual initialization
+    // visualize current stereo observations
+    {
+        std::vector<cv::Point2f> points_left;
+        std::vector<cv::Point2f> points_right;
+        for (const auto& [obs_prev, obs_cur] : stereo_obs_pairs) {
+            points_left.push_back(cv::Point2f(obs_cur.u, obs_cur.v));
+            points_right.push_back(cv::Point2f(obs_cur.ur, obs_cur.vr));
+        }
+        auto images = visual_manager_->stored_images_.at(ts_sec);
+        assert(visual_manager_->stored_images_.count(ts_sec) != 0);
+        Utils::visualizeStereoMatches(images.first, images.second, points_left, points_right);
+    }
+
+    // triangulate stereo observations
+    std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_obs_triangulated; // {feature_id, {cur_obs, pwf}}
+    for (auto& [obs_prev, obs_cur] : stereo_obs_pairs) {
+        Eigen::Vector3d pwf;
+        // std::cout << cv::format("obs_prev: (%f, %f, %f, %f)\n", obs_prev.u, obs_prev.v, obs_cur.ur, obs_cur.vr);
+        if (!visual_manager_->StereoTriangulation(camera_model_, obs_prev, pwf)) {
+            continue;
+        }
+        stereo_obs_triangulated.try_emplace(obs_prev.feat_id, std::make_pair(obs_cur, pwf));
+    }
+
+    // calculate relative pose using Perspective-n-Point (PnP) algorithm
+    Eigen::Matrix3d R_12;   // R_prev_to_curr
+    Eigen::Vector3d p_12;   // t_prev_in_curr
+    if (!visual_manager_->PnpRansac(camera_model_, stereo_obs_triangulated, R_12, p_12)) {
+        return false;
+    }
+
+    std::shared_ptr<IMU_state> &imu_state = state_->_imu_state;
+    assert(imu_state->ts() == ts_sec);
+    Eigen::Matrix3d R_ItoG = imu_state->q()->Rot();
+    Eigen::Vector3d p_IpinG = R_ItoG * (-p_12);     // t_prev_in_G
+    auto &[obs_prev, obs_cur] = stereo_obs_pairs[0];
+    double delta_ts = abs(obs_cur.ts_sec - obs_prev.ts_sec);
+    Eigen::Vector3d v_IinG = p_IpinG / delta_ts;   // initial velocity in G
+
+    // initialize position and velocity
+    imu_state->p()->set_value(Eigen::Vector3d::Zero());
+    imu_state->v()->set_value(v_IinG);
+
+    // initialize stereo initialization imu covariance
+    Eigen::MatrixXd stereo_init_covariance = imu_state->covariance();
+    stereo_init_covariance.block(imu_state->p()->id(), imu_state->p()->id(), 3, 3) = std::pow(0.1, 2) * Eigen::Matrix3d::Identity(); // p
+    stereo_init_covariance.block(imu_state->v()->id(), imu_state->v()->id(), 3, 3) = std::pow(0.1, 2) * Eigen::Matrix3d::Identity(); // v
+    imu_state->set_covariance(stereo_init_covariance);
+    state_->_covariance.block(imu_state->id(), imu_state->id(), imu_state->size(), imu_state->size()) = stereo_init_covariance;
+
+    visual_manager_->ResetFeatureBase();
+    visual_manager_->InitFeatureBase(stereo_obs_triangulated);
+
+    // is_position_initialized = true;
+    // is_velocity_initialized = true;
 
     return true;
 }
 
-bool Initializer::static_initialize(std::shared_ptr<State> &state)
+bool Initializer::static_initialize()
 {
     LOG(INFO) << "trying to initialize with static states";
-    if(is_initialized) {
-        LOG(WARNING) << "system has already been initialized!";
+    if(is_orientation_initialized && is_bias_initialized) {
+        LOG(WARNING) << "orientation has already been initialized!";
         return false;
     }
 
@@ -175,7 +244,7 @@ bool Initializer::static_initialize(std::shared_ptr<State> &state)
     Eigen::Vector3d init_bg = gyro_mean;
     Eigen::Vector3d init_ba = acc_mean - R_GtoI * gravity_inG;
 
-    std::shared_ptr<IMU_state> &imu_state = state->_imu_state;
+    std::shared_ptr<IMU_state> &imu_state = state_->_imu_state;
 
     // initialize static imu state
     Eigen::VectorXd init_imu_state = Eigen::VectorXd::Zero(16);
@@ -187,16 +256,20 @@ bool Initializer::static_initialize(std::shared_ptr<State> &state)
 
     // initialize static imu covariance
     Eigen::MatrixXd init_imu_covariance = std::pow(0.02, 2) * Eigen::MatrixXd::Identity(imu_state->size(), imu_state->size());
-    init_imu_covariance.block(3, 3, 3, 3) = std::pow(0.05, 2) * Eigen::Matrix3d::Identity(); // p
-    init_imu_covariance.block(6, 6, 3, 3) = std::pow(0.01, 2) * Eigen::Matrix3d::Identity(); // v (static)
+    // init_imu_covariance.block(3, 3, 3, 3) = std::pow(0.05, 2) * Eigen::Matrix3d::Identity(); // p
+    // init_imu_covariance.block(6, 6, 3, 3) = std::pow(0.01, 2) * Eigen::Matrix3d::Identity(); // v (static)
     imu_state->set_covariance(init_imu_covariance);
-    state->_covariance.block(imu_state->id(), imu_state->id(), imu_state->size(), imu_state->size()) = init_imu_covariance;
+    state_->_covariance.block(imu_state->id(), imu_state->id(), imu_state->size(), imu_state->size()) = init_imu_covariance;
     imu_state->set_ts(imu_data_for_init.back().ts_sec);
 
-    LOG(INFO) << "static inialization success!";
+    is_orientation_initialized = true;
+    is_bias_initialized = true;
+
     std::cout << "ba: " << imu_state->ba()->vec().transpose() << std::endl;
     std::cout << "bg: " << imu_state->bg()->vec().transpose() << std::endl;
 
-    is_initialized = true;
+    LOG(INFO) << "orientation inialization success!";
+    LOG(INFO) << "IMU bias initialization success!";
+
     return true;
 }
