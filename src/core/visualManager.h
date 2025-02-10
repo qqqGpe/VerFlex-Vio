@@ -56,13 +56,15 @@ public:
 
     void feature_triangulation(std::vector<Feature*> &feats, std::map<double, CameraPose> camera_pose_buffer);
 
-    bool StereoTriangulation(const std::shared_ptr<CameraModel> camera_model, CameraObs& cam_obs, Eigen::Vector3d& pwf) const;
+    bool StereoTriangulation(const std::shared_ptr<CameraModel> camera_model, CameraObs& cam_obs, Eigen::Vector3d& pcf) const;
 
     bool PnpRansac(const std::shared_ptr<CameraModel> camera_model,
                    std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_obs_triangulated,
                    Eigen::Matrix3d& R_21, Eigen::Vector3d& p_21) const;
 
     bool least_square_triangulation(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
+
+    bool StereoLeastSqureTriangulation(const std::shared_ptr<CameraModel> camera_model, CameraObs& cam_obs, Eigen::Vector3d& pcf) const;
 
     bool gaussian_newton_optimization(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
 

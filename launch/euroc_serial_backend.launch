@@ -6,11 +6,10 @@
     <arg name="log_path" default="$(find vio_backend)/log" />
 
     <!-- mono or stereo and what ros bag to play -->
-    <arg name="max_cameras" default="1" />
-    <arg name="use_stereo"  default="false" />
     <arg name="bag_start"   default="0" /> <!-- v1-2: 0, mh1: 40, mh2: 35, mh3: 17.5, mh4-5: 15 -->
     <arg name="dataset"     default="MH_01_easy" /> <!-- V1_01_easy, V1_02_medium, V1_03_difficult, V2_02_medium, dataset-room1_512_16 -->
-    <arg name="bag"         default="/media/gao/samsung/dataset/euroc_mav/$(arg dataset).bag" />
+    <!-- <arg name="bag"         default="/media/gao/samsung/dataset/euroc_mav/$(arg dataset).bag" /> -->
+    <arg name="bag"         default="/home/gao/dataset/euroc_mav/$(arg dataset).bag" />
 
     <!-- saving trajectory path and timing information -->
     <arg name="dosave"      default="false" />
@@ -33,16 +32,16 @@
 
         <!-- bag parameters -->
         <param name="path_bag"                 type="str"    value="$(arg bag)" />
-        <param name="bag_start"                type="double" value="35" />
+        <param name="bag_start"                type="double" value="30" />
         <param name="bag_durr"                 type="int"    value="40" />
 
         <param name="img_width"                type="int"    value="752" />
         <param name="img_height"               type="int"    value="480" />
 
         <rosparam param="intrinsic_cam_0">      [458.654, 457.296, 367.215, 248.375]                    </rosparam>
-        <rosparam param="distortion_param_0">   [-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05]   </rosparam>
-        <rosparam param="intrinsic_cam_1">      [458.654, 457.296, 367.215, 248.375]                    </rosparam>
-        <rosparam param="distortion_param_1">   [-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05]   </rosparam>
+        <rosparam param="distortion_cam_0">   [-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05]   </rosparam>
+        <rosparam param="intrinsic_cam_1">      [457.587, 456.134, 379.999, 255.238]                    </rosparam>
+        <rosparam param="distortion_cam_1">   [-0.28368365, 0.07451284, -0.00010473, -3.555907e-05]   </rosparam>
 
         <!-- Cameras in Imu frame -->
         <rosparam param="Tic">   [0.0148655429818, -0.999880929698,  0.004140296794,
@@ -55,9 +54,9 @@
                                  -0.0253898008918,  0.017900583825,  0.999517347078,
                                  -0.019843557956,   0.045368942502,  0.007862124470]                </rosparam>
 
-        <param name="max_feat_n"                type="int"    value="225" />
-        <param name="grid_w"                    type="int"    value="15" />
-        <param name="grid_h"                    type="int"    value="15" />
+        <param name="max_feat_n"                type="int"    value="500" />
+        <param name="grid_w"                    type="int"    value="25" />
+        <param name="grid_h"                    type="int"    value="20" />
         <param name="max_clone_pose"            type="int"    value="2" />
         <param name="verbosity"                 type="str"    value="$(arg verbosity)" />
         <param name="log_path"                  type="str"    value="$(arg log_path)" />

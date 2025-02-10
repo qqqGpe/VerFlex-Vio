@@ -135,7 +135,30 @@ public:
         cv::imshow("Stereo Matches", outImg);
         cv::waitKey(0);
     }
-};
 
+    // Function to draw matches between two images in one image
+    static void VisualizeStereoMatchesAndDepth(const cv::Mat& img1, const std::vector<std::pair<CameraObs, Eigen::Vector3d>>& point_obs)
+    {
+        // Create an output image to display matches
+        cv::Mat outImg;
+        cv::cvtColor(img1, outImg, cv::COLOR_GRAY2BGR);
+
+        for (const auto& obs : point_obs) {
+            cv::Point2f pt_l(obs.first.u, obs.first.v);
+            cv::Point2f pt_r(obs.first.ur, obs.first.vr);
+            std::ostringstream depth;
+            depth << std::fixed << std::setprecision(2) << obs.second.z();
+            std::string depth_text = depth.str();
+            cv::circle(outImg, pt_l, 3, cv::Scalar(0, 0, 255), -1);
+            cv::circle(outImg, pt_r, 3, cv::Scalar(255, 0, 0), -1);
+            cv::line(outImg, pt_l, pt_r, cv::Scalar(0, 255, 0), 2);
+            cv::putText(outImg, depth_text, pt_l, cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1);
+        }
+
+        // Display the image with matches
+        cv::imshow("Stereo Matches", outImg);
+        cv::waitKey(0);
+    }
+};
 
 #endif

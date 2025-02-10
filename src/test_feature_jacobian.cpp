@@ -117,9 +117,9 @@ int main()
     Eigen::Vector3d tic = Eigen::Vector3d::Zero();
     Eigen::VectorXd extrinsic = Eigen::VectorXd::Zero(7);
     extrinsic << q_ic.coeffs(), tic;   // 外参：单位旋转 + 无平移
-    state->_imu_to_cam_extrinsic->set_value(extrinsic);
-    map_hx.insert(make_pair(state->_imu_to_cam_extrinsic, map_id));
-    map_id += state->_imu_to_cam_extrinsic->size();
+    state->_Tic->set_value(extrinsic);
+    map_hx.insert(make_pair(state->_Tic, map_id));
+    map_id += state->_Tic->size();
     for (int i = 0; i < camera_pose_buffer.size(); i++)
     {
         std::shared_ptr<Pose> clone_pose = make_shared<Pose>();

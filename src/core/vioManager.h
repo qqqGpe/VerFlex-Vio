@@ -28,7 +28,7 @@ public:
     VioManager(const Param& params)
     {
         state = std::make_shared<State>();
-        _camera_model_0 = std::make_shared<CameraModel>(CameraType::PINHOLE, params);
+        _camera_model_0 = std::make_shared<CameraModel>(params);
         _imu_manager = std::make_shared<ImuManager>(params, state);
         _visual_manager = std::make_shared<VisualManager>(params, state, _camera_model_0);
         initializer = std::make_shared<Initializer>(params, _visual_manager, _camera_model_0, state);

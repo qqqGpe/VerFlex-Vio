@@ -34,10 +34,17 @@ public:
         _nh->param<std::string>("log_path", log_path, "");
         _nh->param<std::string>("path_bag", path_bag, "");
 
-        _nh->getParam("intrinsic_cam_0", intrinsic_cam_0);
-        _nh->getParam("distortion_cam_0", distortion_cam_0);
-        _nh->getParam("intrinsic_cam_1", intrinsic_cam_1);
-        _nh->getParam("distortion_cam_1", distortion_cam_1);
+        for (int i = 0; i < camera_num; i++) {
+            std::vector<double> intrinsic, distort;
+            _nh->getParam("intrinsic_cam_" + std::to_string(i), intrinsic);
+            _nh->getParam("distortion_cam_" + std::to_string(i), distort);
+            Eigen::Matrix3d K;
+            K << intrinsic[0], 0, intrinsic[2],
+                0, intrinsic[1], intrinsic[3],
+                0, 0, 1;
+            intrinsics.push_back(K);
+            distortion.push_back(Eigen::Map<Eigen::VectorXd>(distort.data(), distort.size()));
+        }
 
         camera_topic.resize(camera_num, "");
         _nh->getParam("camera_topic", camera_topic);
@@ -65,6 +72,8 @@ public:
                            Tic[offset + 6], Tic[offset + 7], Tic[offset + 8];
             tic[cam_id] << Tic[offset + 9], Tic[offset + 10], Tic[offset + 11];
         }
+
+        std::cout << "Ric:\n" << Ric[0] << std::endl;
     }
 
     bool use_multi_thread = false;
@@ -84,10 +93,8 @@ public:
     std::string imu_topic;
     std::vector<std::string> camera_topic;
 
-    std::vector<double> intrinsic_cam_0;
-    std::vector<double> distortion_cam_0;
-    std::vector<double> intrinsic_cam_1;
-    std::vector<double> distortion_cam_1;
+    std::vector<Eigen::Matrix3d> intrinsics;
+    std::vector<Eigen::VectorXd> distortion;
 
     double sigma_na;
     double sigma_nw;

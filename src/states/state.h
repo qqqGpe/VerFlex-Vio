@@ -25,7 +25,7 @@ public:
 
     State(){
         _imu_state = std::make_shared<IMU_state>();
-        _imu_to_cam_extrinsic = std::make_shared<Pose>();
+        _Tic = std::make_shared<Pose>();
 
         // initialize local id
         _dim = 0;
@@ -46,9 +46,9 @@ public:
         _dim += _imu_state->ba()->size();
 
         if (_do_calibration_update) {
-            _imu_to_cam_extrinsic->set_local_id(_dim);
-            _variables.push_back(_imu_to_cam_extrinsic);
-            _dim += _imu_to_cam_extrinsic->size();
+            _Tic->set_local_id(_dim);
+            _variables.push_back(_Tic);
+            _dim += _Tic->size();
         }
 
         // initialize state covariance
@@ -62,7 +62,7 @@ public:
     {
         Eigen::VectorXd extrin_vector = Eigen::VectorXd::Zero(7);
         extrin_vector << qic.coeffs(), tic;
-        _imu_to_cam_extrinsic->set_value(extrin_vector);
+        _Tic->set_value(extrin_vector);
     }
 
     double ts_sec() { return _imu_state->ts(); }
@@ -100,8 +100,8 @@ public:
             CameraPose camera_pose;
             camera_pose.Rwi = it->second->quat().normalized().toRotationMatrix();
             camera_pose.pwi = it->second->p();
-            Eigen::Matrix3d R_CtoI = _imu_to_cam_extrinsic->quat().normalized().toRotationMatrix();
-            Eigen::Vector3d p_CinI = _imu_to_cam_extrinsic->p();
+            Eigen::Matrix3d R_CtoI = _Tic->quat().normalized().toRotationMatrix();
+            Eigen::Vector3d p_CinI = _Tic->p();
             camera_pose.Rwc = camera_pose.Rwi * R_CtoI;
             camera_pose.pwc = camera_pose.pwi + camera_pose.Rwi * p_CinI;
             camera_clone_poses.insert(std::make_pair(it->first, camera_pose));
@@ -166,7 +166,7 @@ public:
     int _dim = 0;
     std::shared_ptr<IMU_state> _imu_state;
     std::map<double, std::shared_ptr<Pose>> _clone_pose;
-    std::shared_ptr<Pose> _imu_to_cam_extrinsic;
+    std::shared_ptr<Pose> _Tic; // R_CtoI, p_CinI
     std::vector<std::shared_ptr<Type>> _variables;
     Eigen::MatrixXd _covariance;
     int32_t _do_calibration_update = 1;

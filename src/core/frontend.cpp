@@ -257,8 +257,6 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
             }
         }
     }
-
-    std::cout << "frontend feature tracked: " << cur_feature_obs_umap.size() << std::endl;
     // Add new features to current observations if keyframe or first frame
     // bool is_keyframe = ((*_keyframe) != KeyFrameType::not_keyframe) || is_first_entry;
     bool is_keyframe = true; // always keyframe for debug

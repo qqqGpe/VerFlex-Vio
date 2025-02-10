@@ -149,8 +149,6 @@ void VioManager::process_measurememt_once()
         if (!initializer->is_initialized()) {
             propagate_state_and_covariance(state, feature_observes.first);
             if (initializer->StereoVisualInitialize(feature_observes)) {
-                LOG(INFO) << cv::format("Stereo visual initialization success! Initial velocity: [%f, %f, %f]", state->_imu_state->v()->vec().x(),
-                    state->_imu_state->v()->vec().y(), state->_imu_state->v()->vec().z());
                 log_value.init_vnorm = state->_imu_state->v()->vec().norm();
                 GroundTruth gt_pv = InterpolateGroundTruth(feature_observes.first);
                 log_value.groundtruth_vnorm = gt_pv.v_.norm();
@@ -272,10 +270,11 @@ void VioManager::imu_callback(const sensor_msgs::Imu::ConstPtr& msg)
 void VioManager::camera_callback(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1)
 {
     double ts_sec = msg0->header.stamp.toSec() - _initial_timestamp;
-    cv::Mat image_l;
-    cv::Mat image_r;
+    cv::Mat image_l, image_l_rectify;
+    cv::Mat image_r, image_r_rectify;
     Utils::transfer_image(msg0, image_l);
     Utils::transfer_image(msg1, image_r);
+    // _camera_model_0->RectifyStereoImages(image_l, image_r, image_l_rectify, image_r_rectify);
     _visual_manager->feed_image({ts_sec, {image_l, image_r}});
 }
 

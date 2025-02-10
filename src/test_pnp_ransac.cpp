@@ -104,7 +104,7 @@ int main()
 
     Param params;   // empty parameters for debugging
     std::vector<double> distortion;     // empty distortion coeff for debugging
-    std::shared_ptr<CameraModel> camera_model = std::make_shared<CameraModel>(CameraType::PINHOLE, params);
+    std::shared_ptr<CameraModel> camera_model = std::make_shared<CameraModel>(params);
     std::shared_ptr<State> state = make_shared<State>();
     VisualManager visual_manager(params, state, camera_model);
 

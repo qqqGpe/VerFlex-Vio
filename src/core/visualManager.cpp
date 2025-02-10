@@ -15,7 +15,7 @@
 namespace {
     constexpr uint32_t kMinFeatForMapping = 2;
     constexpr double kMaxConditionNum = 20000.f;
-    constexpr double kMinTriangDist = 0.2;
+    constexpr double kMinTriangDist = 0.05;
     constexpr double kMaxTriangDist = 50;
     constexpr uint32_t kMaxIterationTimes = 5;
     constexpr uint32_t kMinFeatNumToUpdate = 15;
@@ -231,7 +231,6 @@ bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clo
     // std::cout << "--------------------" << std::endl;
 
     auto first_obs = feat->_visual_obs_buffer.begin();
-
     Eigen::Matrix3d R_AtoG = clone_pose_buffer[first_obs->first].Rwc;
     Eigen::Vector3d p_AinG = clone_pose_buffer[first_obs->first].pwc;
 
@@ -239,8 +238,6 @@ bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clo
     Eigen::Vector3d ATb = Eigen::Vector3d::Zero();
 
     int feat_index = 0;
-    // std::cout << "--------------" << std::endl;
-    int cnt = 0;
     for (auto it = feat->_visual_obs_buffer.begin(); it != feat->_visual_obs_buffer.end(); it++) {
         Eigen::Matrix3d R_CitoG = clone_pose_buffer[it->first].Rwc;
         Eigen::Vector3d p_CiinG = clone_pose_buffer[it->first].pwc;
@@ -248,21 +245,10 @@ bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clo
         Eigen::Matrix3d R_CitoA = R_AtoG.transpose() * R_CitoG;
         Eigen::Vector3d p_CiinA = R_AtoG.transpose() * (p_CiinG - p_AinG);
 
-        // std::cout << "p_CiinA: " << p_CiinA.transpose() << std::endl;
-        // std::cout << "R_CitoA: \n" << R_CitoA << std::endl;
-
-        Eigen::Vector3d b_i;
-        // Eigen::Vector2d b(it->second.u, it->second.v);
-        b_i << it->second.u_norm, it->second.v_norm, 1;
-        // std::cout << "b: " << b.transpose() << std::endl;
+        Eigen::Vector3d b_i(it->second.u_norm, it->second.v_norm, 1);
         Eigen::Vector3d b_iinA = R_CitoA * b_i;
         ATA += mathematical::skew(b_iinA).transpose() * mathematical::skew(b_iinA);
         ATb += mathematical::skew(b_iinA).transpose() * mathematical::skew(b_iinA) * p_CiinA;
-        cnt++;
-        if (cnt > 1)
-        {
-            break;
-        }
     }
 
     Eigen::Vector3d paf = ATA.colPivHouseholderQr().solve(ATb);
@@ -294,6 +280,44 @@ bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clo
     }
 
     // std::cout << "triangulation failed num: " << triang_failed_num << std::endl;
+    return true;
+}
+
+bool VisualManager::StereoLeastSqureTriangulation(const std::shared_ptr<CameraModel> camera_model, CameraObs& cam_obs, Eigen::Vector3d& pcf) const
+{
+    if (camera_model->camera_num() != 2) {
+        LOG(ERROR) << "Stereo triangulation only support stereo camera model";
+        return false;
+    }
+    camera_model->back_project_stereo(cam_obs);
+    Eigen::Matrix3d ATA = Eigen::Matrix3d::Zero();
+    Eigen::Vector3d ATb = Eigen::Vector3d::Zero();
+
+    for (int cam_id = 0; cam_id < MAX_CAM_NUM; cam_id++)
+    {
+        Eigen::Matrix3d R_CitoA = Eigen::Matrix3d::Identity();
+        Eigen::Vector3d p_CiinA = Eigen::Vector3d::Zero();
+        Eigen::Vector3d b_i = Eigen::Vector3d::Zero();
+
+        if (cam_id == LEFT_CAM) {
+          b_i << cam_obs.u_norm, cam_obs.v_norm, 1;
+        }
+        else if (cam_id == RIGHT_CAM) {
+          b_i << cam_obs.ur_norm, cam_obs.vr_norm, 1;
+          R_CitoA = camera_model->R_rl();
+          p_CiinA = camera_model->p_rl();
+        }
+
+        Eigen::Vector3d b_iinA = R_CitoA * b_i;
+        ATA += mathematical::skew(b_iinA).transpose() * mathematical::skew(b_iinA);
+        ATb += mathematical::skew(b_iinA).transpose() * mathematical::skew(b_iinA) * p_CiinA;
+    }
+
+    pcf = ATA.colPivHouseholderQr().solve(ATb);
+    if (pcf(2, 0) < kMinTriangDist || pcf(2, 0) > kMaxTriangDist || std::isnan(pcf.norm())) {
+        return false;
+    }
+
     return true;
 }
 
@@ -436,7 +460,7 @@ bool VisualManager::PnpRansac(const std::shared_ptr<CameraModel> camera_model,
     std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_obs_triangulated,
     Eigen::Matrix3d& R_12, Eigen::Vector3d& p_12) const
 {
-    constexpr int kMinFeaturesForPnp = 10;
+    constexpr int kMinFeaturesForPnp = 15;
 
     std::vector<cv::Point3f> points_3d;
     std::vector<cv::Point2f> points_2d;
@@ -464,36 +488,27 @@ bool VisualManager::PnpRansac(const std::shared_ptr<CameraModel> camera_model,
     return true;
 }
 
-bool VisualManager::StereoTriangulation(const std::shared_ptr<CameraModel> camera_model, CameraObs& cam_obs, Eigen::Vector3d& pwf) const
+bool VisualManager::StereoTriangulation(const std::shared_ptr<CameraModel> camera_model, CameraObs& cam_obs, Eigen::Vector3d& pcf) const
 {
     constexpr double kMaxStereoEipolarErrorThres = 8.0;
     constexpr double kMinStereoTriangulationParallex = 1.0;
     constexpr double kMaxStereoDepth = 20.0;
 
-    camera_model->back_project_stereo(cam_obs);
-    Eigen::Vector3d uv_norm_right(cam_obs.ur_norm, cam_obs.vr_norm, 1.0);
-    Eigen::Vector3d uv_norm_undistort = camera_model->R_rl() * uv_norm_right;
-    uv_norm_undistort = uv_norm_undistort / uv_norm_undistort.z();
-    Eigen::Vector2d uv_undistort = camera_model->project_right(uv_norm_undistort);
+    double diff_x = abs(cam_obs.u - cam_obs.ur);
+    double diff_y = abs(cam_obs.v - cam_obs.vr);
+    // if (diff_x < kMinStereoTriangulationParallex || diff_y > kMaxStereoEipolarErrorThres) {
+    //     return false;
+    // }
 
-    double diff_x = abs(cam_obs.u - uv_undistort.x());
-    double diff_y = abs(cam_obs.v - uv_undistort.y());
-    if (diff_y > kMaxStereoEipolarErrorThres) {
-        LOG(ERROR) << cv::format("Stereo triangulation failed: diff y: %f too large!", diff_y);
-        return false;
-    } else if (diff_x < kMinStereoTriangulationParallex) {
-        LOG(ERROR) << cv::format("Stereo triangulation failed: diff x: %f too small!", diff_x);
-        return false;
-    }
-
-    camera_model->back_project_stereo(cam_obs);
-    double z_depth = camera_model->K_l()(0, 0) * camera_model->baseline() * abs(cam_obs.u_norm - uv_norm_undistort.x());
+    // camera_model->back_project_stereo(cam_obs);
+    const double focal_length = camera_model->K_l()(0, 0);
+    const double z_depth = focal_length * camera_model->baseline() / diff_x;
     if (z_depth < 0 || z_depth > kMaxStereoDepth) {
-        LOG(ERROR) << cv::format("Stereo triangulation failed: z_depth < 0 or z_depth > %f, z_depth: %f", kMaxStereoDepth, z_depth);
+        // LOG(ERROR) << cv::format("FATAL ERROR! Stereo triangulation failed: z_depth < 0 or z_depth > %f, z_depth: %f", kMaxStereoDepth, z_depth);
         return false;
     }
     Eigen::Vector3d p3d_norm(cam_obs.u_norm, cam_obs.v_norm, 1.0);
-    pwf = z_depth * p3d_norm;
+    pcf = z_depth * p3d_norm;
     return true;
 }
 
@@ -615,9 +630,9 @@ bool VisualManager::construct_feature_jocabian_full(std::vector<Feature*> feats,
     _Hx_order.clear();
     int total_hx = 0;
     if (_state->_do_calibration_update) {
-        _map_hx.insert({ _state->_imu_to_cam_extrinsic, total_hx });
-        _Hx_order.push_back(_state->_imu_to_cam_extrinsic);
-        total_hx += _state->_imu_to_cam_extrinsic->size();
+        _map_hx.insert({ _state->_Tic, total_hx });
+        _Hx_order.push_back(_state->_Tic);
+        total_hx += _state->_Tic->size();
     }
 
     for (auto x : _state->_clone_pose) {
@@ -671,10 +686,10 @@ Eigen::MatrixXd VisualManager::get_single_feature_jacobian(Feature* feat, std::u
         Eigen::Matrix3d R_IitoG = obs_pose->quat().toRotationMatrix();
         Eigen::Vector3d p_IiinG = obs_pose->p();
 
-        // Eigen::Matrix3d R_ItoC = _state->_imu_to_cam_extrinsic->quat().toRotationMatrix().transpose();
-        // Eigen::Vector3d p_IinC = _state->_imu_to_cam_extrinsic->p();
-        Eigen::Matrix3d R_CtoI = _state->_imu_to_cam_extrinsic->quat().toRotationMatrix();
-        Eigen::Vector3d p_CinI = _state->_imu_to_cam_extrinsic->p();
+        // Eigen::Matrix3d R_ItoC = _state->_Tic->quat().toRotationMatrix().transpose();
+        // Eigen::Vector3d p_IinC = _state->_Tic->p();
+        Eigen::Matrix3d R_CtoI = _state->_Tic->quat().toRotationMatrix();
+        Eigen::Vector3d p_CinI = _state->_Tic->p();
 
         Eigen::Matrix3d R_CitoG = R_IitoG * R_CtoI;
         Eigen::Vector3d p_CiinG = p_IiinG + R_IitoG * p_CinI;
@@ -704,7 +719,7 @@ Eigen::MatrixXd VisualManager::get_single_feature_jacobian(Feature* feat, std::u
             dpcf_dcalib.block<3, 3>(0, 0) = mathematical::skew(p_finCi);
             // dpcf_dcalib.block<3, 3>(0, 3) = Eigen::Matrix3d::Identity();
             dpcf_dcalib.block<3, 3>(0, 3) = -R_CtoI.transpose();
-            Hfx.block<2, 6>(2 * c, kPwfDim + map_hx.at(_state->_imu_to_cam_extrinsic)) = dz_dpcf * dpcf_dcalib;
+            Hfx.block<2, 6>(2 * c, kPwfDim + map_hx.at(_state->_Tic)) = dz_dpcf * dpcf_dcalib;
         }
 
         // get jacobian wrt clone pose
@@ -726,7 +741,7 @@ Eigen::MatrixXd VisualManager::get_single_feature_jacobian(Feature* feat, std::u
 
         // // check R_CtoI
         // Eigen::Vector3d dR_CtoI(0.1, 0.1, 0.1);
-        // Eigen::Vector2d Hx_plus_dR_ItoC = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(_state->_imu_to_cam_extrinsic)) * dR_CtoI;
+        // Eigen::Vector2d Hx_plus_dR_ItoC = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(_state->_Tic)) * dR_CtoI;
         // Eigen::Matrix3d dR_CtoI_mat = Eigen::Matrix3d::Identity() + mathematical::skew(dR_CtoI.head(3));
         // Eigen::Matrix3d R_CitoG_hat = R_IitoG * dR_CtoI_mat;
         // // Eigen::Vector3d p_CiinG = p_IiinG - R_IitoG * p_CinI;
@@ -736,7 +751,7 @@ Eigen::MatrixXd VisualManager::get_single_feature_jacobian(Feature* feat, std::u
 
         // // check p_IinC
         // Eigen::Vector3d dp_CinI(0.1, 0.1, 0.1);
-        // Eigen::Vector2d Hx_plus_dp_IinC = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(_state->_imu_to_cam_extrinsic) + 3) * dp_CinI;
+        // Eigen::Vector2d Hx_plus_dp_IinC = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(_state->_Tic) + 3) * dp_CinI;
         // Eigen::Vector3d p_CiinG_hat = p_IiinG + R_IitoG * (p_CinI + dp_CinI);
         // Eigen::Vector3d pcf_dp_ItoC = R_CitoG.transpose() * (p_finG - p_CiinG_hat);
         // Eigen::Vector2d uv_dp_ItoC(pcf_dp_ItoC(0) / pcf_dp_ItoC(2), pcf_dp_ItoC(1) / pcf_dp_ItoC(2));

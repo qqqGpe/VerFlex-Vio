@@ -41,7 +41,8 @@ int main(int argc, char **argv) {
 
   // initialize vio_backend
   VioManager vio_manager(params);
-  vio_manager.set_initial_timestamp(time_init.toSec());
+  // vio_manager.set_initial_timestamp(time_init.toSec());
+  vio_manager.set_initial_timestamp(0);
 
   // start vio updater
   // if (params.use_multi_thread)
@@ -50,12 +51,18 @@ int main(int argc, char **argv) {
   // }
 
   // load data from rosbag
+  std::string ground_truth_topic = "/leica/position";
   std::vector<rosbag::MessageInstance> msgs;
   for (const rosbag::MessageInstance &msg : view) {
     if (!ros::ok()) {
       break;
     }
+
     if (msg.getTopic() == params.imu_topic) {
+      msgs.push_back(msg);
+    }
+
+    if (msg.getTopic() == ground_truth_topic) {
       msgs.push_back(msg);
     }
 
@@ -66,7 +73,6 @@ int main(int argc, char **argv) {
     }
   }
 
-  std::string ground_truth_topic = "/leica/position";
   for (int m = 0; m < msgs.size(); m++) {
     if (!ros::ok()) {
       break;
