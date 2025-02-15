@@ -152,32 +152,28 @@ void VioManager::process_measurememt_once()
                 log_value.init_vnorm = state->_imu_state->v()->vec().norm();
                 GroundTruth gt_pv = InterpolateGroundTruth(feature_observes.first);
                 log_value.groundtruth_vnorm = gt_pv.v_.norm();
+                state->stochastic_clone(state->_imu_state->pose());
             }
-            // continue;
+            continue;
         }
 
-        // if (_imu_manager->static_status())
-        // {
-        //     propagate_state_and_covariance(state, _imu_manager->_imu_latest_timestamp - 0.1);
-        //     _imu_manager->zupt_update(state);
-        //     zupt_updated = true;
-        //     std::cout << "zupt updated" << std::endl;
-        // }
-        // else {
-        //     std::vector<Feature* > feature_base = _visual_manager->get_feature_base();
-        //     if (!propagate_state_and_covariance(state, feature_observes.first))
-        //     {
-        //         LOG(INFO) << "state propagation failed!";
-        //         continue;
-        //     }
-        //     state->stochastic_clone(state->_imu_state->pose());
-        //     _visual_manager->update_feature(feature_observes);  // visual update
-        //     _visual_manager->reset_keyframe();
-        //     if (_visual_manager->visual_update())
-        //     {
-        //         visual_updated = true;
-        //         // std::cout << "visual udpated" << std::endl;
-        //     }
+        if (_imu_manager->static_status() && 0)
+        {
+            propagate_state_and_covariance(state, _imu_manager->_imu_latest_timestamp - 0.1);
+            _imu_manager->zupt_update(state);
+            zupt_updated = true;
+            std::cout << "zupt updated" << std::endl;
+        }
+        else {
+            propagate_state_and_covariance(state, feature_observes.first);
+            state->stochastic_clone(state->_imu_state->pose());
+            _visual_manager->update_feature(feature_observes);  // visual update
+            _visual_manager->reset_keyframe();
+            if (_visual_manager->visual_update())
+            {
+                visual_updated = true;
+                std::cout << "visual udpated" << std::endl;
+            }
 
         //     image_bak.insert(image_data);
         //     for (auto it = image_bak.begin(); it != image_bak.end();)
@@ -212,7 +208,7 @@ void VioManager::process_measurememt_once()
         //     // LOG(INFO) << cv::format("update obs feature duration: %f", update_feature_duration);
         //     // LOG(INFO) << cv::format("propagate state duration: %f", propagate_duration);
         //     // LOG(INFO) << cv::format("visual update duration: %f", visual_update_duration);
-        // }
+        }
 
         // Assign log values
         log_value.timestamp = state->_imu_state->ts();
@@ -274,8 +270,8 @@ void VioManager::camera_callback(const sensor_msgs::ImageConstPtr& msg0, const s
     cv::Mat image_r, image_r_rectify;
     Utils::transfer_image(msg0, image_l);
     Utils::transfer_image(msg1, image_r);
-    // _camera_model_0->RectifyStereoImages(image_l, image_r, image_l_rectify, image_r_rectify);
-    _visual_manager->feed_image({ts_sec, {image_l, image_r}});
+    _camera_model_0->RectifyStereoImages(image_l, image_r, image_l_rectify, image_r_rectify);
+    _visual_manager->feed_image({ts_sec, {image_l_rectify, image_r_rectify}});
 }
 
 bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, double ts)
@@ -321,14 +317,7 @@ bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, do
 
             new_p_IinG = new_p_IinG + new_v_IinG * dt - 0.5 * state->_imu_state->gravity_inG * dt * dt + 0.5 * (new_R_ItoG * am_mid * dt * dt);
             new_v_IinG = new_v_IinG - state->_imu_state->gravity_inG * dt + new_R_ItoG * am_mid * dt;
-            // new_R_ItoG = new_R_ItoG * mathematical::Rodrigues(wm_mid.normalized(), wm_mid.norm() * dt);
-            // std::cout << cv::format("dt: %f, wm: [%f, %f, %f]", dt, imu_data.at(i).wm.x(), imu_data.at(i).wm.y(), imu_data.at(i).wm.z()) << std::endl;
-            // new_R_ItoG = new_R_ItoG * (Eigen::Matrix3d::Identity() + mathematical::skew(wm_mid * dt));
             new_R_ItoG = new_R_ItoG * SO3d::exp(wm_mid * dt).matrix();
-
-            // Eigen::Vector3d am_ = am_mid - new_R_ItoG.transpose() * state->_imu_state->gravity_inG;
-            // std::cout << "am: " << am_.transpose() << std::endl;
-            // std::cout << "dt: " << dt << std::endl;
 
             // for R
             F.block<3, 3>(q_id, q_id) = SO3d::exp(-wm_mid * dt).matrix();
@@ -347,12 +336,8 @@ bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, do
 
             Q.block<3, 3>(v_id, v_id) = Eigen::Matrix3d::Identity() * std::pow(_imu_manager->_sigma_na, 2) * dt;
             Q.block<3, 3>(q_id, q_id) = Eigen::Matrix3d::Identity() * std::pow(_imu_manager->_sigma_nw, 2) * dt;
-            Q.block<3, 3>(bg_id, bg_id) = Eigen::Matrix3d::Identity() * std::pow(_imu_manager->_sigma_bw, 2);
+            Q.block<3, 3>(bg_id, bg_id) = Eigen::Matrix3d::Identity() * std::pow(_imu_manager->_sigma_bg, 2);
             Q.block<3, 3>(ba_id, ba_id) = Eigen::Matrix3d::Identity() * std::pow(_imu_manager->_sigma_ba, 2);
-
-            // state->_imu_state->q()->set_value(Eigen::Quaterniond(new_R_ItoG).coeffs());
-            // state->_imu_state->p()->set_value(new_p_IinG);
-            // state->_imu_state->v()->set_value(new_v_IinG);
 
             Phi_sum = F * Phi_sum;
             Qd_new = Q + F * Qd_new * F.transpose();

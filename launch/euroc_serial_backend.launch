@@ -33,7 +33,7 @@
         <!-- bag parameters -->
         <param name="path_bag"                 type="str"    value="$(arg bag)" />
         <param name="bag_start"                type="double" value="30" />
-        <param name="bag_durr"                 type="int"    value="40" />
+        <param name="bag_durr"                 type="int"    value="-1" />
 
         <param name="img_width"                type="int"    value="752" />
         <param name="img_height"               type="int"    value="480" />
@@ -57,7 +57,7 @@
         <param name="max_feat_n"                type="int"    value="500" />
         <param name="grid_w"                    type="int"    value="25" />
         <param name="grid_h"                    type="int"    value="20" />
-        <param name="max_clone_pose"            type="int"    value="2" />
+        <param name="max_clone_pose"            type="int"    value="6" />
         <param name="verbosity"                 type="str"    value="$(arg verbosity)" />
         <param name="log_path"                  type="str"    value="$(arg log_path)" />
 
@@ -65,6 +65,12 @@
         <param name="imu_gyro_static_thres"     type="double"    value="0.5" />
 
         <param name="gravity_magn"              type="double" value="9.81" />
+
+        <param name="sigma_na"              type="double" value="2.0000e-3" />
+        <param name="sigma_nw"              type="double" value="1.6968e-04" />
+        <param name="sigma_ba"              type="double" value="3.0000e-3" />
+        <param name="sigma_bg"              type="double" value="1.9393e-05" />
+
 
         <rosparam param="camera_topic">   ["/cam0/image_raw", "/cam1/image_raw"]   </rosparam>
         <param name="imu_topic"         type="str"    value="/imu0" />

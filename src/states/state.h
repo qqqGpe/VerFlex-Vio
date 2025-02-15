@@ -169,7 +169,7 @@ public:
     std::shared_ptr<Pose> _Tic; // R_CtoI, p_CinI
     std::vector<std::shared_ptr<Type>> _variables;
     Eigen::MatrixXd _covariance;
-    int32_t _do_calibration_update = 1;
+    int32_t _do_calibration_update = 0;
 
 };
 

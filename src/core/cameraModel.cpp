@@ -56,12 +56,12 @@ Eigen::Vector3d CameraModel::back_project(Eigen::Vector2d uv_2d) {
 void CameraModel::back_project_stereo(CameraObs& obs) {
 
   Eigen::Vector3d feat_norm_left(
-      (obs.u - Kl_origin_(0, 2)) / Kl_origin_(0, 0),
-      (obs.v - Kl_origin_(1, 2)) / Kl_origin_(1, 1), 1.0);
+      (obs.u - Kl_undistort_(0, 2)) / Kl_undistort_(0, 0),
+      (obs.v - Kl_undistort_(1, 2)) / Kl_undistort_(1, 1), 1.0);
 
   Eigen::Vector3d feat_norm_right(
-      (obs.ur - Kr_origin_(0, 2)) / Kr_origin_(0, 0),
-      (obs.vr - Kr_origin_(1, 2)) / Kr_origin_(1, 1), 1.0);
+      (obs.ur - Kr_undistort_(0, 2)) / Kr_undistort_(0, 0),
+      (obs.vr - Kr_undistort_(1, 2)) / Kr_undistort_(1, 1), 1.0);
 
   obs.u_norm = feat_norm_left.x();
   obs.v_norm = feat_norm_left.y();

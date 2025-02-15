@@ -159,6 +159,21 @@ public:
         cv::imshow("Stereo Matches", outImg);
         cv::waitKey(0);
     }
+
+    static void DisplayFeaturePoints(const cv::Mat& img, const std::vector<cv::Point2d>& points) {
+        // Create a copy of the input image to draw points on
+        cv::Mat img_with_points;
+        cv::cvtColor(img, img_with_points, cv::COLOR_GRAY2BGR);
+
+        // Draw each point on the image
+        for (const auto& point : points) {
+            cv::circle(img_with_points, point, 5, cv::Scalar(0, 0, 255), -1);  // Red color for points
+        }
+
+        // Display the image with points
+        cv::imshow("Feature Points", img_with_points);
+        cv::waitKey(1);
+    }
 };
 
 #endif

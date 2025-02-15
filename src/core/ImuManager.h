@@ -13,7 +13,7 @@ public:
         _sigma_na = param.sigma_ba;
         _sigma_nw = param.sigma_nw;
         _sigma_ba = param.sigma_ba;
-        _sigma_bw = param.sigma_bw;
+        _sigma_bg = param.sigma_bg;
         _imu_acc_var_static_thres = param.imu_acc_var_static_thres;
         _imu_gyro_static_thres = param.imu_gyro_static_thres;
         _gravity_magn = Eigen::Vector3d(0, 0, -param.gravity_magn);
@@ -46,7 +46,7 @@ public:
     double _sigma_na;
     double _sigma_nw;
     double _sigma_ba;
-    double _sigma_bw;
+    double _sigma_bg;
 
     double _imu_latest_timestamp = 0;
 

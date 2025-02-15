@@ -148,18 +148,18 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
         stereo_obs_triangulated.try_emplace(obs_prev.feat_id, std::make_pair(obs_cur, pcf));
     }
 
-    // visualize current stereo observations
-    {
-        std::vector<cv::Point2f> points_left;
-        std::vector<cv::Point2f> points_right;
-        std::vector<std::pair<CameraObs, Eigen::Vector3d>> point_obs;
-        for (auto& [feature_id, stereo_obs] : stereo_obs_triangulated) {
-            point_obs.push_back(stereo_obs);
-        }
-        auto images = visual_manager_->stored_images_.at(ts_sec);
-        assert(visual_manager_->stored_images_.count(ts_sec) != 0);
-        Utils::VisualizeStereoMatchesAndDepth(images.first, point_obs);
-    }
+    // // visualize current stereo observations
+    // {
+    //     std::vector<cv::Point2f> points_left;
+    //     std::vector<cv::Point2f> points_right;
+    //     std::vector<std::pair<CameraObs, Eigen::Vector3d>> point_obs;
+    //     for (auto& [feature_id, stereo_obs] : stereo_obs_triangulated) {
+    //         point_obs.push_back(stereo_obs);
+    //     }
+    //     auto images = visual_manager_->stored_images_.at(ts_sec);
+    //     assert(visual_manager_->stored_images_.count(ts_sec) != 0);
+    //     Utils::VisualizeStereoMatchesAndDepth(images.first, point_obs);
+    // }
 
     // calculate relative pose using Perspective-n-Point (PnP) algorithm
     Eigen::Matrix3d R_12;   // R_prev_to_curr
@@ -172,13 +172,14 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     assert(imu_state->ts() == ts_sec);
     Eigen::Matrix3d R_ItoG = imu_state->q()->Rot();
     Eigen::Matrix3d R_CtoI = state_->_Tic->quat().toRotationMatrix();
-    Eigen::Vector3d p_CpinG = R_ItoG * R_CtoI * (-p_12);     // t_prev_in_G
+    Eigen::Vector3d p_CpinG = -R_ItoG * R_CtoI * p_12;     // t_prev_in_G
     auto &[obs_prev, obs_cur] = stereo_obs_pairs[0];
     double delta_ts = abs(obs_cur.ts_sec - obs_prev.ts_sec);
     Eigen::Vector3d v_CinG = p_CpinG / delta_ts;   // initial velocity of camera in global coordinate
     LOG(INFO) << cv::format("Stereo visual initialization success! Initial velocity: [%f, %f, %f]", v_CinG.x(), v_CinG.y(), v_CinG.z());
 
     // initialize position and velocity
+    state_->set_ts_sec(ts_sec);
     imu_state->p()->set_value(Eigen::Vector3d::Zero());
     imu_state->v()->set_value(v_CinG);
 
@@ -189,11 +190,17 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     imu_state->set_covariance(stereo_init_covariance);
     state_->_covariance.block(imu_state->id(), imu_state->id(), imu_state->size(), imu_state->size()) = stereo_init_covariance;
 
+    // Init feature base
+    std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_obs_global;
+    for (auto &[feature_id, stereo_obs] : stereo_obs_triangulated) {
+        Eigen::Vector3d feature_pwf = R_ItoG * (R_CtoI * stereo_obs.second + state_->_Tic->p());
+        stereo_obs_global.try_emplace(feature_id, std::make_pair(stereo_obs.first, feature_pwf));
+    }
     visual_manager_->ResetFeatureBase();
-    visual_manager_->InitFeatureBase(stereo_obs_triangulated);
+    visual_manager_->InitFeatureBase(stereo_obs_global);
 
-    // is_position_initialized = true;
-    // is_velocity_initialized = true;
+    is_position_initialized = true;
+    is_velocity_initialized = true;
 
     return true;
 }

@@ -77,6 +77,8 @@ struct CameraObs {
         vr = 0;
         ur_norm = 0;
         vr_norm = 0;
+        image_left = cv::Mat();
+        image_right = cv::Mat();
     }
 
     double ts_sec = 0;
@@ -91,6 +93,8 @@ struct CameraObs {
     float vr = 0.f;
     float ur_norm = 0.f;
     float vr_norm = 0.f;
+    cv::Mat image_left;
+    cv::Mat image_right;
 };
 
 class CamObsHash {

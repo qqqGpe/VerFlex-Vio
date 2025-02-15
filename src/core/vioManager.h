@@ -37,7 +37,9 @@ public:
         // set camera extrinsic coeff
         Eigen::Quaterniond qic(params.Ric[0]);
         Eigen::Vector3d tic = params.tic[0];
-        state->set_extrinsic(qic, tic);
+        state->set_extrinsic(qic.normalized(), tic);
+        // std::cout << "Ric: \n" << state->_Tic->quat().toRotationMatrix() << std::endl;
+        // std::cout << "tic: \n" << state->_Tic->p().transpose() << std::endl;
     }
     ~VioManager() { }
 

@@ -41,8 +41,8 @@ int main(int argc, char **argv) {
 
   // initialize vio_backend
   VioManager vio_manager(params);
-  // vio_manager.set_initial_timestamp(time_init.toSec());
-  vio_manager.set_initial_timestamp(0);
+  vio_manager.set_initial_timestamp(time_init.toSec());
+  // vio_manager.set_initial_timestamp(0);
 
   // start vio updater
   // if (params.use_multi_thread)

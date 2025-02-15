@@ -50,10 +50,10 @@ public:
         _nh->getParam("camera_topic", camera_topic);
         _nh->param<std::string>("imu_topic", imu_topic, "");
 
-        _nh->param<double>("sigma_na", sigma_na, 1e-3);
-        _nh->param<double>("sigma_nw", sigma_nw, 1e-4);
-        _nh->param<double>("sigma_ba", sigma_ba, 1e-3);
-        _nh->param<double>("sigma_bw", sigma_bw, 1e-5);
+        _nh->param<double>("sigma_na", sigma_na, 2.0000e-3);
+        _nh->param<double>("sigma_nw", sigma_nw, 1.6968e-04);
+        _nh->param<double>("sigma_ba", sigma_ba, 3.0000e-3);
+        _nh->param<double>("sigma_bg", sigma_bg, 1.9393e-05);
 
         _nh->param<double>("gravity_magn", gravity_magn, 9.81);
 
@@ -72,8 +72,6 @@ public:
                            Tic[offset + 6], Tic[offset + 7], Tic[offset + 8];
             tic[cam_id] << Tic[offset + 9], Tic[offset + 10], Tic[offset + 11];
         }
-
-        std::cout << "Ric:\n" << Ric[0] << std::endl;
     }
 
     bool use_multi_thread = false;
@@ -99,7 +97,7 @@ public:
     double sigma_na;
     double sigma_nw;
     double sigma_ba;
-    double sigma_bw;
+    double sigma_bg;
 
     std::vector<Eigen::Matrix3d> Ric;
     std::vector<Eigen::Vector3d> tic;

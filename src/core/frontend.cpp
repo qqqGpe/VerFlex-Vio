@@ -258,8 +258,8 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
         }
     }
     // Add new features to current observations if keyframe or first frame
-    // bool is_keyframe = ((*_keyframe) != KeyFrameType::not_keyframe) || is_first_entry;
-    bool is_keyframe = true; // always keyframe for debug
+    bool is_keyframe = ((*_keyframe) != KeyFrameType::not_keyframe) || is_first_entry;
+    // bool is_keyframe = true; // always keyframe for debug
     if (is_keyframe) {
         std::vector<cv::Point2f> harris_features, harris_tmp;
         std::vector<CameraObs> cur_stereo_ok_features;
@@ -303,7 +303,7 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
         previous_observations = feature_observes;
     }
 
-    Utils::visualize_feature_tracking_results(input_image.second.first.clone(), feature_observes);
+    // Utils::visualize_feature_tracking_results(input_image.second.first.clone(), feature_observes);
     return true;
 }
 

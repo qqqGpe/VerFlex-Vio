@@ -90,7 +90,7 @@ public:
     uint32_t _max_feat_n = 0;
     uint32_t _feature_mapping_success = 0;
     uint32_t _feature_mapping_in = 0;
-    uint32_t _max_visual_feat_to_use = 40;
+    uint32_t _max_visual_feat_to_use = 100;
 
     std::queue<std::pair<double, std::pair<cv::Mat, cv::Mat>>> _input_image_buffer;
     std::queue<std::pair<double, std::vector<CameraObs>>> feature_obs_buffer;

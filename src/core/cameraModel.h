@@ -68,9 +68,9 @@ class CameraModel {
 
   Eigen::Vector3d tic_r() const { return tic_1_; }
 
-  Eigen::Matrix3d K_l() const { return Kl_origin_; }
+  Eigen::Matrix3d K_l() const { return Kl_undistort_; }
 
-  Eigen::Matrix3d K_r() const { return Kr_origin_; }
+  Eigen::Matrix3d K_r() const { return Kr_undistort_; }
 
   Eigen::Matrix3d R_rl() const { return R_rl_; }
 
