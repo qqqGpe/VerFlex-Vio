@@ -1,25 +1,27 @@
 #ifndef __VISUAL_MANAGER__
 #define __VISUAL_MANAGER__
 
+#include <map>
+#include <vector>
 #include "Imu_state.h"
 #include "cameraModel.h"
 #include "frontend.h"
 #include "parameter.h"
 #include "sensor_data.h"
 #include "state.h"
-#include <map>
-#include <vector>
 
 namespace {
-constexpr int kMaxImageBufferSize = 10000;
+    constexpr int kMaxImageBufferSize = 10000;
 }
 
-class VisualManager {
-public:
+class VisualManager
+{
+   public:
     VisualManager() = default;
     ~VisualManager()
     {
-        for (int i = 0; i < _max_feat_n; i++) {
+        for (int i = 0; i < _max_feat_n; i++)
+        {
             delete _feature_base[i];
         }
     }
@@ -32,29 +34,30 @@ public:
 
         _max_clone_pose = paramters.max_clone_pose;
         _max_feat_n = paramters.max_feat_n;
-        for (int i = 0; i < _max_feat_n; i++) {
+        for (int i = 0; i < _max_feat_n; i++)
+        {
             Feature* feat = new Feature();
             _feature_base.push_back(feat);
         }
     }
 
-    void update_feature(std::pair<double, std::vector<CameraObs>> feature_observes);
+    void UpdateFeature(std::pair<double, std::vector<CameraObs>> feature_observes);
 
-    bool visual_update();
+    bool VisualUpdate();
 
-    void reset_keyframe() { _keyframe = KeyFrameType::not_keyframe; }
+    void reset_keyframe() { _keyframe = KeyFrameStatus::kNone; }
 
-    KeyFrameType decide_keyframe(std::shared_ptr<State> _state, std::vector<Feature*> feats);
+    KeyFrameStatus CheckKeyframe(std::shared_ptr<State> _state, std::vector<Feature*> feats);
 
-    void update_feature_base();
+    void UpdateFeatureBase();
 
     void ResetFeatureBase();
 
     void InitFeatureBase(std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_feature_triangulated);
 
-    void drop_feature_obs(const double timestamp_to_drop);
+    void DropFeatureObsrvs(const double timestamp_to_drop);
 
-    void feature_triangulation(std::vector<Feature*> &feats, std::map<double, CameraPose> camera_pose_buffer);
+    void FeatureTriangulation(std::vector<Feature*>& feats, std::map<double, CameraPose> camera_pose_buffer);
 
     bool StereoTriangulation(const std::shared_ptr<CameraModel> camera_model, CameraObs& cam_obs, Eigen::Vector3d& pcf) const;
 
@@ -68,21 +71,21 @@ public:
 
     bool gaussian_newton_optimization(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
 
-    bool construct_feature_jocabian_full(std::vector<Feature*> feats, Eigen::MatrixXd& Hx_full, Eigen::VectorXd& res);
+    bool ConstructFeatureJacobianFull(std::vector<Feature*> feats, Eigen::MatrixXd& Hx_full, Eigen::VectorXd& res);
 
     Eigen::MatrixXd get_single_feature_jacobian(Feature* feat, std::unordered_map<std::shared_ptr<Type>, size_t> map_hx, int total_hx);
 
     bool pnp_ransac_to_reject_outliers(std::vector<Feature*> feats);
 
-    void calculate_feature_parallex(std::vector<Feature*> &feats);
+    void CalculateFeatureParallex(std::vector<Feature*>& feats);
 
-    std::vector<Feature*> select_msckf_features(const std::vector<Feature*> feats);
+    std::vector<Feature*> SelectMsckfFeatures(const std::vector<Feature*> feats);
 
-    void set_state(std::shared_ptr<State> state) { _state = state; } // only for debug
+    void set_state(std::shared_ptr<State> state) { _state = state; }  // only for debug
 
     void feed_image(const std::pair<double, std::pair<cv::Mat, cv::Mat>> input);
 
-    KeyFrameType get_keyframe() { return _keyframe; }
+    KeyFrameStatus get_keyframe() { return _keyframe; }
 
     std::vector<Feature*> get_feature_base() { return _feature_base; }
 
@@ -105,13 +108,13 @@ public:
 
     boost::posix_time::ptime visual_rT, visual_rT1, visual_rT2, visual_rT3, visual_rT4;
 
-    KeyFrameType _keyframe = KeyFrameType::not_keyframe;
+    KeyFrameStatus _keyframe = KeyFrameStatus::kNone;
 
     std::shared_ptr<VioFrontend> vio_frontend;
 
     friend VioFrontend;
 
-protected:
+   protected:
     std::shared_ptr<State> _state;
     std::shared_ptr<CameraModel> _camera_model;
     std::unordered_map<std::shared_ptr<Type>, size_t> _map_hx;

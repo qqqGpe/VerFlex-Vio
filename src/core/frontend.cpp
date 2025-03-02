@@ -13,8 +13,8 @@
 #include "utils.h"
 
 namespace {
-    constexpr double kPixelErrorThreshold = 2.0;
-    constexpr double kCircularTrackPixelErrorThres = 2.0;
+    constexpr double kPixelErrorThreshold = 1.0;
+    constexpr double kCircularTrackPixelErrorThres = 1.0;
 }
 
 double Distance(const cv::Point2d& pt1, const cv::Point2d& pt2)
@@ -257,13 +257,14 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
             }
         }
     }
+
     // Add new features to current observations if keyframe or first frame
-    bool is_keyframe = ((*_keyframe) != KeyFrameType::not_keyframe) || is_first_entry;
+    bool is_keyframe = ((*_keyframe) != KeyFrameStatus::kNone) || is_first_entry;
     // bool is_keyframe = true; // always keyframe for debug
     if (is_keyframe) {
         std::vector<cv::Point2f> harris_features, harris_tmp;
         std::vector<CameraObs> cur_stereo_ok_features;
-        cv::goodFeaturesToTrack(cur_image_left, harris_features, _max_feat_n, 0.01, 30);
+        cv::goodFeaturesToTrack(cur_image_left, harris_features, _max_feat_n, 0.01, 20);
         auto status = TrackFeatures(cur_image_left, cur_image_right, harris_features, harris_tmp);
         for (int i = 0; i < status.size(); i++) {
             if (status[i] == true) {
@@ -303,7 +304,7 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
         previous_observations = feature_observes;
     }
 
-    // Utils::visualize_feature_tracking_results(input_image.second.first.clone(), feature_observes);
+    Utils::visualize_feature_tracking_results(input_image.second.first.clone(), feature_observes);
     return true;
 }
 
@@ -392,7 +393,7 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::
     frontend_rT3 = boost::posix_time::microsec_clock::local_time();
     // add new features to ref_feat_to_track_
     // std::cout << cv::format("keyframe: %d", static_cast<int>(*_keyframe));
-    if (*_keyframe != KeyFrameType::not_keyframe || is_first_frame_)
+    if (*_keyframe != KeyFrameStatus::kNone || is_first_frame_)
     { // debug always keyframe
     // if (1) { // debug: always keyframe
         std::deque<CameraObs> feats_new;
@@ -448,6 +449,6 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::
 
     Utils::visualize_feature_tracking_results(input_image.second.first.clone(), feature_observes);
     is_first_frame_ = false;
-    // *_keyframe = KeyFrameType::not_keyframe;
+    // *_keyframe = KeyFrameStatus::kNone;
     return true;
 }

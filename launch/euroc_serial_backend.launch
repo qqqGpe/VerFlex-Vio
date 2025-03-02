@@ -54,10 +54,10 @@
                                  -0.0253898008918,  0.017900583825,  0.999517347078,
                                  -0.019843557956,   0.045368942502,  0.007862124470]                </rosparam>
 
-        <param name="max_feat_n"                type="int"    value="500" />
-        <param name="grid_w"                    type="int"    value="25" />
-        <param name="grid_h"                    type="int"    value="20" />
-        <param name="max_clone_pose"            type="int"    value="6" />
+        <param name="max_feat_n"                type="int"    value="225" />
+        <param name="grid_w"                    type="int"    value="15" />
+        <param name="grid_h"                    type="int"    value="15" />
+        <param name="max_clone_pose"            type="int"    value="5" />
         <param name="verbosity"                 type="str"    value="$(arg verbosity)" />
         <param name="log_path"                  type="str"    value="$(arg log_path)" />
 
@@ -66,11 +66,10 @@
 
         <param name="gravity_magn"              type="double" value="9.81" />
 
-        <param name="sigma_na"              type="double" value="2.0000e-3" />
-        <param name="sigma_nw"              type="double" value="1.6968e-04" />
+        <param name="sigma_na"              type="double" value="2.0000e-2" />
+        <param name="sigma_nw"              type="double" value="1.6968e-05" />
         <param name="sigma_ba"              type="double" value="3.0000e-3" />
         <param name="sigma_bg"              type="double" value="1.9393e-05" />
-
 
         <rosparam param="camera_topic">   ["/cam0/image_raw", "/cam1/image_raw"]   </rosparam>
         <param name="imu_topic"         type="str"    value="/imu0" />

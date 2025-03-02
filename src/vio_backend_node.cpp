@@ -73,6 +73,7 @@ int main(int argc, char **argv) {
     }
   }
 
+  ros::Rate loop_rate(20);
   for (int m = 0; m < msgs.size(); m++) {
     if (!ros::ok()) {
       break;
@@ -126,6 +127,7 @@ int main(int argc, char **argv) {
       vio_manager.camera_callback(msg0.instantiate<sensor_msgs::Image>(),
                                   msg1.instantiate<sensor_msgs::Image>());
       vio_manager.process_measurememt_once();
+      loop_rate.sleep();
     }
   }
 

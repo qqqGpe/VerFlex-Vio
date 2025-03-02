@@ -110,7 +110,7 @@ int main()
 
     generate_camera_pose();
     project_to_camera();
-    visual_manager.feature_triangulation(feats, camera_pose_buffer);
+    visual_manager.FeatureTriangulation(feats, camera_pose_buffer);
 
     std::cout << "\n feature triangulated: \n" << std::endl;
     for (auto x : feats) {

@@ -24,22 +24,22 @@ public:
 
     ~ImuManager() { }
 
-    bool feed_imu_measurement(const ImuData& imu_measurement);
+    bool FeedImuMeasurement(const ImuData& imu_measurement);
 
-    void zupt_update(std::shared_ptr<State> state);
+    void ZuptUpdate(std::shared_ptr<State> state);
 
-    void construct_zupt_constraint(std::shared_ptr<State> state, ImuData imu_data, Eigen::MatrixXd& Hx,
+    void ConstructZuptConstraint(std::shared_ptr<State> state, ImuData imu_data, Eigen::MatrixXd& Hx,
         std::vector<std::shared_ptr<Type>>& _Hx_order, std::unordered_map<std::shared_ptr<Type>, size_t>& _map_hx, Eigen::VectorXd& res);
 
     bool static_status();
 
     std::shared_ptr<std::deque<ImuData>> access_observations() const { return _data; }
 
-    ImuData interpolate_data(const ImuData& imu_1, const ImuData& imu_2, double timestamp);
+    ImuData InterpolateImuData(const ImuData& imu_1, const ImuData& imu_2, double timestamp);
 
-    ImuData get_imu_data(double timestamp);
+    ImuData GetImuData(double timestamp);
 
-    std::vector<ImuData> access_interval_imu_measurment(const double ts_start, const double ts_end);
+    std::vector<ImuData> AccessIntervalImuMeasurements(const double ts_start, const double ts_end);
 
     void delete_old_measurements(const double ts);
 

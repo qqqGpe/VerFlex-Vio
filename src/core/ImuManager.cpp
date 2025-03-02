@@ -1,23 +1,26 @@
 #include "ImuManager.h"
-#include "mathematical_tools.h"
-#include "utils.h"
 #include <glog/logging.h>
 #include <opencv2/opencv.hpp>
+#include "mathematical_tools.h"
+#include "utils.h"
 
 namespace {
     constexpr int kMaxImuBufferSize = 2000;
 }
 
-bool ImuManager::feed_imu_measurement(const ImuData &imu_measurement) {
-
-    if(_data->empty()) {
+bool ImuManager::FeedImuMeasurement(const ImuData& imu_measurement)
+{
+    if (_data->empty())
+    {
         _data->push_back(imu_measurement);
     }
-    else if (imu_measurement.ts_sec <= _data->back().ts_sec) {
+    else if (imu_measurement.ts_sec <= _data->back().ts_sec)
+    {
         LOG(WARNING) << "latest imu data ts: " << _data->back().ts_sec << ", input imu ts: " << imu_measurement.ts_sec;
         return false;
     }
-    else {
+    else
+    {
         _data->push_back(imu_measurement);
         if (_data->size() > kMaxImuBufferSize)
         {
@@ -25,14 +28,13 @@ bool ImuManager::feed_imu_measurement(const ImuData &imu_measurement) {
         }
     }
     _imu_latest_timestamp = _data->back().ts_sec;
-    // std::cout << "_imu_latest_timestamp: " << _imu_latest_timestamp << std::endl;
     return true;
 }
 
-ImuData ImuManager::interpolate_data(const ImuData &imu_1, const ImuData &imu_2, double timestamp) {
+ImuData ImuManager::InterpolateImuData(const ImuData& imu_1, const ImuData& imu_2, double timestamp)
+{
     // time-distance lambda
     double lambda = (timestamp - imu_1.ts_sec) / (imu_2.ts_sec - imu_1.ts_sec);
-    // PRINT_DEBUG("lambda - %d\n", lambda);
     // interpolate between the two times
     ImuData data;
     data.ts_sec = timestamp;
@@ -41,35 +43,44 @@ ImuData ImuManager::interpolate_data(const ImuData &imu_1, const ImuData &imu_2,
     return data;
 }
 
-ImuData ImuManager::get_imu_data(double timestamp)
+ImuData ImuManager::GetImuData(double timestamp)
 {
-    auto it = std::lower_bound(_data->begin(), _data->end(), timestamp, [](ImuData imu_data, double timestamp) { return imu_data.ts_sec < timestamp; });
+    auto it =
+        std::lower_bound(_data->begin(), _data->end(), timestamp, [](ImuData imu_data, double timestamp) { return imu_data.ts_sec < timestamp; });
     assert(it->ts_sec >= timestamp);
-    if (_data->size() > 1 && it != _data->end() - 1) {
-        ImuData ret = interpolate_data(*it, *(it + 1), timestamp);
+    if (_data->size() > 1 && it != _data->end() - 1)
+    {
+        ImuData ret = InterpolateImuData(*it, *(it + 1), timestamp);
         return ret;
-    } else {
+    }
+    else
+    {
         return *it;
     }
 }
 
-std::vector<ImuData> ImuManager::access_interval_imu_measurment(const double ts_start, const double ts_end) {
-
+std::vector<ImuData> ImuManager::AccessIntervalImuMeasurements(const double ts_start, const double ts_end)
+{
     std::vector<ImuData> output;
-    if(ts_end <= ts_start) {
+    if (ts_end <= ts_start)
+    {
         LOG(ERROR) << "ts_end: " << ts_end << ", should later than ts_start: " << ts_start;
         return output;
     }
 
-    for(int i = 0; i < _data->size(); i++) {
-        if(_data->at(i).ts_sec >= ts_start && _data->at(i).ts_sec <= ts_end) {
+    for (int i = 0; i < _data->size(); i++)
+    {
+        if (_data->at(i).ts_sec >= ts_start && _data->at(i).ts_sec <= ts_end)
+        {
             output.push_back(_data->at(i));
         }
-        else if (i < _data->size() - 1 && (_data->at(i).ts_sec < ts_start && _data->at(i + 1).ts_sec > ts_start)) {
-            output.push_back(interpolate_data(_data->at(i), _data->at(i + 1), ts_start));
+        else if (i < _data->size() - 1 && (_data->at(i).ts_sec < ts_start && _data->at(i + 1).ts_sec > ts_start))
+        {
+            output.push_back(InterpolateImuData(_data->at(i), _data->at(i + 1), ts_start));
         }
-        else if(i > 0 && (_data->at(i).ts_sec > ts_end && _data->at(i - 1).ts_sec < ts_end)) {
-            output.push_back(interpolate_data(_data->at(i - 1), _data->at(i), ts_end));
+        else if (i > 0 && (_data->at(i).ts_sec > ts_end && _data->at(i - 1).ts_sec < ts_end))
+        {
+            output.push_back(InterpolateImuData(_data->at(i - 1), _data->at(i), ts_end));
             break;
         }
     }
@@ -77,21 +88,25 @@ std::vector<ImuData> ImuManager::access_interval_imu_measurment(const double ts_
     return output;
 }
 
-void ImuManager::zupt_update(std::shared_ptr<State> state)
+void ImuManager::ZuptUpdate(std::shared_ptr<State> state)
 {
     Eigen::MatrixXd Hx;
     std::unordered_map<std::shared_ptr<Type>, size_t> _map_hx;
     std::vector<std::shared_ptr<Type>> _Hx_order;
     Eigen::VectorXd res;
-    ImuData imu_data = get_imu_data(state->ts_sec());
-    construct_zupt_constraint(state, imu_data, Hx, _Hx_order, _map_hx, res);
+    ImuData imu_data = GetImuData(state->ts_sec());
+    ConstructZuptConstraint(state, imu_data, Hx, _Hx_order, _map_hx, res);
     // Utils::show_eigen_matrix(Hx, "zupt_Hx");
     Eigen::MatrixXd R = Eigen::MatrixXd::Identity(res.rows(), res.rows());
     eskfSolver::update(state, Hx, res, _Hx_order, _map_hx, R);
 }
 
-void ImuManager::construct_zupt_constraint(std::shared_ptr<State> state, ImuData imu_data, Eigen::MatrixXd& Hx,
-    std::vector<std::shared_ptr<Type>>& _Hx_order, std::unordered_map<std::shared_ptr<Type>, size_t>& _map_hx, Eigen::VectorXd& res)
+void ImuManager::ConstructZuptConstraint(std::shared_ptr<State> state,
+                                           ImuData imu_data,
+                                           Eigen::MatrixXd& Hx,
+                                           std::vector<std::shared_ptr<Type>>& _Hx_order,
+                                           std::unordered_map<std::shared_ptr<Type>, size_t>& _map_hx,
+                                           Eigen::VectorXd& res)
 {
     bool force_pos_equal_zero = false;
     _Hx_order.push_back(state->_imu_state->q());
@@ -121,7 +136,7 @@ void ImuManager::construct_zupt_constraint(std::shared_ptr<State> state, ImuData
     // _map_hx.insert({state->_imu_state->ba(), total_hx});
     // total_hx += state->_imu_state->ba()->size();
 
-    //insert v
+    // insert v
     _map_hx.insert({state->_imu_state->v(), total_hx});
     total_hx += state->_imu_state->v()->size();
 
@@ -178,10 +193,10 @@ void ImuManager::construct_zupt_constraint(std::shared_ptr<State> state, ImuData
     // jacobian for bg
     Hx.block(3, _map_hx[state->_imu_state->bg()], 3, 3) = -Eigen::Matrix3d::Identity();
 
-    //jacobian for v
+    // jacobian for v
     Hx.block(6, _map_hx[state->_imu_state->v()], 3, 3) = Eigen::Matrix3d::Identity();
 
-    //jacobian for p
+    // jacobian for p
     if (force_pos_equal_zero)
     {
         Hx.block(9, _map_hx[state->_imu_state->p()], 3, 3) = Eigen::Matrix3d::Identity();
@@ -205,8 +220,10 @@ void ImuManager::construct_zupt_constraint(std::shared_ptr<State> state, ImuData
 
 void ImuManager::delete_old_measurements(const double ts)
 {
-    while(!_data->empty()) {
-        if(_data->front().ts_sec < ts) {
+    while (!_data->empty())
+    {
+        if (_data->front().ts_sec < ts)
+        {
             _data->pop_front();
         }
     }
@@ -237,10 +254,11 @@ bool ImuManager::static_status()
     gyro_mean = gyro_mean / data_buffer.size();
 
     double acc_var = 0.0;
-    for (auto it = data_buffer.begin(); it != data_buffer.end(); it++) {
+    for (auto it = data_buffer.begin(); it != data_buffer.end(); it++)
+    {
         acc_var += (it->am - acc_mean).dot(it->am - acc_mean);
     }
-    acc_var = acc_var / data_buffer.size();       // 加计的方差，若方差小于阈值则认为系统处于静止状态
+    acc_var = acc_var / data_buffer.size();  // 加计的方差，若方差小于阈值则认为系统处于静止状态
 
     // std::cout <<cv::format("acc_var: %f, gyro_mean: %f\n", acc_var, gyro_mean.norm());
 

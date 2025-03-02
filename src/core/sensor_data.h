@@ -9,10 +9,10 @@ enum CameraId {
     MAX_CAM_NUM = 2
 };
 
-enum class KeyFrameType {
-    not_keyframe = 0,
-    large_parallex_flag,
-    feat_lost_too_much
+enum class KeyFrameStatus {
+    kNone = 0,
+    kLargeParallex = 1,
+    kFeatureLostTooMuch = 2
 };
 
 struct ImuData {

@@ -1,25 +1,29 @@
 #include "vioManager.h"
+#include <glog/logging.h>
+#include <sophus/so3.hpp>
 #include "format.h"
 #include "mathematical_tools.h"
 #include "utils.h"
-#include <glog/logging.h>
-#include <sophus/so3.hpp>
 
-namespace {
+namespace
+{
 constexpr int kImuOutputHz = 200;
 constexpr double kMaxImuToleranceDelayTime = 1.0 / kImuOutputHz * 5;
 constexpr uint32_t kNoInputDataCntThres = 100;
-}
+}  // namespace
 
 void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager)
 {
     static uint32_t no_input_cnt = 0;
 
-    while (true) {
-        usleep(100); // sleep for 0.01s -> 100Hz
-        if (visual_manager->_input_image_buffer.empty()) {
+    while (true)
+    {
+        usleep(100);  // sleep for 0.01s -> 100Hz
+        if (visual_manager->_input_image_buffer.empty())
+        {
             no_input_cnt++;
-            if (no_input_cnt > kNoInputDataCntThres) {
+            if (no_input_cnt > kNoInputDataCntThres)
+            {
                 LOG(ERROR) << "No Input data for vio frontend, going to exit...";
                 exit(0);
             }
@@ -35,13 +39,15 @@ void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager)
         std::pair<double, std::vector<CameraObs>> feature_observes;
         auto feature_base = visual_manager->get_feature_base();
         bool status = visual_manager->vio_frontend->TrackMonocular(data, feature_observes);
-        if (status == true) {
-            if (visual_manager->_keyframe != KeyFrameType::not_keyframe)
+        if (status == true)
+        {
+            if (visual_manager->_keyframe != KeyFrameStatus::kNone)
             {
-                while (!visual_manager->feature_obs_buffer.empty()) {
+                while (!visual_manager->feature_obs_buffer.empty())
+                {
                     visual_manager->feature_obs_buffer.pop();
                 }
-                visual_manager->_keyframe = KeyFrameType::not_keyframe;
+                visual_manager->_keyframe = KeyFrameStatus::kNone;
             }
             visual_manager->feature_obs_buffer.push(feature_observes);
         }
@@ -50,20 +56,24 @@ void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager)
 
 void backend_task_entry(VioManager* vio)
 {
-    while (true) {
-        usleep(100); // sleep for 0.01s -> 100Hz
-        if (!vio->initializer->is_initialized()) {
+    while (true)
+    {
+        usleep(100);  // sleep for 0.01s -> 100Hz
+        if (!vio->initializer->is_initialized())
+        {
             bool status = vio->initializer->static_initialize();
-            if (status == false) {
+            if (status == false)
+            {
                 continue;
             }
         }
-        if (vio->_visual_manager->feature_obs_buffer.empty()) {
+        if (vio->_visual_manager->feature_obs_buffer.empty())
+        {
             continue;
         }
         // std::pair<double, std::vector<CameraObs>> feature_observes = vio->_visual_manager->feature_obs_buffer.front();
         // vio->_visual_manager->feature_obs_buffer.pop();
-        // vio->_visual_manager->update_feature(feature_observes);
+        // vio->_visual_manager->UpdateFeature(feature_observes);
         // vio->propagate_state_and_covariance(vio->state, feature_observes.first);
         // vio->_visual_manager->update();
     }
@@ -79,7 +89,8 @@ void VioManager::start_visual_system()
 
 GroundTruth VioManager::InterpolateGroundTruth(const double ts) const
 {
-    auto interpolate = [](std::pair<double, GroundTruth> pv1, std::pair<double, GroundTruth> pv2, double ts) {
+    auto interpolate = [](std::pair<double, GroundTruth> pv1, std::pair<double, GroundTruth> pv2, double ts)
+    {
         double lambda = (ts - pv1.first) / (pv2.first - pv1.first);
         GroundTruth pv_interp;
         pv_interp.p_ = pv1.second.p_ + lambda * (pv2.second.p_ - pv1.second.p_);
@@ -88,18 +99,24 @@ GroundTruth VioManager::InterpolateGroundTruth(const double ts) const
     };
 
     // if ground truth buffer is empty, return empty ground truth
-    if (ground_truth_.empty()) {
+    if (ground_truth_.empty())
+    {
         return GroundTruth();
     }
 
     auto it = ground_truth_.lower_bound(ts);
-    if (it == ground_truth_.end()) {
+    if (it == ground_truth_.end())
+    {
         // If timestamp is greater than the largest key, return the largest value
         return std::prev(it)->second;
-    } else if (it == ground_truth_.begin()) {
+    }
+    else if (it == ground_truth_.begin())
+    {
         // If timestamp is smaller than the smallest key, return the smallest value
         return it->second;
-    } else {
+    }
+    else
+    {
         // Otherwise, interpolate between the closest values
         return interpolate(*std::prev(it), *it, ts);
     }
@@ -107,29 +124,34 @@ GroundTruth VioManager::InterpolateGroundTruth(const double ts) const
 
 void VioManager::process_measurememt_once()
 {
-    if (!initializer->is_orientation_initialized || !initializer->is_bias_initialized) {
-        if (!initializer->static_initialize()) {
+    if (!initializer->is_orientation_initialized || !initializer->is_bias_initialized)
+    {
+        if (!initializer->static_initialize())
+        {
             LOG(ERROR) << "failed to initialize orientation and bias";
             return;
         }
     }
 
-    while(!_visual_manager->_input_image_buffer.empty())
+    while (!_visual_manager->_input_image_buffer.empty())
     {
         utils::LogValue log_value;
         bool visual_updated = false;
-        bool zupt_updated = false;
+        bool ZuptUpdated = false;
 
         vio_rT = boost::posix_time::microsec_clock::local_time();
 
-        if (_visual_manager->_input_image_buffer.front().first >= _imu_manager->_imu_latest_timestamp - 0.1) {
+        if (_visual_manager->_input_image_buffer.front().first >= _imu_manager->_imu_latest_timestamp - 0.1)
+        {
             return;
         }
 
-        if (_visual_manager->_input_image_buffer.front().first < state->ts_sec()) {
+        if (_visual_manager->_input_image_buffer.front().first < state->ts_sec())
+        {
             LOG(WARNING) << cv::format("Input image ts: %f, is older than current state ts: %f, skip current image",
-                _visual_manager->_input_image_buffer.front().first, state->ts_sec());
-            while (!_visual_manager->_input_image_buffer.empty() && _visual_manager->_input_image_buffer.front().first < state->ts_sec()) {
+                                       _visual_manager->_input_image_buffer.front().first, state->ts_sec());
+            while (!_visual_manager->_input_image_buffer.empty() && _visual_manager->_input_image_buffer.front().first < state->ts_sec())
+            {
                 _visual_manager->_input_image_buffer.pop();
             }
             continue;
@@ -141,14 +163,15 @@ void VioManager::process_measurememt_once()
         std::pair<double, std::vector<CameraObs>> feature_observes;
         if (!_visual_manager->vio_frontend->TrackStereo(image_data, feature_observes))
         {
-            // LOG(INFO) << "frontend tracking failed";
             continue;
         }
 
         // stereo visual initialization
-        if (!initializer->is_initialized()) {
+        if (!initializer->is_initialized())
+        {
             propagate_state_and_covariance(state, feature_observes.first);
-            if (initializer->StereoVisualInitialize(feature_observes)) {
+            if (initializer->StereoVisualInitialize(feature_observes))
+            {
                 log_value.init_vnorm = state->_imu_state->v()->vec().norm();
                 GroundTruth gt_pv = InterpolateGroundTruth(feature_observes.first);
                 log_value.groundtruth_vnorm = gt_pv.v_.norm();
@@ -157,57 +180,57 @@ void VioManager::process_measurememt_once()
             continue;
         }
 
-        if (_imu_manager->static_status() && 0)
+        if (_imu_manager->static_status())
         {
             propagate_state_and_covariance(state, _imu_manager->_imu_latest_timestamp - 0.1);
-            _imu_manager->zupt_update(state);
-            zupt_updated = true;
+            _imu_manager->ZuptUpdate(state);
+            ZuptUpdated = true;
             std::cout << "zupt updated" << std::endl;
         }
-        else {
+        else
+        {
             propagate_state_and_covariance(state, feature_observes.first);
             state->stochastic_clone(state->_imu_state->pose());
-            _visual_manager->update_feature(feature_observes);  // visual update
-            _visual_manager->reset_keyframe();
-            if (_visual_manager->visual_update())
+            _visual_manager->UpdateFeature(feature_observes);  // visual update
+            if (_visual_manager->VisualUpdate())
             {
                 visual_updated = true;
-                std::cout << "visual udpated" << std::endl;
+                // std::cout << "visual udpated" << std::endl;
             }
 
-        //     image_bak.insert(image_data);
-        //     for (auto it = image_bak.begin(); it != image_bak.end();)
-        //     {
-        //         if (it->first < state->_clone_pose.begin()->first)
-        //         {
-        //             it = image_bak.erase(it);
-        //             it ++;
-        //             continue;
-        //         }
-        //         break;
-        //     }
+            //     image_bak.insert(image_data);
+            //     for (auto it = image_bak.begin(); it != image_bak.end();)
+            //     {
+            //         if (it->first < state->_clone_pose.begin()->first)
+            //         {
+            //             it = image_bak.erase(it);
+            //             it ++;
+            //             continue;
+            //         }
+            //         break;
+            //     }
 
-        //     std::vector<cv::Mat> keyframe_images;
-        //     std::vector<double> keyframe_ts;
-        //     for (auto it = state->_clone_pose.begin(); it != state->_clone_pose.end(); it++)
-        //     {
-        //         double ts_sec = it->first;
-        //         if (image_bak.find(it->first) != image_bak.end())
-        //         {
-        //             keyframe_images.push_back(image_bak[it->first].first);
-        //             keyframe_ts.push_back(ts_sec);
-        //         }
-        //     }
-        //     Utils::ShowGridImages(keyframe_images);
+            //     std::vector<cv::Mat> keyframe_images;
+            //     std::vector<double> keyframe_ts;
+            //     for (auto it = state->_clone_pose.begin(); it != state->_clone_pose.end(); it++)
+            //     {
+            //         double ts_sec = it->first;
+            //         if (image_bak.find(it->first) != image_bak.end())
+            //         {
+            //             keyframe_images.push_back(image_bak[it->first].first);
+            //             keyframe_ts.push_back(ts_sec);
+            //         }
+            //     }
+            //     Utils::ShowGridImages(keyframe_images);
 
-        //     // double frontend_tracking_duration = (vio_rT1 - vio_rT).total_microseconds() * 1e-6;
-        //     // double update_feature_duration = (vio_rT2 - vio_rT1).total_microseconds() * 1e-6;
-        //     // double propagate_duration = (vio_rT3 - vio_rT2).total_microseconds() * 1e-6;
-        //     // double visual_update_duration = (vio_rT4 - vio_rT3).total_microseconds() * 1e-6;
-        //     // LOG(INFO) << cv::format("frontend tracking duration: %f", frontend_tracking_duration);
-        //     // LOG(INFO) << cv::format("update obs feature duration: %f", update_feature_duration);
-        //     // LOG(INFO) << cv::format("propagate state duration: %f", propagate_duration);
-        //     // LOG(INFO) << cv::format("visual update duration: %f", visual_update_duration);
+            //     // double frontend_tracking_duration = (vio_rT1 - vio_rT).total_microseconds() * 1e-6;
+            //     // double update_feature_duration = (vio_rT2 - vio_rT1).total_microseconds() * 1e-6;
+            //     // double propagate_duration = (vio_rT3 - vio_rT2).total_microseconds() * 1e-6;
+            //     // double visual_update_duration = (vio_rT4 - vio_rT3).total_microseconds() * 1e-6;
+            //     // LOG(INFO) << cv::format("frontend tracking duration: %f", frontend_tracking_duration);
+            //     // LOG(INFO) << cv::format("update obs feature duration: %f", update_feature_duration);
+            //     // LOG(INFO) << cv::format("propagate state duration: %f", propagate_duration);
+            //     // LOG(INFO) << cv::format("visual update duration: %f", visual_update_duration);
         }
 
         // Assign log values
@@ -233,7 +256,7 @@ void VioManager::process_measurememt_once()
         log_value.bias_acc_z = state->_imu_state->ba()->vec().z();
 
         log_value.visual_updated = visual_updated;
-        log_value.zupt_updated = zupt_updated;
+        log_value.ZuptUpdated = ZuptUpdated;
         log_value.keyframe = int(_visual_manager->get_keyframe());
 
         vio_logger->save_to_file(log_value);
@@ -245,7 +268,8 @@ void VioManager::groundtruth_callback(const geometry_msgs::PointStamped::ConstPt
     double ts_sec = msg->header.stamp.toSec() - _initial_timestamp;
     GroundTruth gt_pv;
     gt_pv.p_ << msg->point.x, msg->point.y, msg->point.z;
-    if (!ground_truth_.empty()) {
+    if (!ground_truth_.empty())
+    {
         auto it = ground_truth_.rbegin();
         gt_pv.v_ = (gt_pv.p_ - it->second.p_) / (ts_sec - it->first);
     }
@@ -259,8 +283,8 @@ void VioManager::imu_callback(const sensor_msgs::Imu::ConstPtr& msg)
     data.wm << msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z;
     data.am << msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z;
 
-    initializer->feed_imu_measurement(data);
-    _imu_manager->feed_imu_measurement(data);
+    initializer->FeedImuMeasurement(data);
+    _imu_manager->FeedImuMeasurement(data);
 }
 
 void VioManager::camera_callback(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1)
@@ -278,13 +302,16 @@ bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, do
 {
     using namespace Sophus;
 
-    if (ts <= state->_imu_state->ts()) {
+    if (ts <= state->_imu_state->ts())
+    {
         LOG(WARNING) << cv::format("curent state timestamp: %f, must be later than imu_state ts: %f", ts, state->_imu_state->ts());
         return false;
     }
-    std::vector<ImuData> imu_data = _imu_manager->access_interval_imu_measurment(state->_imu_state->ts(), ts);
-    if (imu_data.empty() || imu_data.back().ts_sec < ts) {
-        LOG(WARNING) << cv::format("wait for imu data, current state timestamp: %f but latest imu ts: %f", state->ts_sec(), _imu_manager->_imu_latest_timestamp - 0.1);
+    std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(state->_imu_state->ts(), ts);
+    if (imu_data.empty() || imu_data.back().ts_sec < ts)
+    {
+        LOG(WARNING) << cv::format("wait for imu data, current state timestamp: %f but latest imu ts: %f", state->ts_sec(),
+                                   _imu_manager->_imu_latest_timestamp - 0.1);
         return false;
     }
 
@@ -305,13 +332,14 @@ bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, do
     Eigen::MatrixXd Qd_old = state->_imu_state->covariance();
     Eigen::MatrixXd Qd_new = Qd_old.block<15, 15>(state->_imu_state->id(), state->_imu_state->id());
 
-    for (int i = 0; i < imu_data.size() - 1; i++) {
-
+    for (int i = 0; i < imu_data.size() - 1; i++)
+    {
         Eigen::MatrixXd F = Eigen::MatrixXd::Identity(15, 15);
         Eigen::MatrixXd Q = Eigen::MatrixXd::Zero(15, 15);
 
         double dt = imu_data.at(i + 1).ts_sec - imu_data.at(i).ts_sec;
-        if (dt > 0 && dt < kMaxImuToleranceDelayTime) {
+        if (dt > 0 && dt < kMaxImuToleranceDelayTime)
+        {
             Eigen::Vector3d am_mid = 0.5 * (imu_data.at(i).am + imu_data.at(i + 1).am) - ba;
             Eigen::Vector3d wm_mid = 0.5 * (imu_data.at(i).wm + imu_data.at(i + 1).wm) - bg;
 
@@ -326,9 +354,9 @@ bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, do
             F.block<3, 3>(p_id, p_id) = Eigen::Matrix3d::Identity();
             F.block<3, 3>(p_id, v_id) = Eigen::Matrix3d::Identity() * dt;
             // compute v
+            F.block<3, 3>(v_id, v_id) = Eigen::Matrix3d::Identity();
             F.block<3, 3>(v_id, q_id) = -new_R_ItoG * mathematical::skew(am_mid) * dt;
             F.block<3, 3>(v_id, ba_id) = -new_R_ItoG * dt;
-            // F.block<3, 3>(v_id, bg_id) = Eigen::Matrix3d::Identity() * dt;
             // for bg
             F.block<3, 3>(bg_id, bg_id) = Eigen::Matrix3d::Identity();
             // for ba
@@ -342,7 +370,9 @@ bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, do
             Phi_sum = F * Phi_sum;
             Qd_new = Q + F * Qd_new * F.transpose();
             Qd_new = 0.5 * (Qd_new + Qd_new.transpose());
-        } else {
+        }
+        else
+        {
             LOG(WARNING) << utils::Format("Imu delayed for {0}s", dt);
         }
     }

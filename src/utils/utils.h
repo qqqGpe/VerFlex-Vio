@@ -1,23 +1,25 @@
 #ifndef __UTILS__
 #define __UTILS__
 
-#include "sensor_data.h"
-#include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
-
+#include "sensor_data.h"
 
 #define RAD2DEG 180 / M_PI
 #define DEG2RAD M_PI / 180
 
-class Utils {
-public:
-    static bool transfer_image(const sensor_msgs::ImageConstPtr& msg, cv::Mat &output)
+class Utils
+{
+   public:
+    static bool transfer_image(const sensor_msgs::ImageConstPtr& msg, cv::Mat& output)
     {
         cv_bridge::CvImageConstPtr cv_ptr;
-        try {
+        try
+        {
             cv_ptr = cv_bridge::toCvShare(msg, sensor_msgs::image_encodings::MONO8);
-        } catch (cv_bridge::Exception& e) {
+        }
+        catch (cv_bridge::Exception& e)
+        {
             std::cerr << e.what() << std::endl;
             return false;
         }
@@ -26,15 +28,18 @@ public:
         return true;
     }
 
-    static void visualize_feature_tracking_results(const cv::Mat &image, const std::pair<double, std::vector<CameraObs>> &frame_output) {
-        double fr = 1.333;
-        double fg = 2.333;
-        double fb = 3.333;
+    static void visualize_feature_tracking_results(const cv::Mat& image, const std::pair<double, std::vector<CameraObs>>& frame_output)
+    {
+        double fr = 11.333;
+        double fg = 22.333;
+        double fb = 33.333;
 
         cv::Mat image_to_show;
         cv::cvtColor(image, image_to_show, cv::COLOR_GRAY2BGR);
-        for(auto &feat : frame_output.second) {
-            if(feat.valid == false) {
+        for (auto& feat : frame_output.second)
+        {
+            if (feat.valid == false)
+            {
                 continue;
             }
             cv::Point2f point(feat.u, feat.v);
@@ -44,7 +49,7 @@ public:
 
         cv::imshow("feat_to_track", image_to_show);
         // cv::imwrite("/home/gao/ws/catkin_vio_ws/src/vio/figure/feature_to_track.png", image_to_show);
-        cv::waitKey(0);
+        cv::waitKey(1);
     }
 
     static void show_eigen_matrix(const Eigen::MatrixXd matrix, const std::string win_name)
@@ -58,13 +63,17 @@ public:
 
         cv::Mat image(image_height, image_width, CV_8UC1);
 
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
+        for (int i = 0; i < rows; i++)
+        {
+            for (int j = 0; j < cols; j++)
+            {
                 uint32_t mag = 20 * log10(abs(matrix(i, j)) / 1e-8);
                 mag = (mag > 255) ? 254 : mag;
                 mag = (mag < 0) ? 0 : mag;
-                for (int w = 0; w < kBlockSize; w++){
-                    for (int h = 0; h < kBlockSize; h++) {
+                for (int w = 0; w < kBlockSize; w++)
+                {
+                    for (int h = 0; h < kBlockSize; h++)
+                    {
                         image.at<uchar>(i * kBlockSize + w, j * kBlockSize + h) = mag;
                     }
                 }
@@ -74,11 +83,16 @@ public:
         cv::waitKey(0);
     }
 
-    static void ShowGridImages(const std::vector<cv::Mat>& images) {
-        constexpr uint8_t scale = 2;
+    static void ShowGridImages(const std::vector<cv::Mat>& images)
+    {
+        if (images.size() != 6)
+        {
+            return;
+        }
+        constexpr uint8_t scale = 1;
         int height = 2 * images[0].rows / scale;
         int width = 3 * images[0].cols / scale;
-        cv::Mat gridImage = cv::Mat::zeros(height, width, CV_8UC1);
+        cv::Mat gridImage = cv::Mat::zeros(height, width, CV_8UC3);
 
         int rows = 2;
         int cols = 3;
@@ -86,9 +100,9 @@ public:
         int cellWidth = width / cols;
         int cellHeight = height / rows;
 
-        for (int i = 0; i < images.size(); ++i) {
+        for (int i = 0; i < images.size(); ++i)
+        {
             cv::Mat img = images[i];
-
             cv::resize(img, img, cv::Size(cellWidth, cellHeight));
 
             int row = i / cols;
@@ -98,22 +112,27 @@ public:
             img.copyTo(gridImage(roi));
         }
 
-        for (int i = 0; i < rows; ++i) {
-            for (int j = 0; j < cols; ++j) {
+        for (int i = 0; i < rows; ++i)
+        {
+            for (int j = 0; j < cols; ++j)
+            {
                 cv::Point topLeft(j * cellWidth, i * cellHeight);
                 cv::Point bottomRight((j + 1) * cellWidth, (i + 1) * cellHeight);
                 cv::rectangle(gridImage, topLeft, bottomRight, cv::Scalar(255, 255, 255), 1);
             }
         }
 
+        static int wait_sec = 1;
         cv::imshow("keyframes", gridImage);
-        cv::waitKey(1);
+        char key = cv::waitKey(wait_sec);
+        if (key == 'w')
+        {
+            wait_sec = wait_sec == 1 ? 0 : 1;
+        }
     }
 
     // Function to draw matches between two images in one image
-    static void visualizeStereoMatches(const cv::Mat& img1, const cv::Mat& img2,
-                                       const std::vector<cv::Point2f>& points1,
-                                       const std::vector<cv::Point2f>& points2)
+    static void visualizeStereoMatches(const cv::Mat& img1, const cv::Mat& img2, const std::vector<cv::Point2f>& points1, const std::vector<cv::Point2f>& points2)
     {
         // Create an output image to display matches
         cv::Mat outImg;
@@ -121,10 +140,11 @@ public:
         cv::cvtColor(outImg, outImg, cv::COLOR_GRAY2BGR);
 
         // Draw lines between matching points
-        for (size_t i = 0; i < points1.size(); ++i) {
+        for (size_t i = 0; i < points1.size(); ++i)
+        {
             cv::Point2f pt1 = points1[i];
             cv::Point2f pt2 = points2[i];
-            pt2.x += img1.cols; // Offset the x-coordinate for the second image
+            pt2.x += img1.cols;  // Offset the x-coordinate for the second image
 
             cv::line(outImg, pt1, pt2, cv::Scalar(0, 255, 0), 2);
             cv::circle(outImg, pt1, 5, cv::Scalar(0, 0, 255), -1);
@@ -143,7 +163,8 @@ public:
         cv::Mat outImg;
         cv::cvtColor(img1, outImg, cv::COLOR_GRAY2BGR);
 
-        for (const auto& obs : point_obs) {
+        for (const auto& obs : point_obs)
+        {
             cv::Point2f pt_l(obs.first.u, obs.first.v);
             cv::Point2f pt_r(obs.first.ur, obs.first.vr);
             std::ostringstream depth;
@@ -160,14 +181,25 @@ public:
         cv::waitKey(0);
     }
 
-    static void DisplayFeaturePoints(const cv::Mat& img, const std::vector<cv::Point2d>& points) {
+    static void DisplayFeaturePoints(const cv::Mat& img, const std::vector<cv::Point2d>& points, const std::vector<double>& depths, const std::vector<int>& ids)
+    {
         // Create a copy of the input image to draw points on
+        double fr = 13.3;
+        double fg = 53.3;
+        double fb = 73.3;
         cv::Mat img_with_points;
         cv::cvtColor(img, img_with_points, cv::COLOR_GRAY2BGR);
 
         // Draw each point on the image
-        for (const auto& point : points) {
-            cv::circle(img_with_points, point, 5, cv::Scalar(0, 0, 255), -1);  // Red color for points
+        for (int i = 0; i < points.size(); ++i)
+        {
+            cv::Point2f point = points[i];
+            std::ostringstream os;
+            os << std::fixed << std::setprecision(2) << depths[i];
+            std::string depth_text = os.str();
+            cv::Scalar color = cv::Scalar(int(fb * ids[i]) % 255, int(fg * ids[i]) % 255, int(fr * ids[i]) % 255);
+            cv::circle(img_with_points, point, 5, color, -1);  // Red color for points
+            cv::putText(img_with_points, depth_text, point, cv::FONT_HERSHEY_SIMPLEX, 0.5, color, 1);
         }
 
         // Display the image with points

@@ -1,32 +1,37 @@
 #ifndef __ESKF_SOLVER__
 #define __ESKF_SOLVER__
 
-#include "state.h"
-#include "utils.h"
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <opencv2/core/core.hpp>
+#include "state.h"
+#include "utils.h"
 
-class eskfSolver {
-public:
+class eskfSolver
+{
+   public:
     eskfSolver() = default;
-    ~eskfSolver() { }
+    ~eskfSolver() {}
 
     static Eigen::MatrixXd construct_involved_covariance(std::shared_ptr<State>& state, const std::vector<std::shared_ptr<Type>>& Hx_order)
     {
         int32_t size = 0;
-        for (const auto& x : Hx_order) {
+        for (const auto& x : Hx_order)
+        {
             size += x->size();
         }
         Eigen::MatrixXd covariance_small = Eigen::MatrixXd::Zero(size, size);
 
         int32_t current_row = 0;
-        for (int32_t i = 0; i < Hx_order.size(); i++) {
+        for (int32_t i = 0; i < Hx_order.size(); i++)
+        {
             std::shared_ptr<Type> var_i = Hx_order[i];
             int32_t current_col = 0;
-            for (int32_t j = 0; j < Hx_order.size(); j++) {
+            for (int32_t j = 0; j < Hx_order.size(); j++)
+            {
                 std::shared_ptr<Type> var_j = Hx_order[j];
-                covariance_small.block(current_row, current_col, var_i->size(), var_j->size()) = state->_covariance.block(var_i->id(), var_j->id(), var_i->size(), var_j->size());
+                covariance_small.block(current_row, current_col, var_i->size(), var_j->size()) =
+                    state->_covariance.block(var_i->id(), var_j->id(), var_i->size(), var_j->size());
                 current_col += var_j->size();
             }
             current_row += var_i->size();
@@ -34,8 +39,11 @@ public:
         return covariance_small;
     }
 
-    static void update(std::shared_ptr<State>& state, const Eigen::Ref<Eigen::MatrixXd>& Hx, const Eigen::Ref<Eigen::MatrixXd>& res,
-                       const std::vector<std::shared_ptr<Type>>& Hx_order, const std::unordered_map<std::shared_ptr<Type>, size_t>& map_hx,
+    static void update(std::shared_ptr<State>& state,
+                       const Eigen::Ref<Eigen::MatrixXd>& Hx,
+                       const Eigen::Ref<Eigen::MatrixXd>& res,
+                       const std::vector<std::shared_ptr<Type>>& Hx_order,
+                       const std::unordered_map<std::shared_ptr<Type>, size_t>& map_hx,
                        const Eigen::MatrixXd& R)
     {
         assert(R.rows() == res.rows());
@@ -44,17 +52,21 @@ public:
 
         int32_t current_it = 0;
         std::vector<int32_t> H_id;
-        for (const auto& meas_var : Hx_order) {
+        for (const auto& meas_var : Hx_order)
+        {
             H_id.push_back(current_it);
             current_it += meas_var->size();
         }
         // std::cout << "state->variable size: " << state->_variables.size() << std::endl;
         // std::cout << "state->_covariance: " << state->_covariance << std::endl;
-        for (const auto& var : state->_variables) {
+        for (const auto& var : state->_variables)
+        {
             Eigen::MatrixXd M_i = Eigen::MatrixXd::Zero(var->size(), res.rows());
-            for (int32_t i = 0; i < Hx_order.size(); i++) {
+            for (int32_t i = 0; i < Hx_order.size(); i++)
+            {
                 std::shared_ptr<Type> meas_var = Hx_order[i];
-                M_i.noalias() += state->_covariance.block(var->id(), meas_var->id(), var->size(), meas_var->size()) * Hx.block(0, H_id[i], res.rows(), meas_var->size()).transpose();
+                M_i.noalias() += state->_covariance.block(var->id(), meas_var->id(), var->size(), meas_var->size()) *
+                                 Hx.block(0, H_id[i], res.rows(), meas_var->size()).transpose();
             }
             M_all.block(var->id(), 0, var->size(), res.rows()) = M_i;
         }
@@ -84,18 +96,22 @@ public:
 
         // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
         Eigen::VectorXd diags = state->_covariance.diagonal();
-        for (int i = 0; i < diags.rows(); i++) {
-            if (diags(i) < 0.0) {
+        for (int i = 0; i < diags.rows(); i++)
+        {
+            if (diags(i) < 0.0)
+            {
                 LOG(ERROR) << cv::format("diagonal is negative when update");
                 std::cout << "diags: " << diags.transpose() << std::endl;
                 std::exit(EXIT_FAILURE);
             }
         }
-        // std::cout << "K: \n" << K << std::endl;
+
         Eigen::VectorXd dx = K * res;
-        // std::cout << "dx: " << dx.transpose() << std::endl;
-        for (size_t i = 0; i < state->_variables.size(); i++) {
+        for (size_t i = 0; i < state->_variables.size(); i++)
+        {
             state->_variables[i]->update(dx.block(state->_variables[i]->id(), 0, state->_variables[i]->size(), 1));
+            // std::cout << state->_variables[i]->state_name << ": \n" << dx.block(state->_variables[i]->id(), 0, state->_variables[i]->size(),
+            // 1).transpose() << std::endl;
         }
     }
 };

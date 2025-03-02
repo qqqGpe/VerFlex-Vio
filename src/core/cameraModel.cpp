@@ -77,6 +77,7 @@ void CameraModel::RectifyStereoImages(const cv::Mat& img_left,
   cv::remap(img_left, rectified_left, rectify_map1_left, rectify_map2_left, cv::INTER_LINEAR);
   cv::remap(img_right, rectified_right, rectify_map1_right, rectify_map2_right, cv::INTER_LINEAR);
 
+  // // Visualize the origin and rectified images
   // {
   //   cv::Mat top, bottom;
   //   cv::hconcat(img_left, img_right, top);

@@ -93,7 +93,7 @@ public:
         _covariance = covariance_new;
     }
 
-    std::map<double, CameraPose> access_clone_pose_buffer() const
+    std::map<double, CameraPose> AccessClonePoseBuffer() const
     {
         std::map<double, CameraPose> camera_clone_poses;
         for (auto it = _clone_pose.begin(); it != _clone_pose.end(); it++) {
@@ -124,11 +124,11 @@ public:
             }
             cur_i += var_i->size();
         }
-        _covariance.resize(_dim, _dim);
+        _covariance = Eigen::MatrixXd::Zero(_dim, _dim);
         _covariance = covariance_small;
     }
 
-    void marginalize_state(std::shared_ptr<Type>& state_to_marg)
+    void MarginalizeState(std::shared_ptr<Type>& state_to_marg)
     {
         if (state_to_marg == nullptr)
         {
