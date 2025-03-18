@@ -43,6 +43,10 @@ class Utils
                 continue;
             }
             cv::Point2f point(feat.u, feat.v);
+            std::ostringstream os;
+            os << std::fixed << feat.feat_id;
+            std::string depth_text = os.str();
+            cv::putText(image_to_show, depth_text, point, cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1);
             cv::Scalar color = cv::Scalar(int(fb * feat.feat_id) % 255, int(fg * feat.feat_id) % 255, int(fr * feat.feat_id) % 255);
             cv::circle(image_to_show, point, 3, color, cv::FILLED);
         }
@@ -67,9 +71,10 @@ class Utils
         {
             for (int j = 0; j < cols; j++)
             {
-                uint32_t mag = 20 * log10(abs(matrix(i, j)) / 1e-8);
-                mag = (mag > 255) ? 254 : mag;
+                int32_t mag = 20 * log10(abs(matrix(i, j)) / 1e-8);
+                mag = (mag > 255) ? 255 : mag;
                 mag = (mag < 0) ? 0 : mag;
+                mag = 255 - mag;
                 for (int w = 0; w < kBlockSize; w++)
                 {
                     for (int h = 0; h < kBlockSize; h++)
@@ -79,11 +84,24 @@ class Utils
                 }
             }
         }
+
+        static int show_eigen_wait_sec = 1;
+        if (cv::waitKey(show_eigen_wait_sec) == 'w')
+        {
+            if (show_eigen_wait_sec == 1)
+            {
+                show_eigen_wait_sec = 0;
+            }
+            else
+            {
+                show_eigen_wait_sec = 1;
+            }
+        }
         cv::imshow(win_name, image);
-        cv::waitKey(0);
+        cv::waitKey(show_eigen_wait_sec);
     }
 
-    static void ShowGridImages(const std::vector<cv::Mat>& images)
+    static void ShowGridImages(const std::vector<cv::Mat>& images, const std::string win_name = "default")
     {
         if (images.size() != 6)
         {
@@ -123,11 +141,17 @@ class Utils
         }
 
         static int wait_sec = 1;
-        cv::imshow("keyframes", gridImage);
-        char key = cv::waitKey(wait_sec);
-        if (key == 'w')
+        cv::imshow(win_name.c_str(), gridImage);
+        if (cv::waitKey(wait_sec) == 'w')
         {
-            wait_sec = wait_sec == 1 ? 0 : 1;
+            if (wait_sec == 1)
+            {
+                wait_sec = 0;
+            }
+            else
+            {
+                wait_sec = 1;
+            }
         }
     }
 

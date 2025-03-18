@@ -1,13 +1,14 @@
 #ifndef __MATH_TOOLS__
 #define __MATH_TOOLS__
+#include <algorithm>
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 #include <Eigen/Jacobi>
 
-class mathematical {
+class MathUtils {
 public:
-    inline static Eigen::Matrix<double, 3, 3> skew(const Eigen::Vector3d& w)
+    static Eigen::Matrix<double, 3, 3> skew(const Eigen::Vector3d& w)
     {
         Eigen::Matrix<double, 3, 3> w_x;
         w_x << 0, -w(2), w(1),
@@ -16,7 +17,7 @@ public:
         return w_x;
     }
 
-    inline static Eigen::Matrix3d Rodrigues(Eigen::Vector3d vec, double theta)
+    static Eigen::Matrix3d Rodrigues(Eigen::Vector3d vec, double theta)
     {
         Eigen::Matrix3d R;
         Eigen::Matrix3d I3x3 = Eigen::Matrix3d::Identity();
@@ -47,11 +48,13 @@ public:
         }
     }
 
-    inline static Eigen::Vector3d RotationMatrixToEulerAngles(const Eigen::Matrix3d& R)
+    template<typename Derived>
+    static Eigen::Matrix<typename Derived::Scalar, 3, 1> R2rpy(const Eigen::MatrixBase<Derived>& R)
     {
         // euler (Z-Y-X，i.e. RPY) make sure in range [-pi/2, pi/2]
-        Eigen::Vector3d euler_angle;
-        Eigen::Matrix3d rot = R;
+        typedef typename Derived::Scalar Scalar_t;
+        Eigen::Matrix<Scalar_t, 3, 1> euler_angle;
+        Eigen::Matrix<Scalar_t, 3, 3> rot = R;
         euler_angle(0) = std::atan2(rot(2, 1), rot(2, 2));
         euler_angle(1) = std::atan2(-rot(2, 0), std::sqrt(rot(2, 1) * rot(2, 1) + rot(2, 2) * rot(2, 2)));
         euler_angle(2) = std::atan2(rot(1, 0), rot(0, 0));
@@ -65,6 +68,45 @@ public:
         Eigen::Vector3d p_right = K.inverse() * uv_right.homogeneous();
         double depth = baseline / (p_left - p_right).norm();
         return depth;
+    }
+
+    template<typename Derived>
+    static Eigen::Matrix<typename Derived::Scalar, -1, -1> GivensRotation(const Eigen::MatrixBase<Derived>& mat, const int32_t stop_col = -1)
+    {
+        typedef typename Derived::Scalar Scalar_t;
+        Eigen::Matrix<Scalar_t, -1, -1> mat_ret = mat;
+        uint32_t rows = mat_ret.rows();
+        uint32_t cols = mat_ret.cols();
+
+        uint32_t row_end = stop_col < 0 ? std::min(rows, cols) : stop_col;
+
+        for (uint32_t row_up = 0; row_up < row_end; row_up++)
+        {
+            uint32_t col = row_up;
+            for (uint32_t row_down = col + 1; row_down < rows; row_down++)
+            {
+                Scalar_t A_mm = mat_ret(row_up, col);
+                Scalar_t A_nm = mat_ret(row_down, col);
+                Scalar_t r = std::sqrt(A_mm * A_mm + A_nm * A_nm);
+                if (r < 1e-12)
+                {
+                    continue;
+                }
+                else
+                {
+                    Scalar_t c = A_mm / r;
+                    Scalar_t s = A_nm / r;
+                    for (uint32_t i = col; i < cols; i++)
+                    {
+                        Scalar_t a = mat_ret(row_up, i);
+                        Scalar_t b = mat_ret(row_down, i);
+                        mat_ret(row_up, i) = c * a + s * b;
+                        mat_ret(row_down, i) = -s * a + c * b;
+                    }
+                }
+            }
+        }
+        return mat_ret;
     }
 };
 

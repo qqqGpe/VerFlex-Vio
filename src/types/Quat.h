@@ -2,6 +2,7 @@
 #define __VIO_QUAT__
 
 #include "Type.h"
+#include <sophus/so3.hpp>
 
 class Quat : public Type {
 public:
@@ -33,11 +34,10 @@ public:
     virtual void update(const Eigen::VectorXd& d_theta) override
     {
         assert(d_theta.rows() == 3);
-        // Eigen::Vector4d dq_tmp;
-        // dq_tmp << 1, 0.5 * d_theta; // w, x, y, z
-        Eigen::Quaterniond dq(1.0, 0.5 * d_theta(0), 0.5 * d_theta(1), 0.5 * d_theta(2));
+        Eigen::Matrix3d dR = Sophus::SO3d::exp(d_theta).matrix();
+        // Eigen::Matrix3d dR = Eigen::AngleAxisd(d_theta.norm(), d_theta.normalized()).toRotationMatrix();
+        Eigen::Quaterniond dq(dR);
         _quat = _quat * dq;
-        // set_value(Eigen::Vector4d(_quat.w(), _quat.x(), _quat.y(), _quat.z()));
         set_value(_quat.coeffs());
     }
 

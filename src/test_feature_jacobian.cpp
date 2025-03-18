@@ -140,7 +140,8 @@ int main()
     std::cout << "feat size: " << feats.size() << std::endl;
     for (int i = 0; i < feats.size(); i++)
     {
-        visual_manager.get_single_feature_jacobian(feats[i], map_hx, total_hx);
+        Eigen::MatrixXd Hx_single;
+        visual_manager.SingleFeatureJacobian(feats[i], map_hx, total_hx, Hx_single);
     }
 
     return 0;

@@ -31,7 +31,6 @@ class VisualManager
         _state = state;
         _camera_model = camera_model;
         vio_frontend = std::make_shared<VioFrontend>(paramters, camera_model, &_keyframe);
-
         _max_clone_pose = paramters.max_clone_pose;
         _max_feat_n = paramters.max_feat_n;
         for (int i = 0; i < _max_feat_n; i++)
@@ -44,8 +43,6 @@ class VisualManager
     void UpdateFeature(std::pair<double, std::vector<CameraObs>> feature_observes);
 
     bool VisualUpdate();
-
-    void reset_keyframe() { _keyframe = KeyFrameStatus::kNone; }
 
     KeyFrameStatus CheckKeyframe(std::shared_ptr<State> _state, std::vector<Feature*> feats);
 
@@ -69,13 +66,13 @@ class VisualManager
 
     bool StereoLeastSqureTriangulation(const std::shared_ptr<CameraModel> camera_model, CameraObs& cam_obs, Eigen::Vector3d& pcf) const;
 
-    bool gaussian_newton_optimization(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
+    bool GaussianNewtonOptimization(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
 
     bool ConstructFeatureJacobianFull(std::vector<Feature*> feats, Eigen::MatrixXd& Hx_full, Eigen::VectorXd& res);
 
-    Eigen::MatrixXd get_single_feature_jacobian(Feature* feat, std::unordered_map<std::shared_ptr<Type>, size_t> map_hx, int total_hx);
+    bool SingleFeatureJacobian(Feature* feat, std::unordered_map<std::shared_ptr<Type>, size_t> map_hx, int total_hx, Eigen::MatrixXd& Hx_single);
 
-    bool pnp_ransac_to_reject_outliers(std::vector<Feature*> feats);
+    bool PnpRansacToRejectOutliers(std::vector<Feature*> feats);
 
     void CalculateFeatureParallex(std::vector<Feature*>& feats);
 

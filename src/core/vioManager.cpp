@@ -180,7 +180,7 @@ void VioManager::process_measurememt_once()
             continue;
         }
 
-        if (_imu_manager->static_status())
+        if (_imu_manager->static_status() && 0)
         {
             propagate_state_and_covariance(state, _imu_manager->_imu_latest_timestamp - 0.1);
             _imu_manager->ZuptUpdate(state);
@@ -242,7 +242,7 @@ void VioManager::process_measurememt_once()
         log_value.vy = state->_imu_state->v()->vec().y();
         log_value.vz = state->_imu_state->v()->vec().z();
 
-        Eigen::Vector3d euler_angle = mathematical::RotationMatrixToEulerAngles(state->_imu_state->q()->Rot()) * RAD2DEG;
+        Eigen::Vector3d euler_angle = MathUtils::R2rpy(state->_imu_state->q()->Rot()) * RAD2DEG;
         log_value.roll = euler_angle.x();
         log_value.pitch = euler_angle.y();
         log_value.yaw = euler_angle.z();
@@ -254,6 +254,14 @@ void VioManager::process_measurememt_once()
         log_value.bias_acc_x = state->_imu_state->ba()->vec().x();
         log_value.bias_acc_y = state->_imu_state->ba()->vec().y();
         log_value.bias_acc_z = state->_imu_state->ba()->vec().z();
+
+        log_value.sigma_px = std::sqrt(state->_covariance(state->_imu_state->p()->id(), state->_imu_state->p()->id()));
+        log_value.sigma_py = std::sqrt(state->_covariance(state->_imu_state->p()->id() + 1, state->_imu_state->p()->id() + 1));
+        log_value.sigma_pz = std::sqrt(state->_covariance(state->_imu_state->p()->id() + 2, state->_imu_state->p()->id() + 2));
+
+        log_value.sigma_vx = std::sqrt(state->_covariance(state->_imu_state->v()->id(), state->_imu_state->v()->id()));
+        log_value.sigma_vy = std::sqrt(state->_covariance(state->_imu_state->v()->id() + 1, state->_imu_state->v()->id() + 1));
+        log_value.sigma_vz = std::sqrt(state->_covariance(state->_imu_state->v()->id() + 2, state->_imu_state->v()->id() + 2));
 
         log_value.visual_updated = visual_updated;
         log_value.ZuptUpdated = ZuptUpdated;
@@ -315,11 +323,23 @@ bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, do
         return false;
     }
 
-    Eigen::Vector3d new_p_IinG = state->_imu_state->pose()->p();
-    Eigen::Matrix3d new_R_ItoG = state->_imu_state->pose()->quat().toRotationMatrix();
-    Eigen::Vector3d new_v_IinG = state->_imu_state->v()->vec();
+    // Eigen::Vector3d new_p_IinG = state->_imu_state->pose()->p();
+    // Eigen::Matrix3d new_R_ItoG = state->_imu_state->pose()->quat().toRotationMatrix();
+    // Eigen::Vector3d new_v_IinG = state->_imu_state->v()->vec();
+    // Eigen::Vector3d ba = state->_imu_state->ba()->vec();
+    // Eigen::Vector3d bg = state->_imu_state->bg()->vec();
+
+    Eigen::Vector3d P = state->_imu_state->pose()->p();
+    Eigen::Matrix3d R = state->_imu_state->pose()->quat().toRotationMatrix();
+    Eigen::Vector3d V = state->_imu_state->v()->vec();
     Eigen::Vector3d ba = state->_imu_state->ba()->vec();
     Eigen::Vector3d bg = state->_imu_state->bg()->vec();
+
+    Eigen::Vector3d P_next = P;
+    Eigen::Matrix3d R_next = R;
+    Eigen::Vector3d V_next = V;
+    Eigen::Vector3d ba_next = ba;
+    Eigen::Vector3d bg_next = bg;
 
     int dim = state->_imu_state->size();
     int q_id = state->_imu_state->q()->id();
@@ -329,61 +349,126 @@ bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, do
     int ba_id = state->_imu_state->ba()->id();
 
     Eigen::MatrixXd Phi_sum = Eigen::MatrixXd::Identity(dim, dim);
-    Eigen::MatrixXd Qd_old = state->_imu_state->covariance();
-    Eigen::MatrixXd Qd_new = Qd_old.block<15, 15>(state->_imu_state->id(), state->_imu_state->id());
+    Eigen::MatrixXd Qd_new = state->_imu_state->covariance().block<15, 15>(state->_imu_state->id(), state->_imu_state->id());
+
+    uint32_t na_id = 0;
+    uint32_t ng_id = 3;
+    uint32_t nbg_id = 6;
+    uint32_t nba_id = 9;
+    double sigma_a2 = std::pow(_imu_manager->_sigma_na, 2);
+    double sigma_w2 = std::pow(_imu_manager->_sigma_nw, 2);
+    double sigma_bg2 = std::pow(_imu_manager->_sigma_bg, 2);
+    double sigma_ba2 = std::pow(_imu_manager->_sigma_ba, 2);
+    Eigen::MatrixXd Cov_m = Eigen::MatrixXd::Identity(12, 12);
+    Cov_m.block(na_id, na_id, 3, 3) = Eigen::Matrix3d::Identity() * sigma_a2;
+    Cov_m.block(ng_id, ng_id, 3, 3) = Eigen::Matrix3d::Identity() * sigma_w2;
+    Cov_m.block(nbg_id, nbg_id, 3, 3) = Eigen::Matrix3d::Identity() * sigma_bg2;
+    Cov_m.block(nba_id, nba_id, 3, 3) = Eigen::Matrix3d::Identity() * sigma_ba2;
+
+    // std::cout << "Cov before predict: \n" << Qd_new << std::endl;
 
     for (int i = 0; i < imu_data.size() - 1; i++)
     {
         Eigen::MatrixXd F = Eigen::MatrixXd::Identity(15, 15);
-        Eigen::MatrixXd Q = Eigen::MatrixXd::Zero(15, 15);
+        Eigen::MatrixXd G = Eigen::MatrixXd::Zero(15, 12);
+        Eigen::MatrixXd Q = Qd_new;
 
         double dt = imu_data.at(i + 1).ts_sec - imu_data.at(i).ts_sec;
         if (dt > 0 && dt < kMaxImuToleranceDelayTime)
         {
+            P = P_next;
+            V = V_next;
+            R = R_next;
+            ba = ba_next;
+            bg = bg_next;
+
             Eigen::Vector3d am_mid = 0.5 * (imu_data.at(i).am + imu_data.at(i + 1).am) - ba;
             Eigen::Vector3d wm_mid = 0.5 * (imu_data.at(i).wm + imu_data.at(i + 1).wm) - bg;
 
-            new_p_IinG = new_p_IinG + new_v_IinG * dt - 0.5 * state->_imu_state->gravity_inG * dt * dt + 0.5 * (new_R_ItoG * am_mid * dt * dt);
-            new_v_IinG = new_v_IinG - state->_imu_state->gravity_inG * dt + new_R_ItoG * am_mid * dt;
-            new_R_ItoG = new_R_ItoG * SO3d::exp(wm_mid * dt).matrix();
+            // /*for R*/
+            // F.block<3, 3>(q_id, q_id) = SO3d::exp(-wm_mid * dt).matrix();
+            // F.block<3, 3>(q_id, bg_id) = -Eigen::Matrix3d::Identity() * dt;
+
+            // /*for p*/
+            // F.block<3, 3>(p_id, v_id) = Eigen::Matrix3d::Identity() * dt;
+            // F.block<3, 3>(p_id, q_id) = -0.5 * R * MathUtils::skew(am_mid * dt * dt);
+            // F.block<3, 3>(p_id, ba_id) = -0.5 * R * dt * dt;
+
+            // /*for v*/
+            // F.block<3, 3>(v_id, q_id) = -R * MathUtils::skew(am_mid) * dt;
+            // F.block<3, 3>(v_id, ba_id) = -R * dt;
+
+            // /*for bg*/
+            // F.block<3, 3>(bg_id, bg_id) = Eigen::Matrix3d::Identity();
+
+            // /*for ba*/
+            // F.block<3, 3>(ba_id, ba_id) = Eigen::Matrix3d::Identity();
 
             // for R
             F.block<3, 3>(q_id, q_id) = SO3d::exp(-wm_mid * dt).matrix();
             F.block<3, 3>(q_id, bg_id) = -Eigen::Matrix3d::Identity() * dt;
+
             // for p
             F.block<3, 3>(p_id, p_id) = Eigen::Matrix3d::Identity();
             F.block<3, 3>(p_id, v_id) = Eigen::Matrix3d::Identity() * dt;
-            // compute v
+            F.block<3, 3>(p_id, q_id) = -0.5 * R * MathUtils::skew(am_mid * dt * dt);
+            F.block<3, 3>(p_id, ba_id) = -0.5 * R * dt * dt;
+
+            // for veloity
             F.block<3, 3>(v_id, v_id) = Eigen::Matrix3d::Identity();
-            F.block<3, 3>(v_id, q_id) = -new_R_ItoG * mathematical::skew(am_mid) * dt;
-            F.block<3, 3>(v_id, ba_id) = -new_R_ItoG * dt;
+            F.block<3, 3>(v_id, q_id) = -R * MathUtils::skew(am_mid * dt);
+            F.block<3, 3>(v_id, ba_id) = -R * dt;
+
             // for bg
             F.block<3, 3>(bg_id, bg_id) = Eigen::Matrix3d::Identity();
+
             // for ba
             F.block<3, 3>(ba_id, ba_id) = Eigen::Matrix3d::Identity();
 
-            Q.block<3, 3>(v_id, v_id) = Eigen::Matrix3d::Identity() * std::pow(_imu_manager->_sigma_na, 2) * dt;
-            Q.block<3, 3>(q_id, q_id) = Eigen::Matrix3d::Identity() * std::pow(_imu_manager->_sigma_nw, 2) * dt;
-            Q.block<3, 3>(bg_id, bg_id) = Eigen::Matrix3d::Identity() * std::pow(_imu_manager->_sigma_bg, 2);
-            Q.block<3, 3>(ba_id, ba_id) = Eigen::Matrix3d::Identity() * std::pow(_imu_manager->_sigma_ba, 2);
+            // for sigma noise
+            G.block<3, 3>(q_id, ng_id) = -Eigen::Matrix3d::Identity() * dt;
+            G.block<3, 3>(p_id, na_id) = -0.5 * R * dt * dt;
+            G.block<3, 3>(v_id, na_id) = -R * dt;
+            G.block<3, 3>(bg_id, nbg_id) = Eigen::Matrix3d::Identity();
+            G.block<3, 3>(ba_id, nba_id) = Eigen::Matrix3d::Identity();
 
-            Phi_sum = F * Phi_sum;
-            Qd_new = Q + F * Qd_new * F.transpose();
-            Qd_new = 0.5 * (Qd_new + Qd_new.transpose());
+            // Q.block<3, 3>(v_id, v_id) = Eigen::Matrix3d::Identity() * std::pow(_imu_manager->_sigma_na, 2) * dt;
+            // Q.block<3, 3>(q_id, q_id) = Eigen::Matrix3d::Identity() * std::pow(_imu_manager->_sigma_nw, 2) * dt;
+            // Q.block<3, 3>(bg_id, bg_id) = Eigen::Matrix3d::Identity() * std::pow(_imu_manager->_sigma_bg, 2);
+            // Q.block<3, 3>(ba_id, ba_id) = Eigen::Matrix3d::Identity() * std::pow(_imu_manager->_sigma_ba, 2);
+
+            // state propagation
+            P_next = P + V * dt - 0.5 * state->_imu_state->gravity_inG * dt * dt + 0.5 * (R * am_mid * dt * dt);
+            V_next = V - state->_imu_state->gravity_inG * dt + R * am_mid * dt;
+            R_next = R * SO3d::exp(wm_mid * dt).matrix();
+            ba_next = ba;
+            bg_next = bg;
+
+            // Phi_sum = F * Phi_sum;
+            Qd_new = G * Cov_m * G.transpose() + F * Q * F.transpose();
+            // Qd_new = Q + F * Qd_new.eval() * F.transpose();
+            Qd_new = 0.5 * (Qd_new.eval() + Qd_new.eval().transpose());
+
+            // std::cout << "F: \n" << F << std::endl;
+            // std::cout << "G: \n" << G << std::endl;
+            // std::cout << "Q: \n" << Q << std::endl;
         }
         else
         {
             LOG(WARNING) << utils::Format("Imu delayed for {0}s", dt);
+            exit(0);
         }
     }
 
-    state->_imu_state->q()->set_value(Eigen::Quaterniond(new_R_ItoG).normalized().coeffs());
-    state->_imu_state->p()->set_value(new_p_IinG);
-    state->_imu_state->v()->set_value(new_v_IinG);
+    state->_imu_state->q()->set_value(Eigen::Quaterniond(R_next).normalized().coeffs());
+    state->_imu_state->p()->set_value(P_next);
+    state->_imu_state->v()->set_value(V_next);
 
     state->_imu_state->set_ts(ts);
     state->_imu_state->set_covariance(Qd_new);
-    state->_covariance.block(0, 0, state->_imu_state->size(), state->_imu_state->size()) = Qd_new;
+    state->_covariance.block(state->_imu_state->id(), state->_imu_state->id(), state->_imu_state->size(), state->_imu_state->size()) = Qd_new;
+
+    // std::cout << "Cov after predict: \n" << Qd_new << std::endl;
 
     return true;
 }

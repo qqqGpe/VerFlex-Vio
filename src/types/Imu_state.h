@@ -59,7 +59,7 @@ public:
     void set_covariance(const Eigen::MatrixXd &covariance_new) {
         assert(covariance_new.rows() == 15);
         assert(covariance_new.cols() == 15);
-        _covariance = covariance_new;
+        _covariance.noalias() = covariance_new;
     }
 
     virtual std::shared_ptr<Type> clone() override

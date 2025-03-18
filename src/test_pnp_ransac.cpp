@@ -121,7 +121,7 @@ int main()
 
     state->set_ts_sec(camera_ts.back());
     visual_manager.set_state(state);
-    visual_manager.pnp_ransac_to_reject_outliers(feats);
+    visual_manager.PnpRansacToRejectOutliers(feats);
 
     Eigen::Matrix3d S;
     Eigen::Matrix3d mat;

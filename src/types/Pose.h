@@ -26,6 +26,7 @@ public:
     }
 
     virtual void update(const Eigen::VectorXd &dx) override{
+        assert(dx.rows() == _size);
         _q->update(dx.segment<3>(0));
         _p->update(dx.segment<3>(_q->size()));
     }

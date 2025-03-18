@@ -18,7 +18,7 @@ int main()
 
     Eigen::Matrix3d R = (Rz * Ry * Rx).toRotationMatrix();
     // Eigen::Vector3d rpy = R.eulerAngles(2,1,0) * RAD2DEG;
-    Eigen::Vector3d rpy = mathematical::RotationMatrixToEulerAngles(R) * RAD2DEG;
+    Eigen::Vector3d rpy = MathUtils::R2rpy(R) * RAD2DEG;
 
     std::cout << "roll: " << rpy.x() << std::endl;
     std::cout << "pitch: " << rpy.y() << std::endl;
