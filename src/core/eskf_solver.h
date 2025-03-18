@@ -104,13 +104,13 @@ class eskfSolver
         // Eigen::MatrixXd K = M_all * S.inverse();
 
         // Update Covariance
-        std::cout << "Cov before update: \n" << std::setprecision(2) << state->_covariance << std::endl;
+        // std::cout << "Cov before update: \n" << std::setprecision(2) << state->_covariance << std::endl;
         state->_covariance.triangularView<Eigen::Upper>() -= K * M_all.transpose();
         state->_covariance = state->_covariance.selfadjointView<Eigen::Upper>();
         // state->_covariance -= K * M_all.transpose();
         // std::cout << "K: \n" << std::setprecision(2) << K << std::endl;
-        std::cout << "K * M_all.transpose(): \n" << std::setprecision(2) <<  K * M_all.transpose() << std::endl;
-        std::cout << "Cov after update: \n" << std::setprecision(2) << state->_covariance << std::endl;
+        // std::cout << "K * M_all.transpose(): \n" << std::setprecision(2) <<  K * M_all.transpose() << std::endl;
+        // std::cout << "Cov after update: \n" << std::setprecision(2) << state->_covariance << std::endl;
         state->_covariance = 0.5 * (state->_covariance.eval() + state->_covariance.eval().transpose());
         state->_imu_state->set_covariance(
             state->_covariance.block(state->_imu_state->id(), state->_imu_state->id(), state->_imu_state->size(), state->_imu_state->size()));

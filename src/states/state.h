@@ -69,7 +69,7 @@ class State
 
     double ts_sec() { return _imu_state->ts(); }
 
-    void stochastic_clone(std::shared_ptr<Type> variable_to_clone)
+    void StochasticClone(std::shared_ptr<Type> variable_to_clone)
     {
         int old_rows = _covariance.rows();
         int old_cols = _covariance.cols();

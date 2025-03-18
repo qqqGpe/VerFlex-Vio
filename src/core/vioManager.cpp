@@ -158,10 +158,10 @@ void VioManager::process_measurememt_once()
         }
 
         // track stereo features
-        std::pair<double, std::pair<cv::Mat, cv::Mat>> image_data = _visual_manager->_input_image_buffer.front();
+        std::pair<double, std::pair<cv::Mat, cv::Mat>> new_image = _visual_manager->_input_image_buffer.front();
         _visual_manager->_input_image_buffer.pop();
         std::pair<double, std::vector<CameraObs>> feature_observes;
-        if (!_visual_manager->vio_frontend->TrackStereo(image_data, feature_observes))
+        if (!_visual_manager->vio_frontend->TrackStereo(new_image, feature_observes))
         {
             continue;
         }
@@ -175,7 +175,7 @@ void VioManager::process_measurememt_once()
                 log_value.init_vnorm = state->_imu_state->v()->vec().norm();
                 GroundTruth gt_pv = InterpolateGroundTruth(feature_observes.first);
                 log_value.groundtruth_vnorm = gt_pv.v_.norm();
-                state->stochastic_clone(state->_imu_state->pose());
+                state->StochasticClone(state->_imu_state->pose());
             }
             continue;
         }
@@ -185,17 +185,17 @@ void VioManager::process_measurememt_once()
             propagate_state_and_covariance(state, _imu_manager->_imu_latest_timestamp - 0.1);
             _imu_manager->ZuptUpdate(state);
             ZuptUpdated = true;
-            std::cout << "zupt updated" << std::endl;
+            LOG(INFO) << "ZUPT updated";
         }
         else
         {
             propagate_state_and_covariance(state, feature_observes.first);
-            state->stochastic_clone(state->_imu_state->pose());
+            state->StochasticClone(state->_imu_state->pose());
             _visual_manager->UpdateFeature(feature_observes);  // visual update
             if (_visual_manager->VisualUpdate())
             {
                 visual_updated = true;
-                // std::cout << "visual udpated" << std::endl;
+                LOG(INFO) << "Visual updated";
             }
 
             //     image_bak.insert(image_data);
@@ -349,7 +349,9 @@ bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, do
     int ba_id = state->_imu_state->ba()->id();
 
     Eigen::MatrixXd Phi_sum = Eigen::MatrixXd::Identity(dim, dim);
-    Eigen::MatrixXd Qd_new = state->_imu_state->covariance().block<15, 15>(state->_imu_state->id(), state->_imu_state->id());
+    Eigen::MatrixXd Cov_imu_old = state->_imu_state->covariance().block<15, 15>(state->_imu_state->id(), state->_imu_state->id());
+    Eigen::MatrixXd Cov_imu_new = Cov_imu_old;
+    // Eigen::MatrixXd Qd_new = state->_imu_state->covariance().block<15, 15>(state->_imu_state->id(), state->_imu_state->id());
 
     uint32_t na_id = 0;
     uint32_t ng_id = 3;
@@ -371,7 +373,7 @@ bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, do
     {
         Eigen::MatrixXd F = Eigen::MatrixXd::Identity(15, 15);
         Eigen::MatrixXd G = Eigen::MatrixXd::Zero(15, 12);
-        Eigen::MatrixXd Q = Qd_new;
+        Eigen::MatrixXd Q = Cov_imu_new;
 
         double dt = imu_data.at(i + 1).ts_sec - imu_data.at(i).ts_sec;
         if (dt > 0 && dt < kMaxImuToleranceDelayTime)
@@ -444,10 +446,10 @@ bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, do
             ba_next = ba;
             bg_next = bg;
 
-            // Phi_sum = F * Phi_sum;
-            Qd_new = G * Cov_m * G.transpose() + F * Q * F.transpose();
+            Phi_sum = F * Phi_sum;
+            Cov_imu_new = G * Cov_m * G.transpose() + F * Q * F.transpose();
             // Qd_new = Q + F * Qd_new.eval() * F.transpose();
-            Qd_new = 0.5 * (Qd_new.eval() + Qd_new.eval().transpose());
+            Cov_imu_new = 0.5 * (Cov_imu_new.eval() + Cov_imu_new.eval().transpose());
 
             // std::cout << "F: \n" << F << std::endl;
             // std::cout << "G: \n" << G << std::endl;
@@ -465,8 +467,14 @@ bool VioManager::propagate_state_and_covariance(std::shared_ptr<State> state, do
     state->_imu_state->v()->set_value(V_next);
 
     state->_imu_state->set_ts(ts);
-    state->_imu_state->set_covariance(Qd_new);
-    state->_covariance.block(state->_imu_state->id(), state->_imu_state->id(), state->_imu_state->size(), state->_imu_state->size()) = Qd_new;
+    state->_imu_state->set_covariance(Cov_imu_new);
+    state->_covariance.block(state->_imu_state->id(), state->_imu_state->id(), state->_imu_state->size(), state->_imu_state->size()) = Cov_imu_new;
+
+    uint32_t clone_state_size = state->_clone_pose.size();
+
+    Eigen::MatrixXd Cov_ic = state->_covariance.block(0, 15, 15, 6 * clone_state_size);
+    state->_covariance.block(0, 15, 15, 6 * clone_state_size) = Phi_sum * Cov_ic;
+    state->_covariance.block(15, 0, 6 * clone_state_size, 15) = Cov_ic.transpose() * Phi_sum.transpose();
 
     // std::cout << "Cov after predict: \n" << Qd_new << std::endl;
 
