@@ -346,7 +346,7 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
         previous_observations = feature_observes;
     }
 
-    Utils::visualize_feature_tracking_results(input_image.second.first.clone(), feature_observes);
+    // Utils::visualize_feature_tracking_results(input_image.second.first.clone(), feature_observes);
     return true;
 }
 
@@ -505,7 +505,7 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::
 
     feature_observes = {ts_sec, cur_feat_to_track};
 
-    Utils::visualize_feature_tracking_results(input_image.second.first.clone(), feature_observes);
+    // Utils::visualize_feature_tracking_results(input_image.second.first.clone(), feature_observes);
     is_first_frame_ = false;
     // *_keyframe = KeyFrameStatus::kNone;
     return true;

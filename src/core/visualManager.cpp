@@ -171,7 +171,6 @@ KeyFrameStatus VisualManager::CheckKeyframe(std::shared_ptr<State> _state, std::
         cnt++;
     }
     pixel_parallex_avg = pixel_parallex_avg / cnt;
-    std::cout << "pixel_parallex_avg: " << pixel_parallex_avg << std::endl;
     if (pixel_parallex_avg > kLargeParallexThres)
     {
         return KeyFrameStatus::kLargeParallex;
@@ -204,13 +203,11 @@ void VisualManager::DropFeatureObsrvs(const double timestamp_to_drop)
 
 void VisualManager::UpdateFeatureBase()
 {
-    // std::cout << "feat_lost.size: " << _feature_lost.size() << std::endl;
     for (auto& feat_lost : _feature_lost)
     {
         feat_lost->reset();
     }
 
-    // std::cout << "feature_base_size: " << _feature_base.size() << std::endl;
     int feature_valid_num = 0;
     for (auto x : _feature_base)
     {
@@ -219,8 +216,7 @@ void VisualManager::UpdateFeatureBase()
             feature_valid_num++;
         }
     }
-    std::cout << "feature base valid before update: " << feature_valid_num << std::endl;
-    std::cout << "feat_new.size: " << _feature_new.size() << std::endl;
+
     for (auto& feat : _feature_new)
     {
         for (int i = 0; i < _feature_base.size(); i++)
@@ -234,11 +230,6 @@ void VisualManager::UpdateFeatureBase()
                 break;
             }
         }
-        // auto it = std::find_if(_feature_base.begin(), _feature_base.end(), [](Feature* x) { return x->_valid == false; });
-        // (*it)->reset();
-        // (*it)->_valid = true;
-        // (*it)->_id = feat.feat_id;
-        // (*it)->_visual_obs_buffer.insert({ feat.ts_sec, feat });
     }
 
     feature_valid_num = 0;
@@ -249,7 +240,6 @@ void VisualManager::UpdateFeatureBase()
             feature_valid_num++;
         }
     }
-    std::cout << "feature base valid after update: " << feature_valid_num << std::endl;
 }
 
 void VisualManager::UpdateFeature(std::pair<double, std::vector<CameraObs>> feature_observes)
@@ -798,7 +788,7 @@ bool VisualManager::ConstructFeatureJacobianFull(std::vector<Feature*> feats, Ei
         total_hx += x.second->size();
     }
 
-    Hx_full.resize(2 * feats.size() * _state->_clone_pose.size(), total_hx + 1);
+    Hx_full.resize(4 * feats.size() * _state->_clone_pose.size(), total_hx + 1);
     Hx_full.setZero();
 
     int Hx_rows = 0;
@@ -816,7 +806,6 @@ bool VisualManager::ConstructFeatureJacobianFull(std::vector<Feature*> feats, Ei
         }
     }
     Hx_full.conservativeResize(Hx_rows, Hx_full.cols());
-    // Hx_full = Hx_full.block(0, 0, rows_id, Hx_full.cols()).eval();
 
     // measurements compression
     if (Hx_full.rows() > Hx_full.cols())
@@ -825,13 +814,14 @@ bool VisualManager::ConstructFeatureJacobianFull(std::vector<Feature*> feats, Ei
         int final_hx_rows = Hx_full.cols() - 1 - 7;
         res.resize(final_hx_rows, 1);
         res = Hx_full.block(0, Hx_full.cols() - 1, final_hx_rows, 1);
-        Hx_full = Hx_full.block(0, 0, final_hx_rows, Hx_full.cols() - 1).eval();
+        Hx_full.conservativeResize(final_hx_rows, Hx_full.cols() - 1);
+        // Utils::show_eigen_matrix(Hx_full, "Hx_full_qr");
     }
     else
     {
         res.resize(Hx_full.rows(), 1);
         res = Hx_full.block(0, Hx_full.cols() - 1, Hx_full.rows(), 1);
-        Hx_full = Hx_full.block(0, 0, Hx_full.rows(), Hx_full.cols() - 1).eval();
+        Hx_full.conservativeResize(Hx_full.rows(), Hx_full.cols() - 1);
     }
 
     return true;
@@ -844,68 +834,83 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
 {
     constexpr uint32_t kPwfDim = 3;
     assert(feat->_valid);
-    int obs_size = 2 * feat->_visual_obs_buffer.size();
+    int obs_size = 4 * feat->_visual_obs_buffer.size();
     Eigen::MatrixXd Hfx = Eigen::MatrixXd::Zero(obs_size, total_hx + kPwfDim + 1);  // 3 feature dimension + total_hx + 1 residual
     Eigen::Vector3d p_finG = feat->_pwf;
-    // std::cout << "pwf: " << feat->_pwf.transpose() << std::endl;
 
     Eigen::Vector2d res_total = Eigen::Vector2d::Zero();
     int cnt = 0;
     for (auto& obs : feat->_visual_obs_buffer)
     {
         double obs_ts = obs.first;
-        // Eigen::Vector2d zm(obs.second.u_norm, obs.second.v_norm);
-        Eigen::Vector2d zm(obs.second.u, obs.second.v);
-        std::shared_ptr<Pose> obs_pose = _state->_clone_pose.at(obs_ts);
-        Eigen::Matrix3d R_IitoG = obs_pose->quat().toRotationMatrix();
-        Eigen::Vector3d p_IiinG = obs_pose->p();
-
-        // Eigen::Matrix3d R_ItoC = _state->_Tic->quat().toRotationMatrix().transpose();
-        // Eigen::Vector3d p_IinC = _state->_Tic->p();
-        Eigen::Matrix3d R_CtoI = _state->_Tic->quat().toRotationMatrix();
-        Eigen::Vector3d p_CinI = _state->_Tic->p();
-
-        Eigen::Matrix3d R_CitoG = R_IitoG * R_CtoI;
-        Eigen::Vector3d p_CiinG = p_IiinG + R_IitoG * p_CinI;
-
-        Eigen::Vector3d p_finCi = R_CitoG.transpose() * (p_finG - p_CiinG);
-
-        // compute visual residual
-        Eigen::Vector2d uv;
-        uv = _camera_model->project_left(p_finCi);
-
-        Eigen::Vector2d res = zm - uv;
-        Hfx.block<2, 1>(2 * cnt, Hfx.cols() - 1) = res;
-
-        // precompute dz_dpcf
-        Eigen::MatrixXd dz_norm_dpcf = Eigen::MatrixXd::Zero(2, 3);
-        dz_norm_dpcf << 1 / p_finCi(2), 0, -p_finCi(0) / (p_finCi(2) * p_finCi(2)), 0, 1 / p_finCi(2), -p_finCi(1) / (p_finCi(2) * p_finCi(2));
-        Eigen::MatrixXd dz_uv_dz_norm = Eigen::Matrix2d::Identity() * _camera_model->K_l()(0, 0);
-        Eigen::MatrixXd dz_dpcf = dz_uv_dz_norm * dz_norm_dpcf;
-
-        // get jacobian wrt pwf
-        Eigen::Matrix3d dpcf_dpwf = R_CitoG.transpose();
-        Hfx.block<2, kPwfDim>(2 * cnt, 0) = dz_dpcf * dpcf_dpwf;
-
-        // get jacobian wrt extrinsic parameters
-        if (_state->_do_calibration_update)
+        for (int cam_id = 0; cam_id < MAX_CAM_NUM; cam_id++)
         {
-            Eigen::MatrixXd dpcf_dcalib = Eigen::MatrixXd::Zero(3, 6);
-            // dpcf_dcalib.block<3, 3>(0, 0) = -R_ItoC * MathUtils::skew(R_IitoG.transpose() * (p_finG - p_IiinG));
-            dpcf_dcalib.block<3, 3>(0, 0) = MathUtils::skew(p_finCi);
-            // dpcf_dcalib.block<3, 3>(0, 3) = Eigen::Matrix3d::Identity();
-            dpcf_dcalib.block<3, 3>(0, 3) = -R_CtoI.transpose();
-            Hfx.block<2, 6>(2 * cnt, kPwfDim + map_hx.at(_state->_Tic)) = dz_dpcf * dpcf_dcalib;
+            Eigen::Vector2d zm;
+            double focal_length;
+            Eigen::Matrix3d R_CtoI;
+            Eigen::Vector3d p_CinI;
+
+            if (cam_id == LEFT_CAM)
+            {
+                zm << obs.second.u, obs.second.v;
+                focal_length = _camera_model->K_l()(0, 0);
+                R_CtoI = _state->_Tic->quat().toRotationMatrix();
+                p_CinI = _state->_Tic->p();
+            }
+            else if (cam_id == RIGHT_CAM)
+            {
+                zm << obs.second.ur, obs.second.vr;
+                focal_length = _camera_model->K_r()(0, 0);
+                R_CtoI = _state->_Tic->quat().toRotationMatrix() * _camera_model->R_rl();
+                p_CinI = _state->_Tic->p() + _state->_Tic->quat().toRotationMatrix() * _camera_model->p_rl();
+            }
+
+            std::shared_ptr<Pose> obs_pose = _state->_clone_pose.at(obs_ts);
+            Eigen::Matrix3d R_IitoG = obs_pose->quat().toRotationMatrix();
+            Eigen::Vector3d p_IiinG = obs_pose->p();
+
+            Eigen::Matrix3d R_CitoG = R_IitoG * R_CtoI;
+            Eigen::Vector3d p_CiinG = p_IiinG + R_IitoG * p_CinI;
+
+            Eigen::Vector3d p_finCi = R_CitoG.transpose() * (p_finG - p_CiinG);
+
+            // compute visual residual
+            Eigen::Vector2d uv;
+            uv = cam_id == LEFT_CAM ? _camera_model->project_left(p_finCi) : _camera_model->project_right(p_finCi);
+
+            Eigen::Vector2d res = zm - uv;
+            Hfx.block<2, 1>(2 * cnt, Hfx.cols() - 1) = res;
+
+            // precompute dz_dpcf
+            Eigen::MatrixXd dz_norm_dpcf = Eigen::MatrixXd::Zero(2, 3);
+            dz_norm_dpcf << 1 / p_finCi(2), 0, -p_finCi(0) / (p_finCi(2) * p_finCi(2)), 0, 1 / p_finCi(2), -p_finCi(1) / (p_finCi(2) * p_finCi(2));
+            Eigen::MatrixXd dz_uv_dz_norm = Eigen::Matrix2d::Identity() * focal_length;
+            Eigen::MatrixXd dz_dpcf = dz_uv_dz_norm * dz_norm_dpcf;
+
+            // get jacobian wrt pwf
+            Eigen::Matrix3d dpcf_dpwf = R_CitoG.transpose();
+            Hfx.block<2, kPwfDim>(2 * cnt, 0) = dz_dpcf * dpcf_dpwf;
+
+            // get jacobian wrt extrinsic parameters
+            if (_state->_do_calibration_update)
+            {
+                Eigen::MatrixXd dpcf_dcalib = Eigen::MatrixXd::Zero(3, 6);
+                // dpcf_dcalib.block<3, 3>(0, 0) = -R_ItoC * MathUtils::skew(R_IitoG.transpose() * (p_finG - p_IiinG));
+                dpcf_dcalib.block<3, 3>(0, 0) = MathUtils::skew(p_finCi);
+                // dpcf_dcalib.block<3, 3>(0, 3) = Eigen::Matrix3d::Identity();
+                dpcf_dcalib.block<3, 3>(0, 3) = -R_CtoI.transpose();
+                Hfx.block<2, 6>(2 * cnt, kPwfDim + map_hx.at(_state->_Tic)) = dz_dpcf * dpcf_dcalib;
+            }
+
+            // get jacobian wrt clone pose
+            Eigen::MatrixXd dpcf_dclone = Eigen::MatrixXd::Zero(3, 6);
+            dpcf_dclone.block<3, 3>(0, 0) = R_CtoI.transpose() * MathUtils::skew(R_IitoG.transpose() * (p_finG - p_IiinG));
+            dpcf_dclone.block<3, 3>(0, 3) = -R_CitoG.transpose();
+            Hfx.block<2, 6>(2 * cnt, kPwfDim + map_hx.at(obs_pose)) = dz_dpcf * dpcf_dclone;
+
+            res_total += res;
+            cnt++;
         }
-
-        // get jacobian wrt clone pose
-        Eigen::MatrixXd dpcf_dclone = Eigen::MatrixXd::Zero(3, 6);
-        dpcf_dclone.block<3, 3>(0, 0) = R_CtoI.transpose() * MathUtils::skew(R_IitoG.transpose() * (p_finG - p_IiinG));
-        dpcf_dclone.block<3, 3>(0, 3) = -R_CitoG.transpose();
-        Hfx.block<2, 6>(2 * cnt, kPwfDim + map_hx.at(obs_pose)) = dz_dpcf * dpcf_dclone;
-
-        res_total += res;
-        cnt++;
 
         // // /*check the correctness of Hx*/
         // // check pwf
@@ -960,7 +965,10 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
         return false;
     }
 
-    // project Hfx to feature left null space
+    /*show single Hx matrix*/
+    // Utils::show_eigen_matrix(Hfx, "Hfx");
+
+    /* project Hfx to feature left null space */
     // MathUtils::NullSpaceProjectInplace(Hfx, 3);
     Hfx = MathUtils::GivensRotation(Hfx, 3);
     Eigen::MatrixXd Hx = Eigen::MatrixXd::Zero(Hfx.rows() - 3, Hfx.cols() - 3);

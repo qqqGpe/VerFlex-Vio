@@ -52,48 +52,48 @@ list(APPEND thirdparty_libraries
 file(GLOB_RECURSE CORE_DIR_LIST "src/core/*.cpp")
 message(STATUS "CORE_DIR_LIST = ${CORE_DIR_LIST}")
 add_library(
-        CORE_LIB STATIC
+        msckf_core_lib STATIC
         ${CORE_DIR_LIST}
 )
-target_include_directories(CORE_LIB PUBLIC
+target_include_directories(msckf_core_lib PUBLIC
 src/states/
 src/types/
 src/utils/)
-target_link_libraries(CORE_LIB glog::glog)
+target_link_libraries(msckf_core_lib glog::glog)
 
 add_subdirectory(src/core)
 
 add_executable(${PROJECT_NAME}_node src/vio_backend_node.cpp)
 target_link_libraries(${PROJECT_NAME}_node
-                      CORE_LIB
+                      msckf_core_lib
                       ${catkin_LIBRARIES}
                       ${thirdparty_libraries}
 )
 
 add_executable(test_triangulation src/test_triangulation.cpp)
 target_link_libraries(test_triangulation
-                      CORE_LIB
+                      msckf_core_lib
                       ${catkin_LIBRARIES}
                       ${thirdparty_libraries}
 )
 
 add_executable(test_givens_rotation src/test_givens_rotation.cpp)
 target_link_libraries(test_givens_rotation
-                      CORE_LIB
+                      msckf_core_lib
                       ${catkin_LIBRARIES}
                       ${thirdparty_libraries}
 )
 
 add_executable(test_feature_jacobian src/test_feature_jacobian.cpp)
 target_link_libraries(test_feature_jacobian
-                      CORE_LIB
+                      msckf_core_lib
                       ${catkin_LIBRARIES}
                       ${thirdparty_libraries}
 )
 
 add_executable(test_pnp_ransac src/test_pnp_ransac.cpp)
 target_link_libraries(test_pnp_ransac
-                      CORE_LIB
+                      msckf_core_lib
                       ${catkin_LIBRARIES}
                       ${thirdparty_libraries})
 
@@ -101,7 +101,7 @@ add_executable(test_rotation_matrix_to_euler src/test_rotation_matrix_to_euler.c
 
 add_executable(test_show_mat src/test_mat_show.cpp)
 target_link_libraries(test_show_mat
-                      CORE_LIB
+                      msckf_core_lib
                       ${catkin_LIBRARIES}
                       ${thirdparty_libraries}
 )
