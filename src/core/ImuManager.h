@@ -1,7 +1,6 @@
 #ifndef __IMU_MANAGER__
 #define __IMU_MANAGER__
 
-#include "eskf_solver.h"
 #include "parameter.h"
 #include "sensor_data.h"
 #include "state.h"
@@ -33,8 +32,6 @@ public:
 
     bool static_status();
 
-    std::shared_ptr<std::deque<ImuData>> access_observations() const { return _data; }
-
     ImuData InterpolateImuData(const ImuData& imu_1, const ImuData& imu_2, double timestamp);
 
     ImuData GetImuData(double timestamp);
@@ -54,9 +51,6 @@ private:
     std::shared_ptr<State> _state;
     std::shared_ptr<std::deque<ImuData>> _data;
     Eigen::Vector3d _gravity_magn;
-    double _last_static_ts = -1;
-    bool _last_static_position_valid = false;
-    Eigen::Vector3d _last_static_position = Eigen::Vector3d::Zero();
     double _imu_acc_var_static_thres = 0.5;
     double _imu_gyro_static_thres = 0.5;
 };

@@ -1,20 +1,21 @@
-#include <Eigen/Core>
+#include <geometry_msgs/PointStamped.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/PointCloud.h>
-#include <geometry_msgs/PointStamped.h>
+#include <Eigen/Core>
 #include <thread>
 
 #include "ImuManager.h"
 #include "cameraModel.h"
 #include "frontend.h"
 #include "initializer.h"
+#include "logger.h"
 #include "mathematical_tools.h"
 #include "parameter.h"
 #include "sensor_data.h"
 #include "state.h"
 #include "visualManager.h"
-#include "logger.h"
+#include "eskf_solver.h"
 
 class VioManager;
 
@@ -22,8 +23,9 @@ void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager);
 
 void backend_task_entry(VioManager* vio);
 
-class VioManager {
-public:
+class VioManager
+{
+   public:
     VioManager() = default;
     VioManager(const Param& params)
     {
@@ -38,14 +40,12 @@ public:
         Eigen::Quaterniond qic(params.Ric[0]);
         Eigen::Vector3d tic = params.tic[0];
         state->set_extrinsic(qic.normalized(), tic);
-        // std::cout << "Ric: \n" << state->_Tic->quat().toRotationMatrix() << std::endl;
-        // std::cout << "tic: \n" << state->_Tic->p().transpose() << std::endl;
     }
-    ~VioManager() { }
+    ~VioManager() {}
 
     void set_initial_timestamp(double initial_timestamp) { _initial_timestamp = initial_timestamp; }
 
-    void process_measurememt_once();
+    void ProcessMeasurementOnce();
 
     void start_visual_system();
 
@@ -55,7 +55,7 @@ public:
 
     void camera_callback(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1);
 
-    bool propagate_state_and_covariance(std::shared_ptr<State> state, double ts);
+    // bool PropagateStateAndCovariance(std::shared_ptr<State> state, std::shared_ptr<ImuManager> imu_manager, double ts);
 
     GroundTruth InterpolateGroundTruth(const double ts) const;
 

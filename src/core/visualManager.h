@@ -82,9 +82,9 @@ class VisualManager
 
     void feed_image(const std::pair<double, std::pair<cv::Mat, cv::Mat>> input);
 
-    KeyFrameStatus get_keyframe() { return _keyframe; }
+    KeyFrameStatus GetKeyframeState() { return _keyframe; }
 
-    std::vector<Feature*> get_feature_base() { return _feature_base; }
+    std::vector<Feature*> GetFeatureBase() { return _feature_base; }
 
     uint32_t _max_clone_pose = 6;
     uint32_t _max_feat_n = 0;

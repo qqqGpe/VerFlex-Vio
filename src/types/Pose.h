@@ -2,13 +2,15 @@
 #define __VIO_POSE__
 
 #include <memory>
-#include "Type.h"
 #include "Quat.h"
+#include "Type.h"
 #include "Vec.h"
 
-class Pose : public Type {
-public:
-    Pose() : Type(6) {
+class Pose : public Type
+{
+   public:
+    Pose() : Type(6)
+    {
         state_name = "Pose";
         _q = std::make_shared<Quat>();
         _p = std::make_shared<Vec>();
@@ -16,7 +18,8 @@ public:
 
     virtual void set_ts(const double ts) override
     {
-        if (ts <= 0) {
+        if (ts <= 0)
+        {
             LOG(FATAL) << utils::Format("timestamp should > 0, ts: {0}s", ts);
             return;
         }
@@ -25,20 +28,23 @@ public:
         _p->set_ts(ts);
     }
 
-    virtual void update(const Eigen::VectorXd &dx) override{
+    virtual void update(const Eigen::VectorXd& dx) override
+    {
         assert(dx.rows() == _size);
         _q->update(dx.segment<3>(0));
         _p->update(dx.segment<3>(_q->size()));
     }
 
-    virtual void set_local_id(int new_id) override {
+    virtual void set_local_id(int new_id) override
+    {
         _id = new_id;
         _q->set_local_id(new_id);
         _p->set_local_id(new_id + _q->size());
     }
 
     // eigen::vector(x, y, z, w)
-    virtual void set_value(const Eigen::MatrixXd &new_value) override {
+    virtual void set_value(const Eigen::MatrixXd& new_value) override
+    {
         assert(new_value.rows() == 7);
         assert(new_value.cols() == 1);
         _q->set_value(new_value.block<4, 1>(0, 0));
@@ -55,15 +61,15 @@ public:
         return clone_variable;
     }
 
-    Eigen::Quaterniond quat() const {return _q->q(); }
-    Eigen::Vector3d p() const {return _p->vec(); }
+    Eigen::Quaterniond quat() const { return _q->q(); }
+    Eigen::Vector3d p() const { return _p->vec(); }
 
-    Eigen::Quaterniond quat_fej() const {return _q->q_fej(); }
-    Eigen::Vector3d p_fej() const {return _p->fej(); }
+    Eigen::Quaterniond quat_fej() const { return _q->q_fej(); }
+    Eigen::Vector3d p_fej() const { return _p->fej(); }
 
     friend class IMU_state;
 
-protected:
+   protected:
     std::shared_ptr<Quat> _q;
     std::shared_ptr<Vec> _p;
 };

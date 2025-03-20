@@ -81,14 +81,14 @@ double Initializer::calcVisualObsParallex(std::unordered_map<uint32_t, CameraObs
     return average_parallex;
 }
 
-bool Initializer::is_initialized()
+bool Initializer::IsInitialized()
 {
     return is_orientation_initialized && is_bias_initialized && is_position_initialized && is_velocity_initialized;
 }
 
 bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<CameraObs>> feature_observes)
 {
-    if (is_initialized())
+    if (IsInitialized())
     {
         return false;
     }

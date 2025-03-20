@@ -1,16 +1,14 @@
 #ifndef __VIO_PARAMETER__
 #define __VIO_PARAMETER__
-#include "ros/node_handle.h"
-#include <memory>
 #include <ros/ros.h>
 #include <Eigen/Core>
+#include <memory>
+#include "ros/node_handle.h"
 
-class Param {
-public:
-    Param(std::shared_ptr<ros::NodeHandle> nh)
-        : _nh(nh)
-    {
-    }
+class Param
+{
+   public:
+    Param(std::shared_ptr<ros::NodeHandle> nh) : _nh(nh) {}
 
     Param() = default;
 
@@ -34,14 +32,13 @@ public:
         _nh->param<std::string>("log_path", log_path, "");
         _nh->param<std::string>("path_bag", path_bag, "");
 
-        for (int i = 0; i < camera_num; i++) {
+        for (int i = 0; i < camera_num; i++)
+        {
             std::vector<double> intrinsic, distort;
             _nh->getParam("intrinsic_cam_" + std::to_string(i), intrinsic);
             _nh->getParam("distortion_cam_" + std::to_string(i), distort);
             Eigen::Matrix3d K;
-            K << intrinsic[0], 0, intrinsic[2],
-                0, intrinsic[1], intrinsic[3],
-                0, 0, 1;
+            K << intrinsic[0], 0, intrinsic[2], 0, intrinsic[1], intrinsic[3], 0, 0, 1;
             intrinsics.push_back(K);
             distortion.push_back(Eigen::Map<Eigen::VectorXd>(distort.data(), distort.size()));
         }
@@ -65,11 +62,11 @@ public:
 
         std::vector<double> Tic;
         _nh->getParam("Tic", Tic);
-        for (int cam_id = 0; cam_id < camera_num; cam_id++) {
+        for (int cam_id = 0; cam_id < camera_num; cam_id++)
+        {
             const int offset = cam_id * 12;
-            Ric[cam_id] << Tic[offset],     Tic[offset + 1], Tic[offset + 2],
-                           Tic[offset + 3], Tic[offset + 4], Tic[offset + 5],
-                           Tic[offset + 6], Tic[offset + 7], Tic[offset + 8];
+            Ric[cam_id] << Tic[offset], Tic[offset + 1], Tic[offset + 2], Tic[offset + 3], Tic[offset + 4], Tic[offset + 5], Tic[offset + 6],
+                Tic[offset + 7], Tic[offset + 8];
             tic[cam_id] << Tic[offset + 9], Tic[offset + 10], Tic[offset + 11];
         }
     }
@@ -102,7 +99,7 @@ public:
     std::vector<Eigen::Matrix3d> Ric;
     std::vector<Eigen::Vector3d> tic;
 
-private:
+   private:
     std::shared_ptr<ros::NodeHandle> _nh;
 };
 

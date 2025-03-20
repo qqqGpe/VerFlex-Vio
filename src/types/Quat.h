@@ -1,11 +1,12 @@
 #ifndef __VIO_QUAT__
 #define __VIO_QUAT__
 
-#include "Type.h"
 #include <sophus/so3.hpp>
+#include "Type.h"
 
-class Quat : public Type {
-public:
+class Quat : public Type
+{
+   public:
     Quat() : Type(3)
     {
         state_name = "Quat";
@@ -13,7 +14,7 @@ public:
         _quat_fej.setIdentity();
     }
 
-    virtual void set_value(const Eigen::MatrixXd &new_value) override
+    virtual void set_value(const Eigen::MatrixXd& new_value) override
     {
         assert(new_value.rows() == 4);
         assert(new_value.cols() == 1);
@@ -22,7 +23,7 @@ public:
         _value = _quat.coeffs();
     }
 
-    virtual void set_fej(const Eigen::MatrixXd &new_fej) override
+    virtual void set_fej(const Eigen::MatrixXd& new_fej) override
     {
         assert(new_fej.rows() == 4);
         assert(new_fej.cols() == 1);
@@ -57,7 +58,7 @@ public:
 
     Eigen::Matrix3d Rot_fej() const { return _Rot_fej; }
 
-protected:
+   protected:
     Eigen::Quaterniond _quat;
     Eigen::Quaterniond _quat_fej;
     Eigen::Matrix3d _Rot;

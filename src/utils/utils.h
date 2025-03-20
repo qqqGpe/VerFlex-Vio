@@ -156,7 +156,10 @@ class Utils
     }
 
     // Function to draw matches between two images in one image
-    static void visualizeStereoMatches(const cv::Mat& img1, const cv::Mat& img2, const std::vector<cv::Point2f>& points1, const std::vector<cv::Point2f>& points2)
+    static void visualizeStereoMatches(const cv::Mat& img1,
+                                       const cv::Mat& img2,
+                                       const std::vector<cv::Point2f>& points1,
+                                       const std::vector<cv::Point2f>& points2)
     {
         // Create an output image to display matches
         cv::Mat outImg;
@@ -205,7 +208,10 @@ class Utils
         cv::waitKey(0);
     }
 
-    static void DisplayFeaturePoints(const cv::Mat& img, const std::vector<cv::Point2d>& points, const std::vector<double>& depths, const std::vector<int>& ids)
+    static void DisplayFeaturePoints(const cv::Mat& img,
+                                     const std::vector<cv::Point2d>& points,
+                                     const std::vector<double>& depths,
+                                     const std::vector<int>& ids)
     {
         // Create a copy of the input image to draw points on
         double fr = 13.3;

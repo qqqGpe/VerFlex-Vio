@@ -1,11 +1,15 @@
 #include "ImuManager.h"
-#include <glog/logging.h>
-#include <opencv2/opencv.hpp>
+#include "eskf_solver.h"
 #include "mathematical_tools.h"
 #include "utils.h"
 
-namespace {
-    constexpr int kMaxImuBufferSize = 2000;
+#include <glog/logging.h>
+#include <opencv2/opencv.hpp>
+
+
+namespace
+{
+constexpr int kMaxImuBufferSize = 2000;
 }
 
 bool ImuManager::FeedImuMeasurement(const ImuData& imu_measurement)
@@ -96,31 +100,25 @@ void ImuManager::ZuptUpdate(std::shared_ptr<State> state)
     Eigen::VectorXd res;
     ImuData imu_data = GetImuData(state->ts_sec());
     ConstructZuptConstraint(state, imu_data, Hx, _Hx_order, _map_hx, res);
-    // Utils::show_eigen_matrix(Hx, "zupt_Hx");
     Eigen::MatrixXd R = Eigen::MatrixXd::Identity(res.rows(), res.rows());
     eskfSolver::update(state, Hx, res, _Hx_order, _map_hx, R);
 }
 
 void ImuManager::ConstructZuptConstraint(std::shared_ptr<State> state,
-                                           ImuData imu_data,
-                                           Eigen::MatrixXd& Hx,
-                                           std::vector<std::shared_ptr<Type>>& _Hx_order,
-                                           std::unordered_map<std::shared_ptr<Type>, size_t>& _map_hx,
-                                           Eigen::VectorXd& res)
+                                         ImuData imu_data,
+                                         Eigen::MatrixXd& Hx,
+                                         std::vector<std::shared_ptr<Type>>& _Hx_order,
+                                         std::unordered_map<std::shared_ptr<Type>, size_t>& _map_hx,
+                                         Eigen::VectorXd& res)
 {
     bool force_pos_equal_zero = false;
     _Hx_order.push_back(state->_imu_state->q());
     _Hx_order.push_back(state->_imu_state->bg());
-    // _Hx_order.push_back(state->_imu_state->ba());
     _Hx_order.push_back(state->_imu_state->v());
     if (force_pos_equal_zero)
     {
         _Hx_order.push_back(state->_imu_state->p());
     }
-    // if (_last_static_position_valid)
-    // {
-    //     _Hx_order.push_back(state->_imu_state->p());
-    // }
 
     int total_hx = 0;
     _map_hx.clear();
@@ -132,10 +130,6 @@ void ImuManager::ConstructZuptConstraint(std::shared_ptr<State> state,
     _map_hx.insert({state->_imu_state->bg(), total_hx});
     total_hx += state->_imu_state->bg()->size();
 
-    // // insert ba
-    // _map_hx.insert({state->_imu_state->ba(), total_hx});
-    // total_hx += state->_imu_state->ba()->size();
-
     // insert v
     _map_hx.insert({state->_imu_state->v(), total_hx});
     total_hx += state->_imu_state->v()->size();
@@ -146,25 +140,9 @@ void ImuManager::ConstructZuptConstraint(std::shared_ptr<State> state,
         total_hx += state->_imu_state->p()->size();
     }
 
-    // // insert p if static
-    // if (_last_static_position_valid)
-    // {
-    //     _map_hx.insert({state->_imu_state->p(), total_hx});
-    //     total_hx += state->_imu_state->p()->size();
-    // }
+    Hx = Eigen::MatrixXd::Zero(9, total_hx);
+    res = Eigen::VectorXd::Zero(9);
 
-    if (_last_static_position_valid || force_pos_equal_zero)
-    {
-        Hx = Eigen::MatrixXd::Zero(12, total_hx);
-        res = Eigen::VectorXd::Zero(12);
-    }
-    else
-    {
-        Hx = Eigen::MatrixXd::Zero(9, total_hx);
-        res = Eigen::VectorXd::Zero(9);
-    }
-
-    // Eigen::Vector3d ba = state->_imu_state->ba()->vec();
     Eigen::Vector3d bg = state->_imu_state->bg()->vec();
     Eigen::Vector3d p = state->_imu_state->p()->vec();
     Eigen::Vector3d v = state->_imu_state->v()->vec();
@@ -173,22 +151,13 @@ void ImuManager::ConstructZuptConstraint(std::shared_ptr<State> state,
     res.segment(0, 3) = -(imu_data.am - R_ItoG.transpose() * _gravity_magn);
     res.segment(3, 3) = -(imu_data.wm - bg);
     res.segment(6, 3) = -v;
-    // if (_last_static_position_valid)
-    // {
-    //     res.segment(6, 3) = _last_static_position - p;
-    // }
     if (force_pos_equal_zero)
     {
         res.segment(9, 3) = -p;
     }
 
-    // std::cout << "res: " << res.transpose() << std::endl;
-
     // jacobian for R_ItoG
     Hx.block(0, _map_hx[state->_imu_state->q()], 3, 3) = -MathUtils::skew(R_ItoG.transpose() * _gravity_magn);
-
-    // jacobian for ba
-    // Hx.block(0, _map_hx[state->_imu_state->ba()], 3, 3) = -Eigen::Matrix3d::Identity();
 
     // jacobian for bg
     Hx.block(3, _map_hx[state->_imu_state->bg()], 3, 3) = -Eigen::Matrix3d::Identity();
@@ -201,19 +170,8 @@ void ImuManager::ConstructZuptConstraint(std::shared_ptr<State> state,
     {
         Hx.block(9, _map_hx[state->_imu_state->p()], 3, 3) = Eigen::Matrix3d::Identity();
     }
-    // // jacobian for position if last static position is valid
-    // if (_last_static_position_valid)
-    // {
-    //     std::cout << "_last_static_position: " << _last_static_position.transpose() << std::endl;
-    //     Hx.block(9, _map_hx[state->_imu_state->p()], 3, 3) = Eigen::Matrix3d::Identity();
-    // }
 
-    // Eigen::MatrixXd weight = Eigen::MatrixXd::Identity(Hx.rows(), Hx.rows()) * 10;
     Eigen::MatrixXd weight = Eigen::MatrixXd::Identity(Hx.rows(), Hx.rows());
-    if (_last_static_position_valid)
-    {
-        weight.bottomRightCorner(3, 3) = Eigen::Matrix3d::Identity();
-    }
     Hx = weight * Hx;
     res = weight * res;
 }
@@ -259,8 +217,6 @@ bool ImuManager::static_status()
         acc_var += (it->am - acc_mean).dot(it->am - acc_mean);
     }
     acc_var = acc_var / data_buffer.size();  // 加计的方差，若方差小于阈值则认为系统处于静止状态
-
-    // std::cout <<cv::format("acc_var: %f, gyro_mean: %f\n", acc_var, gyro_mean.norm());
 
     bool is_static = false;
 

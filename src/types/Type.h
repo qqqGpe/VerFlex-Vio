@@ -1,17 +1,15 @@
 #ifndef __VIO_TYPES__
 #define __VIO_TYPES__
-#include <memory>
-#include "format.h"
+#include <glog/logging.h>
 #include <Eigen/Eigen>
 #include <Eigen/Geometry>
-#include <glog/logging.h>
+#include <memory>
+#include "format.h"
 
-class Type {
-public:
-    Type(int size)
-        : _size(size)
-    {
-    }
+class Type
+{
+   public:
+    Type(int size) : _size(size) {}
 
     virtual void set_ts(const double ts) { _ts = ts; }
 
@@ -31,13 +29,15 @@ public:
 
     double ts() { return _ts; }
 
-    virtual void set_value(const Eigen::MatrixXd &new_value) {
+    virtual void set_value(const Eigen::MatrixXd& new_value)
+    {
         assert(new_value.rows() == _value.rows());
         assert(new_value.cols() == _value.cols());
         _value = new_value;
     }
 
-    virtual void set_fej(const Eigen::MatrixXd &new_fej) {
+    virtual void set_fej(const Eigen::MatrixXd& new_fej)
+    {
         assert(new_fej.rows() == _fej.rows());
         assert(new_fej.cols() == _fej.cols());
         _fej = new_fej;
@@ -45,7 +45,7 @@ public:
 
     std::string state_name = "no_name";
 
-protected:
+   protected:
     double _ts = 0;
     int _size = -1;
     int _id = -1;

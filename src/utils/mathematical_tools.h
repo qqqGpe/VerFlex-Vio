@@ -6,14 +6,13 @@
 #include <Eigen/Geometry>
 #include <Eigen/Jacobi>
 
-class MathUtils {
-public:
+class MathUtils
+{
+   public:
     static Eigen::Matrix<double, 3, 3> skew(const Eigen::Vector3d& w)
     {
         Eigen::Matrix<double, 3, 3> w_x;
-        w_x << 0, -w(2), w(1),
-            w(2), 0, -w(0),
-            -w(1), w(0), 0;
+        w_x << 0, -w(2), w(1), w(2), 0, -w(0), -w(1), w(0), 0;
         return w_x;
     }
 
@@ -21,9 +20,12 @@ public:
     {
         Eigen::Matrix3d R;
         Eigen::Matrix3d I3x3 = Eigen::Matrix3d::Identity();
-        if (theta < 1e-6) {
+        if (theta < 1e-6)
+        {
             R = I3x3 + skew(vec * theta);
-        } else {
+        }
+        else
+        {
             R = cos(theta) * I3x3 + (1 - cos(theta)) * vec * vec.transpose() + sin(theta) * skew(vec);
         }
         return R;
@@ -36,8 +38,10 @@ public:
         // See page 252, Algorithm 5.2.4 for how these two loops work
         // They use "matlab" index notation, thus we need to subtract 1 from all index
         Eigen::JacobiRotation<double> tempHo_GR;
-        for (int n = 0; n < cols; n++) {
-            for (int m = Hfx.rows() - 1; m > n; m--) {
+        for (int n = 0; n < cols; n++)
+        {
+            for (int m = Hfx.rows() - 1; m > n; m--)
+            {
                 // Givens matrix G
                 tempHo_GR.makeGivens(Hfx(m - 1, n), Hfx(m, n));
                 // Multiply G to the corresponding lines (m-1,m) in each matrix
@@ -48,7 +52,7 @@ public:
         }
     }
 
-    template<typename Derived>
+    template <typename Derived>
     static Eigen::Matrix<typename Derived::Scalar, 3, 1> R2rpy(const Eigen::MatrixBase<Derived>& R)
     {
         // euler (Z-Y-X，i.e. RPY) make sure in range [-pi/2, pi/2]
@@ -70,7 +74,7 @@ public:
         return depth;
     }
 
-    template<typename Derived>
+    template <typename Derived>
     static Eigen::Matrix<typename Derived::Scalar, -1, -1> GivensRotation(const Eigen::MatrixBase<Derived>& mat, const int32_t stop_col = -1)
     {
         typedef typename Derived::Scalar Scalar_t;

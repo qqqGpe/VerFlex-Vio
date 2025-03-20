@@ -127,28 +127,8 @@ class State
         }
 
         _variables.erase(it_marge);
-        // if (state_to_marg == _variables.front())
-        // {
-        //     _variables.erase(_variables.begin());
-        //     for (auto it = _variables.begin(); it != _variables.end(); it++)
-        //     {
-        //         (*it)->set_local_id((*it)->id() - state_to_marg->size());
-        //     }
-        // }
-        // else if (state_to_marg == _variables.back())
-        // {
-        //     _variables.erase(_variables.end() - 1);
-        // }
-        // else
-        // {
-        //     auto it_marge = std::find(_variables.begin(), _variables.end(), state_to_marg);
-        //     for (auto it = it_marge + 1; it != _variables.end(); it++)
-        //     {
-        //         (*it)->set_local_id((*it)->id() - state_to_marg->size());
-        //     }
-        //     _variables.erase(it_marge);
-        // }
 
+        MarginalizeCovariance(state_to_marg->id(), state_to_marg->size());
 
         double timestamp_to_marge = state_to_marg->ts();
         if (_clone_pose.count(timestamp_to_marge) != 0)
@@ -157,7 +137,6 @@ class State
         }
 
         _dim = _dim - state_to_marg->size();
-        MarginalizeCovariance();
 
         for (auto it = _variables.begin(); it != _variables.end(); it++)
         {
@@ -168,45 +147,45 @@ class State
         }
     }
 
-    void MarginalizeCovariance()
+    void MarginalizeCovariance(const uint32_t id_to_marge, const uint32_t size_to_marge)
     {
-        // uint32_t old_dim = _covariance.rows();
-        // std::cout << "Cov before marge: \n" << std::setprecision(2) << _covariance << std::endl;
-        Eigen::MatrixXd covariance_small = Eigen::MatrixXd::Zero(_dim, _dim);
-        // if (id_to_marge + size_to_marge < old_dim)
-        // {
-        //     covariance_small.block(0, 0, id_to_marge, id_to_marge) = _covariance.block(0, 0, id_to_marge, id_to_marge).eval();
+        uint32_t old_dim = _covariance.rows();
+        uint32_t new_dim = old_dim - size_to_marge;
+        Eigen::MatrixXd covariance_small = Eigen::MatrixXd::Zero(new_dim, new_dim);
+        if (id_to_marge + size_to_marge < old_dim)
+        {
+            covariance_small.block(0, 0, id_to_marge, id_to_marge) = _covariance.block(0, 0, id_to_marge, id_to_marge);
 
-        //     covariance_small.block(id_to_marge, 0, old_dim - id_to_marge - size_to_marge, id_to_marge) =
-        //         _covariance.block(id_to_marge + size_to_marge, 0, old_dim - id_to_marge - size_to_marge, id_to_marge).eval();
+            covariance_small.block(id_to_marge, 0, old_dim - id_to_marge - size_to_marge, id_to_marge) =
+                _covariance.block(id_to_marge + size_to_marge, 0, old_dim - id_to_marge - size_to_marge, id_to_marge);
 
-        //     covariance_small.block(0, id_to_marge, id_to_marge, old_dim - id_to_marge - size_to_marge) =
-        //         _covariance.block(0, id_to_marge + size_to_marge, id_to_marge, old_dim - id_to_marge - size_to_marge).eval();
+            covariance_small.block(0, id_to_marge, id_to_marge, old_dim - id_to_marge - size_to_marge) =
+                _covariance.block(0, id_to_marge + size_to_marge, id_to_marge, old_dim - id_to_marge - size_to_marge);
 
-        //     covariance_small.block(id_to_marge, id_to_marge, old_dim - id_to_marge - size_to_marge, old_dim - id_to_marge - size_to_marge) =
-        //         _covariance.block(id_to_marge + size_to_marge, id_to_marge + size_to_marge, old_dim - id_to_marge - size_to_marge, old_dim - id_to_marge - size_to_marge).eval();
-        // }
-        // else
-        // {
-        //     covariance_small.block(0, 0, id_to_marge, id_to_marge) = _covariance.block(0, 0, id_to_marge, id_to_marge).eval();
-        // }
+            covariance_small.block(id_to_marge, id_to_marge, old_dim - id_to_marge - size_to_marge, old_dim - id_to_marge - size_to_marge) =
+                _covariance.block(id_to_marge + size_to_marge, id_to_marge + size_to_marge, old_dim - id_to_marge - size_to_marge, old_dim - id_to_marge - size_to_marge);
+        }
+        else
+        {
+            covariance_small.block(0, 0, id_to_marge, id_to_marge) = _covariance.block(0, 0, id_to_marge, id_to_marge).eval();
+        }
         // _covariance.setZero(_dim, _dim);
         // _covariance.noalias() = covariance_small.eval();
 
-        int cur_i = 0;
-        for (int i = 0; i < _variables.size(); i++)
-        {
-            std::shared_ptr<Type> var_i = _variables[i];
-            int cur_j = 0;
-            for (int j = 0; j < _variables.size(); j++)
-            {
-                std::shared_ptr<Type> var_j = _variables[j];
-                covariance_small.block(cur_i, cur_j, var_i->size(), var_j->size()) =
-                    _covariance.block(var_i->id(), var_j->id(), var_i->size(), var_j->size()).eval();
-                cur_j += var_j->size();
-            }
-            cur_i += var_i->size();
-        }
+        // int cur_i = 0;
+        // for (int i = 0; i < _variables.size(); i++)
+        // {
+        //     std::shared_ptr<Type> var_i = _variables[i];
+        //     int cur_j = 0;
+        //     for (int j = 0; j < _variables.size(); j++)
+        //     {
+        //         std::shared_ptr<Type> var_j = _variables[j];
+        //         covariance_small.block(cur_i, cur_j, var_i->size(), var_j->size()) =
+        //             _covariance.block(var_i->id(), var_j->id(), var_i->size(), var_j->size()).eval();
+        //         cur_j += var_j->size();
+        //     }
+        //     cur_i += var_i->size();
+        // }
         // _covariance = Eigen::MatrixXd::Zero(_dim, _dim);
         _covariance = covariance_small;
         // std::cout << "Cov after marge:\n " << std::setprecision(2) << _covariance << std::endl;

@@ -1,11 +1,12 @@
 #ifndef __LOGGER__
 #define __LOGGER__
-#include <iostream>
-#include <fstream>
-#include <ctime>
 #include <glog/logging.h>
+#include <ctime>
+#include <fstream>
+#include <iostream>
 
-namespace utils {
+namespace utils
+{
 
 struct LogValue
 {
@@ -15,54 +16,51 @@ struct LogValue
         std::swap(temp, *this);
     }
 
-    std::vector<std::string> value_name
-    {
-        "timestamp",
-        "px",
-        "py",
-        "pz",
-        "vx",
-        "vy",
-        "vz",
-        "roll",
-        "pitch",
-        "yaw",
+    std::vector<std::string> value_name{"timestamp",
+                                        "px",
+                                        "py",
+                                        "pz",
+                                        "vx",
+                                        "vy",
+                                        "vz",
+                                        "roll",
+                                        "pitch",
+                                        "yaw",
 
-        "bias_acc_x",
-        "bias_acc_y",
-        "bias_acc_z",
-        "bias_gyro_x",
-        "bias_gyro_y",
-        "bias_gyro_z",
+                                        "bias_acc_x",
+                                        "bias_acc_y",
+                                        "bias_acc_z",
+                                        "bias_gyro_x",
+                                        "bias_gyro_y",
+                                        "bias_gyro_z",
 
-        "sigma_px",
-        "sigma_py",
-        "sigma_pz",
-        "sigma_vx",
-        "sigma_vy",
-        "sigma_vz",
+                                        "sigma_px",
+                                        "sigma_py",
+                                        "sigma_pz",
+                                        "sigma_vx",
+                                        "sigma_vy",
+                                        "sigma_vz",
 
-        "sigma_roll",
-        "sigma_pitch",
-        "sigma_yaw",
+                                        "sigma_roll",
+                                        "sigma_pitch",
+                                        "sigma_yaw",
 
-        "sigma_bias_acc_x",
-        "sigma_bias_acc_y",
-        "sigma_bias_acc_z",
-        "sigma_bias_gyro_x",
-        "sigma_bias_gyro_y",
-        "sigma_bias_gyro_z",
+                                        "sigma_bias_acc_x",
+                                        "sigma_bias_acc_y",
+                                        "sigma_bias_acc_z",
+                                        "sigma_bias_gyro_x",
+                                        "sigma_bias_gyro_y",
+                                        "sigma_bias_gyro_z",
 
-        "visual_updated",
-        "ZuptUpdated",
-        "keyframe",
+                                        "visual_updated",
+                                        "ZuptUpdated",
+                                        "keyframe",
 
-        "diff_px",
-        "diff_py",
-        "diff_pz",
-        "init_vnorm",
-        "ground_truth_vnorm"
-    };
+                                        "diff_px",
+                                        "diff_py",
+                                        "diff_pz",
+                                        "init_vnorm",
+                                        "ground_truth_vnorm"};
 
     double timestamp = 0;
 
@@ -110,11 +108,12 @@ struct LogValue
     double groundtruth_vnorm = 0;
 };
 
-class Logger {
-public:
-    Logger(const std::string& path) {
-
-        if(!make_log_file(path))
+class Logger
+{
+   public:
+    Logger(const std::string& path)
+    {
+        if (!make_log_file(path))
         {
             LOG(ERROR) << "Failed to make logging file";
             std::exit(1);
@@ -135,20 +134,25 @@ public:
             csv_title = csv_title + ", " + last_log_value.value_name[i];
         }
 
-        if (file.is_open()) {
+        if (file.is_open())
+        {
             file << csv_title << std::endl;
             file.close();
             return true;
-        } else {
+        }
+        else
+        {
             std::cerr << "unable to open file" << _file_name << std::endl;
             return false;
         }
         return false;
     }
 
-    void save_to_file(const LogValue log_value) {
-        std::ofstream file(_file_name, std::ios_base::app); // 以追加模式打开文件
-        if (file.is_open()) {
+    void save_to_file(const LogValue log_value)
+    {
+        std::ofstream file(_file_name, std::ios_base::app);  // 以追加模式打开文件
+        if (file.is_open())
+        {
             file << log_value.timestamp << ", ";
             file << log_value.px << ", ";
             file << log_value.py << ", ";
@@ -189,21 +193,23 @@ public:
             file << log_value.init_vnorm << ", ";
             file << log_value.groundtruth_vnorm << std::endl;
 
-            last_log_value = log_value; // backup current log value
+            last_log_value = log_value;  // backup current log value
             // 写入数据到文件
             file.close();
-        } else {
+        }
+        else
+        {
             std::cerr << "无法打开文件：" << _file_name << std::endl;
         }
     }
 
     LogValue last_log_value;
 
-private:
+   private:
     std::string _path;
     std::string _file_name;
 };
 
-}
+}  // namespace utils
 
 #endif

@@ -1,7 +1,7 @@
 #include <vector>
 
-#include <Eigen/Dense>
 #include <glog/logging.h>
+#include <Eigen/Dense>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/core/types.hpp>
@@ -12,10 +12,11 @@
 #include "sensor_data.h"
 #include "utils.h"
 
-namespace {
-    constexpr double kPixelErrorThreshold = 1.0;
-    constexpr double kCircularTrackPixelErrorThres = 1.0;
-}
+namespace
+{
+constexpr double kPixelErrorThreshold = 1.0;
+constexpr double kCircularTrackPixelErrorThres = 1.0;
+}  // namespace
 
 double Distance(const cv::Point2d& pt1, const cv::Point2d& pt2)
 {
@@ -36,7 +37,10 @@ void HomographyRansac(const std::vector<cv::Point2f> points_prev, const std::vec
     cv::findHomography(points_prev, points_curr, *inliers, cv::RANSAC, 3);
 }
 
-void EpipolarRansac(const std::vector<cv::Point2f> points_prev, const std::vector<cv::Point2f> points_curr, const Eigen::Matrix3d K, std::vector<uchar>* inliers)
+void EpipolarRansac(const std::vector<cv::Point2f> points_prev,
+                    const std::vector<cv::Point2f> points_curr,
+                    const Eigen::Matrix3d K,
+                    std::vector<uchar>* inliers)
 {
     constexpr double kEssentialMatrixProb = 0.95;
     constexpr double kEssentialThres = 1.0;
@@ -49,29 +53,36 @@ void EpipolarRansac(const std::vector<cv::Point2f> points_prev, const std::vecto
 
     Eigen::Matrix<double, 3, 3, Eigen::RowMajor> essential_mat;
     cv::cv2eigen(essential_matrix, essential_mat);
-    for (int i = 0; i < points_prev.size(); i++) {
+    for (int i = 0; i < points_prev.size(); i++)
+    {
         Eigen::Vector3d p_prev(points_prev[i].x, points_prev[i].y, 1.0);
         Eigen::Vector3d p_curr(points_curr[i].x, points_curr[i].y, 1.0);
         p_prev = K.inverse() * p_prev.eval();
         p_curr = K.inverse() * p_curr.eval();
         double dist = p_prev.transpose() * essential_mat * p_curr;
-        if (dist < kEssentialThres) {
+        if (dist < kEssentialThres)
+        {
             (*inliers)[i] = 1;
         }
     }
 }
 
-VioFrontend::status_t VioFrontend::OutlierRejection(const std::vector<CameraObs>& obs_prev, const std::vector<CameraObs>& obs_curr, std::vector<uchar>& inliers)
+VioFrontend::status_t VioFrontend::OutlierRejection(const std::vector<CameraObs>& obs_prev,
+                                                    const std::vector<CameraObs>& obs_curr,
+                                                    std::vector<uchar>& inliers)
 {
-    if (obs_prev.size() != obs_curr.size()) {
+    if (obs_prev.size() != obs_curr.size())
+    {
         LOG(ERROR) << "obs_prev.size() != obs_curr.size()";
         return STATUS_ERROR;
     }
 
     size_t size = obs_prev.size();
     std::vector<cv::Point2f> points_prev, points_curr;
-    for (int i = 0; i < size; i++) {
-        if (obs_prev[i].valid && obs_prev[i].valid) {
+    for (int i = 0; i < size; i++)
+    {
+        if (obs_prev[i].valid && obs_prev[i].valid)
+        {
             points_prev.emplace_back(obs_prev[i].u, obs_prev[i].v);
             points_curr.emplace_back(obs_curr[i].u, obs_curr[i].v);
         }
@@ -99,38 +110,42 @@ VioFrontend::status_t VioFrontend::OutlierRejection(const std::vector<CameraObs>
     return STATUS_OK;
 }
 
-std::vector<bool> VioFrontend::TrackFeatures(const cv::Mat image_left, const cv::Mat image_right, const std::vector<cv::Point2f> pts_to_track, std::vector<cv::Point2f>& pts_tracked)
+std::vector<bool> VioFrontend::TrackFeatures(const cv::Mat image_left,
+                                             const cv::Mat image_right,
+                                             const std::vector<cv::Point2f> pts_to_track,
+                                             std::vector<cv::Point2f>& pts_tracked)
 {
     assert(!pts_to_track.empty());
     std::vector<uchar> forward_status, backward_status;
     std::vector<float> err;
 
     // forward tracking
-    cv::calcOpticalFlowPyrLK(image_left, image_right, pts_to_track,
-        pts_tracked, forward_status, err);
+    cv::calcOpticalFlowPyrLK(image_left, image_right, pts_to_track, pts_tracked, forward_status, err);
 
     // backward tracking
     std::vector<cv::Point2f> reverse_pts = pts_tracked;
-    cv::calcOpticalFlowPyrLK(
-        image_right, image_left, pts_tracked, reverse_pts,
-        backward_status, err, cv::Size(21, 21), 3,
-        cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30,
-            0.01),
-        cv::OPTFLOW_USE_INITIAL_FLOW);
+    cv::calcOpticalFlowPyrLK(image_right, image_left, pts_tracked, reverse_pts, backward_status, err, cv::Size(21, 21), 3,
+                             cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
 
     // double check if the tracked point is out of range
     std::vector<bool> status;
-    for (int i = 0; i < forward_status.size(); i++) {
-        if (forward_status[i] && backward_status[i] && (Distance(pts_to_track[i], reverse_pts[i]) < kPixelErrorThreshold) && InBorder(pts_tracked[i].x, pts_tracked[i].y)) {
+    for (int i = 0; i < forward_status.size(); i++)
+    {
+        if (forward_status[i] && backward_status[i] && (Distance(pts_to_track[i], reverse_pts[i]) < kPixelErrorThreshold) &&
+            InBorder(pts_tracked[i].x, pts_tracked[i].y))
+        {
             status.push_back(true);
-        } else {
+        }
+        else
+        {
             status.push_back(false);
         }
     }
     return status;
 }
 
-bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& input_image, std::pair<double, std::vector<CameraObs>>& feature_observes)
+bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& input_image,
+                              std::pair<double, std::vector<CameraObs>>& feature_observes)
 {
     static bool is_first_entry = true;
     double ts_sec = input_image.first;
@@ -154,17 +169,20 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
 
     std::vector<uint32_t> obs_ids;
     std::unordered_map<uint32_t, CameraObs> feature_umap;
-    std::unordered_map<uint32_t, CameraObs> cur_feature_obs_umap;   // {feature_id, CameraObs}
+    std::unordered_map<uint32_t, CameraObs> cur_feature_obs_umap;  // {feature_id, CameraObs}
 
-    if (prev_images.first > 0) {
-        for (int i = 0; i < previous_observations.second.size(); i++) {
+    if (prev_images.first > 0)
+    {
+        for (int i = 0; i < previous_observations.second.size(); i++)
+        {
             CameraObs obs = previous_observations.second[i];
-            if (!obs.valid) {
+            if (!obs.valid)
+            {
                 continue;
             }
-            feature_umap.insert({ obs.feat_id, obs });
+            feature_umap.insert({obs.feat_id, obs});
             obs_ids.push_back(obs.feat_id);
-            prev_left_pts.push_back({ obs.u, obs.v });
+            prev_left_pts.push_back({obs.u, obs.v});
         }
 
         // step1: track previous left-cam visual points to current left-cam visual points
@@ -173,13 +191,15 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
         auto pre_left_to_cur_left_status = TrackFeatures(prev_image_left, cur_image_left, prev_left_pts, prev_l_to_cur_l_tracked);
         int idx = 0;
         std::vector<uint32_t>::iterator id_iter = obs_ids.begin();
-        for (auto it = prev_l_to_cur_l_tracked.begin(); it != prev_l_to_cur_l_tracked.end(); idx++) {
-            if (pre_left_to_cur_left_status[idx] == false) {
+        for (auto it = prev_l_to_cur_l_tracked.begin(); it != prev_l_to_cur_l_tracked.end(); idx++)
+        {
+            if (pre_left_to_cur_left_status[idx] == false)
+            {
                 it = prev_l_to_cur_l_tracked.erase(it);
                 id_iter = obs_ids.erase(id_iter);
                 continue;
             }
-            prev_l_to_cur_l_tracked_umap.insert({ *id_iter, *it });
+            prev_l_to_cur_l_tracked_umap.insert({*id_iter, *it});
             ++it;
             ++id_iter;
         }
@@ -190,13 +210,15 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
         auto cur_left_to_cur_right_status = TrackFeatures(cur_image_left, cur_image_right, prev_l_to_cur_l_tracked, cur_l_to_cur_r_tracked);
         idx = 0;
         id_iter = obs_ids.begin();
-        for (auto it = cur_l_to_cur_r_tracked.begin(); it != cur_l_to_cur_r_tracked.end(); idx++) {
-            if (cur_left_to_cur_right_status[idx] == false) {
+        for (auto it = cur_l_to_cur_r_tracked.begin(); it != cur_l_to_cur_r_tracked.end(); idx++)
+        {
+            if (cur_left_to_cur_right_status[idx] == false)
+            {
                 it = cur_l_to_cur_r_tracked.erase(it);
                 id_iter = obs_ids.erase(id_iter);
                 continue;
             }
-            cur_l_to_cur_r_tracked_umap.insert({ *id_iter, *it });
+            cur_l_to_cur_r_tracked_umap.insert({*id_iter, *it});
             ++it;
             ++id_iter;
         }
@@ -207,24 +229,28 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
         auto cur_right_to_prev_right_status = TrackFeatures(cur_image_right, prev_image_right, cur_l_to_cur_r_tracked, cur_r_to_pre_r_pts_tracked);
         idx = 0;
         id_iter = obs_ids.begin();
-        for (auto it = cur_r_to_pre_r_pts_tracked.begin(); it != cur_r_to_pre_r_pts_tracked.end(); idx++) {
-            if (cur_right_to_prev_right_status[idx] == false) {
+        for (auto it = cur_r_to_pre_r_pts_tracked.begin(); it != cur_r_to_pre_r_pts_tracked.end(); idx++)
+        {
+            if (cur_right_to_prev_right_status[idx] == false)
+            {
                 it = cur_r_to_pre_r_pts_tracked.erase(it);
                 id_iter = obs_ids.erase(id_iter);
                 continue;
             }
-            cur_r_to_pre_r_pts_tracked_umap.insert({ *id_iter, *it });
+            cur_r_to_pre_r_pts_tracked_umap.insert({*id_iter, *it});
             ++it;
             ++id_iter;
         }
 
         // step4: compare circular-tracked visual points with previous right-cam visual points
-        for (int i = 0; i < obs_ids.size(); i++) {
+        for (int i = 0; i < obs_ids.size(); i++)
+        {
             uint32_t feature_id = obs_ids[i];
             cv::Point2d circular_tracked_point = cur_r_to_pre_r_pts_tracked[i];
             CameraObs obs = feature_umap[feature_id];
             cv::Point2d prev_obs_right(obs.ur, obs.vr);
-            if (Distance(prev_obs_right, circular_tracked_point) < kCircularTrackPixelErrorThres) {
+            if (Distance(prev_obs_right, circular_tracked_point) < kCircularTrackPixelErrorThres)
+            {
                 cv::Point2d cur_obs_l = prev_l_to_cur_l_tracked_umap[feature_id];
                 cv::Point2d cur_obs_r = cur_l_to_cur_r_tracked_umap[feature_id];
                 CameraObs cur_obs(ts_sec, cur_obs_l.x, cur_obs_l.y, cur_obs_r.x, cur_obs_r.y);
@@ -235,21 +261,27 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
     }
 
     // Add current feature observations to grid map
-    for (auto& [feature_id, obs] : cur_feature_obs_umap) {
+    for (auto& [feature_id, obs] : cur_feature_obs_umap)
+    {
         int h = obs.v / h_step;
         int w = obs.u / w_step;
-        if (occupied_grid[h][w] == false) {
+        if (occupied_grid[h][w] == false)
+        {
             occupied_grid[h][w] = true;
             occupied_grid_feature_id[h][w] = feature_id;
             obs.valid = true;
             obs.obs_times_n++;
         }
-        else {
+        else
+        {
             uint32_t obs_candidate_feature_id = occupied_grid_feature_id[h][w];
             CameraObs& obs_candidate = feature_umap[obs_candidate_feature_id];
-            if (obs.obs_times_n < obs_candidate.obs_times_n) {
+            if (obs.obs_times_n < obs_candidate.obs_times_n)
+            {
                 obs.set_invalid();
-            } else {
+            }
+            else
+            {
                 obs_candidate.set_invalid();
                 occupied_grid_feature_id[h][w] = feature_id;
                 obs.valid = true;
@@ -261,27 +293,32 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
     // Add new features to current observations if keyframe or first frame
     bool is_keyframe = ((*_keyframe) != KeyFrameStatus::kNone) || is_first_entry;
     // bool is_keyframe = true; // always keyframe for debug
-    if (is_keyframe) {
+    if (is_keyframe)
+    {
         std::vector<cv::Point2f> harris_features, harris_tmp;
         std::vector<CameraObs> cur_stereo_ok_features;
         cv::goodFeaturesToTrack(cur_image_left, harris_features, _max_feat_n, 0.01, 20);
         auto status = TrackFeatures(cur_image_left, cur_image_right, harris_features, harris_tmp);
-        for (int i = 0; i < status.size(); i++) {
-            if (status[i] == true) {
+        for (int i = 0; i < status.size(); i++)
+        {
+            if (status[i] == true)
+            {
                 cur_stereo_ok_features.emplace_back(ts_sec, harris_features[i].x, harris_features[i].y, harris_tmp[i].x, harris_tmp[i].y);
             }
         }
 
-        for (auto& feature_new : cur_stereo_ok_features) {
+        for (auto& feature_new : cur_stereo_ok_features)
+        {
             int h = feature_new.v / h_step;
             int w = feature_new.u / w_step;
-            if (occupied_grid[h][w] == false) {
+            if (occupied_grid[h][w] == false)
+            {
                 feature_new.valid = true;
                 feature_new.feat_id = global_feature_id_++;
                 feature_new.obs_times_n = 1;
                 occupied_grid[h][w] = true;
                 occupied_grid_feature_id[h][w] = feature_new.feat_id;
-                cur_feature_obs_umap.insert({ feature_new.feat_id, feature_new });
+                cur_feature_obs_umap.insert({feature_new.feat_id, feature_new});
             }
         }
     }
@@ -289,16 +326,21 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
     // clear invalid features
     feature_observes.first = ts_sec;
     feature_observes.second.clear();
-    for (auto it = cur_feature_obs_umap.begin(); it != cur_feature_obs_umap.end();) {
-        if (it->second.valid == false) {
+    for (auto it = cur_feature_obs_umap.begin(); it != cur_feature_obs_umap.end();)
+    {
+        if (it->second.valid == false)
+        {
             it = cur_feature_obs_umap.erase(it);
-        } else {
+        }
+        else
+        {
             feature_observes.second.push_back(it->second);
             ++it;
         }
     }
 
-    if (is_keyframe) {
+    if (is_keyframe)
+    {
         is_first_entry = false;
         prev_images = input_image;
         previous_observations = feature_observes;
@@ -308,7 +350,8 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
     return true;
 }
 
-bool VioFrontend::TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& input_image, std::pair<double, std::vector<CameraObs>>& feature_observes)
+bool VioFrontend::TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& input_image,
+                                 std::pair<double, std::vector<CameraObs>>& feature_observes)
 {
     double ts_sec = input_image.first;
     cur_frame = std::make_pair(ts_sec, input_image.second.first.clone());
@@ -318,9 +361,10 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::
     int w_step = width_ / grid_w_;
     std::vector<std::vector<bool>> occupied_mat(grid_h_ + 1, std::vector<bool>(grid_w_ + 1, false));
 
-    if (!is_first_frame_) {
-
-        if (cur_frame.first <= ref_frame.first) {
+    if (!is_first_frame_)
+    {
+        if (cur_frame.first <= ref_frame.first)
+        {
             LOG(WARNING) << "invalid image timestamp!";
             return STATUS_ERROR;
         }
@@ -331,8 +375,10 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::
 
         assert(ref_feat_to_track_.size() == _max_feat_n);
 
-        for (int idx = 0; idx < ref_feat_to_track_.size(); idx++) {
-            if (ref_feat_to_track_[idx].valid) {
+        for (int idx = 0; idx < ref_feat_to_track_.size(); idx++)
+        {
+            if (ref_feat_to_track_[idx].valid)
+            {
                 feat_idx.push_back(idx);
                 prev_pts.emplace_back(ref_feat_to_track_[idx].u, ref_feat_to_track_[idx].v);
             }
@@ -344,26 +390,32 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::
         // reverse check
         std::vector<cv::Point2f> reverse_pts = prev_pts;
         cv::calcOpticalFlowPyrLK(cur_frame.second, ref_frame.second, curr_pts, reverse_pts, reverse_status, err, cv::Size(21, 21), 3,
-            cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
+                                 cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
 
         frontend_rT1 = boost::posix_time::microsec_clock::local_time();
 
         // double check and check if the tracked point is out of bound
-        for (int i = 0; i < status.size(); i++) {
+        for (int i = 0; i < status.size(); i++)
+        {
             int idx = feat_idx[i];
-            if (status[i] && reverse_status[i] && (Distance(prev_pts[i], reverse_pts[i]) <= 1) && InBorder(curr_pts[i].x, curr_pts[i].y)) {
+            if (status[i] && reverse_status[i] && (Distance(prev_pts[i], reverse_pts[i]) <= 1) && InBorder(curr_pts[i].x, curr_pts[i].y))
+            {
                 cur_feat_to_track[idx].u = curr_pts[i].x;
                 cur_feat_to_track[idx].v = curr_pts[i].y;
                 cur_feat_to_track[idx].obs_times_n++;
-            } else {
+            }
+            else
+            {
                 cur_feat_to_track[idx].set_invalid();
             }
         }
 
         std::vector<uchar> inliers;
         OutlierRejection(ref_feat_to_track_, cur_feat_to_track, inliers);
-        for (int i = 0; i < ref_feat_to_track_.size(); i++) {
-            if (inliers[i] == 0) {
+        for (int i = 0; i < ref_feat_to_track_.size(); i++)
+        {
+            if (inliers[i] == 0)
+            {
                 cur_feat_to_track[i].set_invalid();
             }
         }
@@ -371,18 +423,24 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::
         frontend_rT2 = boost::posix_time::microsec_clock::local_time();
 
         std::vector<std::vector<CameraObs*>> occupied_feat(grid_h_ + 1, std::vector<CameraObs*>(grid_w_ + 1, nullptr));
-        for (int i = 0; i < cur_feat_to_track.size(); i++) {
-            if (!cur_feat_to_track[i].valid) {
+        for (int i = 0; i < cur_feat_to_track.size(); i++)
+        {
+            if (!cur_feat_to_track[i].valid)
+            {
                 continue;
             }
             int h = cur_feat_to_track[i].v / h_step;
             int w = cur_feat_to_track[i].u / w_step;
-            if (occupied_mat[h][w] == false) {
+            if (occupied_mat[h][w] == false)
+            {
                 occupied_mat[h][w] = true;
                 occupied_feat[h][w] = &(cur_feat_to_track[i]);
-            } else {
+            }
+            else
+            {
                 // delete features with less obs times
-                if (cur_feat_to_track[i].obs_times_n > occupied_feat[h][w]->obs_times_n) {
+                if (cur_feat_to_track[i].obs_times_n > occupied_feat[h][w]->obs_times_n)
+                {
                     occupied_feat[h][w]->set_invalid();
                     occupied_feat[h][w] = &(cur_feat_to_track[i]);
                 }
@@ -391,11 +449,11 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::
     }
 
     frontend_rT3 = boost::posix_time::microsec_clock::local_time();
+
     // add new features to ref_feat_to_track_
-    // std::cout << cv::format("keyframe: %d", static_cast<int>(*_keyframe));
     if (*_keyframe != KeyFrameStatus::kNone || is_first_frame_)
-    { // debug always keyframe
-    // if (1) { // debug: always keyframe
+    {   // debug always keyframe
+        // if (1) { // debug: always keyframe
         std::deque<CameraObs> feats_new;
         std::vector<cv::Point2f> corners;
         cv::goodFeaturesToTrack(cur_frame.second, corners, _max_feat_n, 0.01, 30);
@@ -440,12 +498,12 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::
     //                         track_duration, outlier_rejection_duration, add_feat_duration);
 
     // assign timestamp to each feature obs
-    for (auto & obs : cur_feat_to_track)
+    for (auto& obs : cur_feat_to_track)
     {
         obs.ts_sec = ts_sec;
     }
 
-    feature_observes = { ts_sec, cur_feat_to_track };
+    feature_observes = {ts_sec, cur_feat_to_track};
 
     Utils::visualize_feature_tracking_results(input_image.second.first.clone(), feature_observes);
     is_first_frame_ = false;

@@ -149,7 +149,7 @@ int main(int argc, char** argv)
             auto msg0 = msgs.at(camid_to_msg_index.at(0));
             auto msg1 = msgs.at(camid_to_msg_index.at(1));
             vio_manager.camera_callback(msg0.instantiate<sensor_msgs::Image>(), msg1.instantiate<sensor_msgs::Image>());
-            vio_manager.process_measurememt_once();
+            vio_manager.ProcessMeasurementOnce();
             loop_rate.sleep();
         }
     }

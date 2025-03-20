@@ -37,7 +37,7 @@ class Initializer
 
     Eigen::Matrix3d Gram_Schmidt(const Eigen::Vector3d& gravity_body);
 
-    bool is_initialized();
+    bool IsInitialized();
 
     bool is_orientation_initialized = false;
     bool is_position_initialized = false;

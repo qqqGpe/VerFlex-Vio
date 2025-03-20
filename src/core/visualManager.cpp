@@ -133,8 +133,6 @@ bool VisualManager::VisualUpdate()
         }
     }
 
-    std::cout << "keyframe: " << static_cast<int>(_keyframe) << std::endl;
-
     _state->MarginalizeState(state_to_marginalize);
     return visual_updated;
 }
@@ -261,8 +259,6 @@ void VisualManager::UpdateFeature(std::pair<double, std::vector<CameraObs>> feat
     std::unordered_map<uint32_t, CameraObs> feature_obsrv_umap;
     std::unordered_set<uint32_t> feature_tracked_id_uset;
 
-    std::cout << "feature observed: " << static_cast<int>(feature_observes.second.size()) << std::endl;
-
     for (auto& feat_obsrv : feature_observes.second)
     {
         _camera_model->back_project_stereo(feat_obsrv);
@@ -302,9 +298,10 @@ void VisualManager::UpdateFeature(std::pair<double, std::vector<CameraObs>> feat
         }
     }
 
-    std::cout << "feature tracked: " << _feature_tracked.size() << std::endl;
-    std::cout << "feature lost: " << _feature_lost.size() << std::endl;
-    std::cout << "feature new: " << _feature_new.size() << std::endl;
+    // std::cout << "feature observed: " << feature_observes.second.size() << std::endl;
+    // std::cout << "feature tracked: " << _feature_tracked.size() << std::endl;
+    // std::cout << "feature lost: " << _feature_lost.size() << std::endl;
+    // std::cout << "feature new: " << _feature_new.size() << std::endl;
 }
 
 void VisualManager::ResetFeatureBase()
@@ -692,25 +689,7 @@ void VisualManager::FeatureTriangulation(std::vector<Feature*>& feats, std::map<
     // std::map<double, CameraPose> camera_pose_buffer = _state->AccessClonePoseBuffer();
     _feature_mapping_success = 0;
 
-    // CameraPose latest_pose = camera_pose_buffer.crbegin()->second;
-    // std::vector<cv::Point2d> feature_in_current_image;
-    // std::vector<double> feature_depth;
-    // std::vector<int> feature_ids;
-    // double latest_timestamp = camera_pose_buffer.crbegin()->first;
-    // // std::cout << cv::format("latest pose timestamp: %f\n", latest_timestamp);
-    // for (auto it = feats.begin(); it != feats.end(); it++)
-    // {
-    //     Eigen::Vector3d pcf = latest_pose.Rwc.transpose() * ((*it)->_pwf - latest_pose.pwc);
-    //     Eigen::Vector2d feature_norm = _camera_model->project_left(pcf);
-    //     cv::Point2d feature_norm_cv(feature_norm.x(), feature_norm.y());
-    //     feature_in_current_image.push_back(feature_norm_cv);
-    //     feature_depth.push_back(pcf.z());
-    //     feature_ids.push_back((*it)->_id);
-    // }
-    // cv::Mat image = stored_images_.at(latest_timestamp).first;
-    // Utils::DisplayFeaturePoints(image, feature_in_current_image, feature_depth, feature_ids);
-
-    int origin_feats = feats.size();
+    int origin_feats_size = feats.size();
     int less_obs_delete = 0;
     int triangulate_failed = 0;
     int gaussian_newton_failed = 0;
@@ -750,11 +729,9 @@ void VisualManager::FeatureTriangulation(std::vector<Feature*>& feats, std::map<
 
         it++;
     }
-    // std::cout << "features tracked: " << origin_feats << std::endl;
-    std::cout << "triangulated failed: " << triangulate_failed << std::endl;
-    std::cout << "gaussian_newton_failed: " << gaussian_newton_failed << std::endl;
-
-    // LOG(INFO) << cv::format("mapping success: %d", _feature_mapping_success);
+    // std::cout << "msckf mapping in: " << origin_feats_size << std::endl;
+    // std::cout << "triangulated failed: " << triangulate_failed << std::endl;
+    // std::cout << "gaussian_newton_failed: " << gaussian_newton_failed << std::endl;
 }
 
 void VisualManager::CalculateFeatureParallex(std::vector<Feature*>& feats)
@@ -824,7 +801,7 @@ bool VisualManager::ConstructFeatureJacobianFull(std::vector<Feature*> feats, Ei
     Hx_full.resize(2 * feats.size() * _state->_clone_pose.size(), total_hx + 1);
     Hx_full.setZero();
 
-    int rows_id = 0;
+    int Hx_rows = 0;
     for (int i = 0; i < feats.size(); i++)
     {
         Eigen::MatrixXd Hx_single;
@@ -834,39 +811,36 @@ bool VisualManager::ConstructFeatureJacobianFull(std::vector<Feature*> feats, Ei
             {
                 continue;
             }
-            Hx_full.block(rows_id, 0, Hx_single.rows(), Hx_single.cols()) = Hx_single;
-            rows_id += Hx_single.rows();
+            Hx_full.block(Hx_rows, 0, Hx_single.rows(), Hx_single.cols()) = Hx_single;
+            Hx_rows += Hx_single.rows();
         }
     }
-    // Hx_full.conservativeResize(rows_id, Hx_full.cols());
-    Hx_full = Hx_full.block(0, 0, rows_id, Hx_full.cols()).eval();
-
-    // Utils::show_eigen_matrix(Hx_full, "Hx_full");
+    Hx_full.conservativeResize(Hx_rows, Hx_full.cols());
+    // Hx_full = Hx_full.block(0, 0, rows_id, Hx_full.cols()).eval();
 
     // measurements compression
     if (Hx_full.rows() > Hx_full.cols())
     {
         Hx_full = MathUtils::GivensRotation(Hx_full, Hx_full.cols() - 1);
-        // MathUtils::NullSpaceProjectInplace(Hx_full, Hx_full.cols() - 1);
-        // Utils::show_eigen_matrix(Hx_full, "Hx_full_after_qr");
         int final_hx_rows = Hx_full.cols() - 1 - 7;
         res.resize(final_hx_rows, 1);
         res = Hx_full.block(0, Hx_full.cols() - 1, final_hx_rows, 1);
-        // Hx_full.conservativeResize(Hx_full.cols() - 1, Hx_full.cols() - 1);
         Hx_full = Hx_full.block(0, 0, final_hx_rows, Hx_full.cols() - 1).eval();
     }
     else
     {
         res.resize(Hx_full.rows(), 1);
         res = Hx_full.block(0, Hx_full.cols() - 1, Hx_full.rows(), 1);
-        // Hx_full.conservativeResize(Hx_full.rows(), Hx_full.cols() - 1);
         Hx_full = Hx_full.block(0, 0, Hx_full.rows(), Hx_full.cols() - 1).eval();
     }
 
     return true;
 }
 
-bool VisualManager::SingleFeatureJacobian(Feature* feat, std::unordered_map<std::shared_ptr<Type>, size_t> map_hx, int total_hx, Eigen::MatrixXd& Hx_single)
+bool VisualManager::SingleFeatureJacobian(Feature* feat,
+                                          std::unordered_map<std::shared_ptr<Type>, size_t> map_hx,
+                                          int total_hx,
+                                          Eigen::MatrixXd& Hx_single)
 {
     constexpr uint32_t kPwfDim = 3;
     assert(feat->_valid);
@@ -897,12 +871,9 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat, std::unordered_map<std:
         Eigen::Vector3d p_finCi = R_CitoG.transpose() * (p_finG - p_CiinG);
 
         // compute visual residual
-        // Eigen::Vector2d uv_norm;
-        // uv_norm << p_finCi.x() / p_finCi.z(), p_finCi.y() / p_finCi.z();
         Eigen::Vector2d uv;
         uv = _camera_model->project_left(p_finCi);
 
-        // Eigen::Vector2d res = zm - uv_norm;
         Eigen::Vector2d res = zm - uv;
         Hfx.block<2, 1>(2 * cnt, Hfx.cols() - 1) = res;
 
@@ -991,11 +962,7 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat, std::unordered_map<std:
 
     // project Hfx to feature left null space
     // MathUtils::NullSpaceProjectInplace(Hfx, 3);
-    // Utils::show_eigen_matrix(Hfx, "Hfx_single");
-    // std::cout << "Hfx_single: \n" << Hfx << std::endl;
     Hfx = MathUtils::GivensRotation(Hfx, 3);
-    // Utils::show_eigen_matrix(Hfx, "Hfx_single_after_qr");
-    // std::cout << "Hfx_single_after_qr: \n" << Hfx << std::endl;
     Eigen::MatrixXd Hx = Eigen::MatrixXd::Zero(Hfx.rows() - 3, Hfx.cols() - 3);
     Hx.noalias() = Hfx.block(3, 3, Hfx.rows() - 3, Hfx.cols() - 3);
 
