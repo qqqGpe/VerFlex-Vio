@@ -237,7 +237,7 @@ void VioManager::ProcessMeasurementOnce()
     }
 }
 
-void VioManager::groundtruth_callback(const geometry_msgs::PointStamped::ConstPtr& msg)
+void VioManager::GroundTruthCallback(const geometry_msgs::PointStamped::ConstPtr& msg)
 {
     double ts_sec = msg->header.stamp.toSec() - _initial_timestamp;
     GroundTruth gt_pv;
@@ -250,7 +250,7 @@ void VioManager::groundtruth_callback(const geometry_msgs::PointStamped::ConstPt
     ground_truth_.try_emplace(ts_sec, gt_pv);
 }
 
-void VioManager::imu_callback(const sensor_msgs::Imu::ConstPtr& msg)
+void VioManager::ImuCallback(const sensor_msgs::Imu::ConstPtr& msg)
 {
     ImuData data;
     data.ts_sec = msg->header.stamp.toSec() - _initial_timestamp;
@@ -261,7 +261,7 @@ void VioManager::imu_callback(const sensor_msgs::Imu::ConstPtr& msg)
     _imu_manager->FeedImuMeasurement(data);
 }
 
-void VioManager::camera_callback(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1)
+void VioManager::CameraCallback(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1)
 {
     double ts_sec = msg0->header.stamp.toSec() - _initial_timestamp;
     cv::Mat image_l, image_l_rectify;

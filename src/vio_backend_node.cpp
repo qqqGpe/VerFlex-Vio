@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <memory>
 
+#include "core/visualizer.h"
 #include "core/parameter.h"
 #include "core/vioManager.h"
 
@@ -24,7 +25,6 @@ int main(int argc, char** argv)
     google::InitGoogleLogging(*argv);
     ros::init(argc, argv, "vio_backend");
     std::shared_ptr<ros::NodeHandle> nh = std::make_shared<ros::NodeHandle>("~");
-
     signal(SIGINT, mySigintHandler);
 
     // load vio_backend parameters
@@ -45,15 +45,17 @@ int main(int argc, char** argv)
     view.addQuery(bag, time_init, time_finish);
 
     // initialize vio_backend
-    VioManager vio_manager(params);
-    vio_manager.set_initial_timestamp(time_init.toSec());
-    // vio_manager.set_initial_timestamp(0);
+    std::shared_ptr<VioManager> vio_manager = std::make_shared<VioManager>(params);
+    vio_manager->SetInitialTimeStamp(time_init.toSec());
+    // vio_manager.SetInitialTimeStamp(0);
 
     // start vio updater
     // if (params.use_multi_thread)
     // {
     //     vio_manager.start_visual_system();
     // }
+
+    Visualizer visualizer(nh, vio_manager);
 
     // load data from rosbag
     std::string ground_truth_topic = "/leica/position";
@@ -95,13 +97,13 @@ int main(int argc, char** argv)
         // get groundtruth msgs
         if (msgs.at(m).getTopic() == ground_truth_topic)
         {
-            vio_manager.groundtruth_callback(msgs.at(m).instantiate<geometry_msgs::PointStamped>());
+            vio_manager->GroundTruthCallback(msgs.at(m).instantiate<geometry_msgs::PointStamped>());
         }
 
         // get imu msgs
         if (msgs.at(m).getTopic() == params.imu_topic)
         {
-            vio_manager.imu_callback(msgs.at(m).instantiate<sensor_msgs::Imu>());
+            vio_manager->ImuCallback(msgs.at(m).instantiate<sensor_msgs::Imu>());
         }
 
         // get stereo visual msgs
@@ -148,8 +150,12 @@ int main(int argc, char** argv)
 
             auto msg0 = msgs.at(camid_to_msg_index.at(0));
             auto msg1 = msgs.at(camid_to_msg_index.at(1));
-            vio_manager.camera_callback(msg0.instantiate<sensor_msgs::Image>(), msg1.instantiate<sensor_msgs::Image>());
-            vio_manager.ProcessMeasurementOnce();
+            vio_manager->CameraCallback(msg0.instantiate<sensor_msgs::Image>(), msg1.instantiate<sensor_msgs::Image>());
+
+            vio_manager->ProcessMeasurementOnce();
+
+            visualizer.PublishVioState();
+
             loop_rate.sleep();
         }
     }

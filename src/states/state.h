@@ -147,6 +147,33 @@ class State
         }
     }
 
+    Eigen::MatrixXd GetMarginalCovariance(const std::vector<std::shared_ptr<Type>>& small_variables)
+    {
+        int32_t size = 0;
+        for (const auto& x : small_variables)
+        {
+            size += x->size();
+        }
+
+        Eigen::MatrixXd covariance_small = Eigen::MatrixXd::Zero(size, size);
+
+        int32_t current_row = 0;
+        for (int32_t i = 0; i < small_variables.size(); i++)
+        {
+            std::shared_ptr<Type> var_i = small_variables[i];
+            int32_t current_col = 0;
+            for (int32_t j = 0; j < small_variables.size(); j++)
+            {
+                std::shared_ptr<Type> var_j = small_variables[j];
+                covariance_small.block(current_row, current_col, var_i->size(), var_j->size()) =
+                    _covariance.block(var_i->id(), var_j->id(), var_i->size(), var_j->size());
+                current_col += var_j->size();
+            }
+            current_row += var_i->size();
+        }
+        return covariance_small;
+    }
+
     void MarginalizeCovariance(const uint32_t id_to_marge, const uint32_t size_to_marge)
     {
         uint32_t old_dim = _covariance.rows();

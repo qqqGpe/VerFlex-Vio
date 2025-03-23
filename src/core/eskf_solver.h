@@ -25,32 +25,6 @@ class eskfSolver
     eskfSolver() = default;
     ~eskfSolver() {}
 
-    static Eigen::MatrixXd ConstrutInvolvedConvariance(std::shared_ptr<State>& state, const std::vector<std::shared_ptr<Type>>& Hx_order)
-    {
-        int32_t size = 0;
-        for (const auto& x : Hx_order)
-        {
-            size += x->size();
-        }
-        Eigen::MatrixXd covariance_small = Eigen::MatrixXd::Zero(size, size);
-
-        int32_t current_row = 0;
-        for (int32_t i = 0; i < Hx_order.size(); i++)
-        {
-            std::shared_ptr<Type> var_i = Hx_order[i];
-            int32_t current_col = 0;
-            for (int32_t j = 0; j < Hx_order.size(); j++)
-            {
-                std::shared_ptr<Type> var_j = Hx_order[j];
-                covariance_small.block(current_row, current_col, var_i->size(), var_j->size()) =
-                    state->_covariance.block(var_i->id(), var_j->id(), var_i->size(), var_j->size());
-                current_col += var_j->size();
-            }
-            current_row += var_i->size();
-        }
-        return covariance_small;
-    }
-
     static void update(std::shared_ptr<State>& state,
                        const Eigen::Ref<Eigen::MatrixXd>& Hx,
                        const Eigen::Ref<Eigen::MatrixXd>& res,
@@ -78,7 +52,7 @@ class eskfSolver
         }
         M_all.noalias() = state->_covariance * Hx_all.transpose();
 
-        Eigen::MatrixXd cov_involved = ConstrutInvolvedConvariance(state, Hx_order);
+        Eigen::MatrixXd cov_involved = state->GetMarginalCovariance(Hx_order);
 
         // Residual covariance S = H * Cov * H' + R
         // Eigen::MatrixXd S(R.rows(), R.rows());

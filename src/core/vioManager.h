@@ -1,3 +1,5 @@
+#ifndef __VIO_MANAGER__
+#define __VIO_MANAGER__
 #include <geometry_msgs/PointStamped.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/Imu.h>
@@ -16,12 +18,6 @@
 #include "state.h"
 #include "visualManager.h"
 #include "eskf_solver.h"
-
-class VioManager;
-
-void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager);
-
-void backend_task_entry(VioManager* vio);
 
 class VioManager
 {
@@ -43,17 +39,17 @@ class VioManager
     }
     ~VioManager() {}
 
-    void set_initial_timestamp(double initial_timestamp) { _initial_timestamp = initial_timestamp; }
+    void SetInitialTimeStamp(double initial_timestamp) { _initial_timestamp = initial_timestamp; }
 
     void ProcessMeasurementOnce();
 
     void start_visual_system();
 
-    void groundtruth_callback(const geometry_msgs::PointStamped::ConstPtr& msg);
+    void GroundTruthCallback(const geometry_msgs::PointStamped::ConstPtr& msg);
 
-    void imu_callback(const sensor_msgs::Imu::ConstPtr& msg);
+    void ImuCallback(const sensor_msgs::Imu::ConstPtr& msg);
 
-    void camera_callback(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1);
+    void CameraCallback(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1);
 
     // bool PropagateStateAndCovariance(std::shared_ptr<State> state, std::shared_ptr<ImuManager> imu_manager, double ts);
 
@@ -73,3 +69,9 @@ class VioManager
     boost::posix_time::ptime vio_rT, vio_rT1, vio_rT2, vio_rT3, vio_rT4;
     boost::posix_time::ptime pro_rT, pro_rT1, pro_rT2, pro_rT3, pro_rT4;
 };
+
+void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager);
+
+void backend_task_entry(VioManager* vio);
+
+#endif
