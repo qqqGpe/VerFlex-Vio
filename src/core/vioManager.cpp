@@ -135,7 +135,8 @@ void VioManager::ProcessMeasurementOnce()
 
     while (!_visual_manager->_input_image_buffer.empty())
     {
-        utils::LogValue log_value;
+        utils::LogValueFull log_value;
+        utils::LogValueTUM log_value_tum;
         bool visual_updated = false;
         bool zupt_updated = false;
 
@@ -199,7 +200,7 @@ void VioManager::ProcessMeasurementOnce()
             }
         }
 
-        // Assign log values
+        /* Assign full log values */
         log_value.timestamp = state->_imu_state->ts();
         log_value.px = state->_imu_state->p()->vec().x();
         log_value.py = state->_imu_state->p()->vec().y();
@@ -229,11 +230,30 @@ void VioManager::ProcessMeasurementOnce()
         log_value.sigma_vy = std::sqrt(state->_covariance(state->_imu_state->v()->id() + 1, state->_imu_state->v()->id() + 1));
         log_value.sigma_vz = std::sqrt(state->_covariance(state->_imu_state->v()->id() + 2, state->_imu_state->v()->id() + 2));
 
+        log_value.sigma_bias_acc_x = std::sqrt(state->_covariance(state->_imu_state->ba()->id(), state->_imu_state->ba()->id()));
+        log_value.sigma_bias_acc_y = std::sqrt(state->_covariance(state->_imu_state->ba()->id() + 1, state->_imu_state->ba()->id() + 1));
+        log_value.sigma_bias_acc_z = std::sqrt(state->_covariance(state->_imu_state->ba()->id() + 2, state->_imu_state->ba()->id() + 2));
+
+        log_value.sigma_bias_gyro_x = std::sqrt(state->_covariance(state->_imu_state->bg()->id(), state->_imu_state->bg()->id()));
+        log_value.sigma_bias_gyro_y = std::sqrt(state->_covariance(state->_imu_state->bg()->id() + 1, state->_imu_state->bg()->id() + 1));
+        log_value.sigma_bias_gyro_z = std::sqrt(state->_covariance(state->_imu_state->bg()->id() + 2, state->_imu_state->bg()->id() + 2));
+
         log_value.visual_updated = visual_updated;
         log_value.ZuptUpdated = zupt_updated;
         log_value.keyframe = int(_visual_manager->GetKeyframeState());
 
-        vio_logger->save_to_file(log_value);
+        vio_logger->SaveValues(log_value);
+
+        /* Assign extracted log values in TUM format */
+        log_value_tum.timestamp = state->_imu_state->ts();
+        log_value_tum.px = state->_imu_state->p()->vec().x();
+        log_value_tum.py = state->_imu_state->p()->vec().y();
+        log_value_tum.pz = state->_imu_state->p()->vec().z();
+        log_value_tum.qw = state->_imu_state->q()->q().w();
+        log_value_tum.qx = state->_imu_state->q()->q().x();
+        log_value_tum.qy = state->_imu_state->q()->q().y();
+        log_value_tum.qz = state->_imu_state->q()->q().z();
+        vio_logger_tum->SaveValues(log_value_tum);
     }
 }
 

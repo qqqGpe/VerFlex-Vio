@@ -30,7 +30,8 @@ class VioManager
         _imu_manager = std::make_shared<ImuManager>(params, state);
         _visual_manager = std::make_shared<VisualManager>(params, state, _camera_model_0);
         initializer = std::make_shared<Initializer>(params, _visual_manager, _camera_model_0, state);
-        vio_logger = std::make_shared<utils::Logger>(params.log_path);
+        vio_logger = std::make_shared<utils::LoggerFull>(params.log_path);
+        vio_logger_tum = std::make_shared<utils::LoggerTUM>(params.log_path);
 
         // set camera extrinsic coeff
         Eigen::Quaterniond qic(params.Ric[0]);
@@ -61,7 +62,8 @@ class VioManager
     std::shared_ptr<ImuManager> _imu_manager;
     std::shared_ptr<VisualManager> _visual_manager;
     std::shared_ptr<CameraModel> _camera_model_0;
-    std::shared_ptr<utils::Logger> vio_logger;
+    std::shared_ptr<utils::LoggerFull> vio_logger;
+    std::shared_ptr<utils::LoggerTUM> vio_logger_tum;
     std::map<double, std::pair<cv::Mat, cv::Mat>> image_bak;
 
     std::map<double, GroundTruth> ground_truth_;

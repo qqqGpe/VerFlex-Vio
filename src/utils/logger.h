@@ -4,19 +4,41 @@
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 
 namespace utils
 {
 
-struct LogValue
+class LogValueTUM
 {
-    void reset_value()
+   public:
+    void Reset()
     {
-        LogValue temp;
+        LogValueTUM temp;
         std::swap(temp, *this);
     }
 
-    std::vector<std::string> value_name{"timestamp",
+    std::vector<std::string> value_name{"#timestamp" "px" "py" "pz" "qx" "qy" "qz" "qw"};
+    double timestamp = 0;
+    double px = 0;
+    double py = 0;
+    double pz = 0;
+    double qx = 0;
+    double qy = 0;
+    double qz = 0;
+    double qw = 0;
+};
+
+class LogValueFull
+{
+   public:
+    void Reset()
+    {
+        LogValueFull temp;
+        std::swap(temp, *this);
+    }
+
+    std::vector<std::string> value_name{"#timestamp",
                                         "px",
                                         "py",
                                         "pz",
@@ -108,90 +130,134 @@ struct LogValue
     double groundtruth_vnorm = 0;
 };
 
-class Logger
+template <typename Derived>
+class LoggerBase
 {
    public:
-    Logger(const std::string& path)
+    LoggerBase(const std::string& dirname, const std::string log_type = "default")
     {
-        if (!make_log_file(path))
+        if (!InitLogFile(dirname, log_type))
         {
             LOG(ERROR) << "Failed to make logging file";
             std::exit(1);
         }
     }
 
-    bool make_log_file(std::string root_dir)
+    virtual void SaveValues(const Derived log_value) = 0;
+
+   protected:
+    bool InitLogFile(std::string dirname, const std::string log_type)
     {
         char time_str[100];
         std::time_t now = std::time(nullptr);
         std::strftime(time_str, sizeof(time_str), "%Y-%m-%d_%H-%M-%S", std::localtime(&now));
-        _file_name = root_dir + "/" + std::string(time_str) + ".csv";
+        filename_ = dirname + "/" + std::string(time_str) + "_" + log_type + ".csv";
 
-        std::ofstream file(_file_name);
-        std::string csv_title = last_log_value.value_name[0];
-        for (int i = 1; i < last_log_value.value_name.size(); i++)
+        Derived value_temp;
+        std::string log_title = value_temp.value_name[0];
+        for (int i = 1; i < value_temp.value_name.size(); i++)
         {
-            csv_title = csv_title + ", " + last_log_value.value_name[i];
+            log_title = log_title + " " + value_temp.value_name[i];
         }
 
+        std::ofstream file(filename_);
         if (file.is_open())
         {
-            file << csv_title << std::endl;
+            file << log_title << std::endl;
             file.close();
             return true;
         }
         else
         {
-            std::cerr << "unable to open file" << _file_name << std::endl;
+            std::cerr << "Failed to create file" << filename_ << std::endl;
             return false;
         }
         return false;
     }
 
-    void save_to_file(const LogValue log_value)
+    std::string filename_;
+};
+
+class LoggerTUM : public LoggerBase<LogValueTUM>
+{
+   public:
+    LoggerTUM(const std::string& dirname) : LoggerBase<LogValueTUM>(dirname, "tum") {}
+
+    virtual void SaveValues(const LogValueTUM log_value) override
     {
-        std::ofstream file(_file_name, std::ios_base::app);  // 以追加模式打开文件
+        std::ofstream file(filename_, std::ios::app);  // 以追加模式打开文件
+        file << std::scientific << std::setprecision(10);
         if (file.is_open())
         {
-            file << log_value.timestamp << ", ";
-            file << log_value.px << ", ";
-            file << log_value.py << ", ";
-            file << log_value.pz << ", ";
-            file << log_value.vx << ", ";
-            file << log_value.vy << ", ";
-            file << log_value.vz << ", ";
-            file << log_value.roll << ", ";
-            file << log_value.pitch << ", ";
-            file << log_value.yaw << ", ";
-            file << log_value.bias_acc_x << ", ";
-            file << log_value.bias_acc_y << ", ";
-            file << log_value.bias_acc_z << ", ";
-            file << log_value.bias_gyro_x << ", ";
-            file << log_value.bias_gyro_y << ", ";
-            file << log_value.bias_gyro_z << ", ";
-            file << log_value.sigma_px << ", ";
-            file << log_value.sigma_py << ", ";
-            file << log_value.sigma_pz << ", ";
-            file << log_value.sigma_vx << ", ";
-            file << log_value.sigma_vy << ", ";
-            file << log_value.sigma_vz << ", ";
-            file << log_value.sigma_roll << ", ";
-            file << log_value.sigma_pitch << ", ";
-            file << log_value.sigma_yaw << ", ";
-            file << log_value.sigma_bias_acc_x << ", ";
-            file << log_value.sigma_bias_acc_y << ", ";
-            file << log_value.sigma_bias_acc_z << ", ";
-            file << log_value.sigma_bias_gyro_x << ", ";
-            file << log_value.sigma_bias_gyro_y << ", ";
-            file << log_value.sigma_bias_gyro_z << ", ";
-            file << log_value.visual_updated << ", ";
-            file << log_value.ZuptUpdated << ", ";
-            file << log_value.keyframe << ", ";
-            file << log_value.diff_px << ", ";
-            file << log_value.diff_py << ", ";
-            file << log_value.diff_pz << ", ";
-            file << log_value.init_vnorm << ", ";
-            file << log_value.groundtruth_vnorm << std::endl;
+            file << log_value.timestamp << " "
+                 << log_value.px << " "
+                 << log_value.py << " "
+                 << log_value.pz << " "
+                 << log_value.qx << " "
+                 << log_value.qy << " "
+                 << log_value.qz << " "
+                 << log_value.qw << "\n";
+
+            // 写入数据到文件
+            file.close();
+        }
+        else
+        {
+            std::cerr << "无法打开文件：" << filename_ << std::endl;
+        }
+    }
+};
+
+class LoggerFull : public LoggerBase<LogValueFull>
+{
+   public:
+    LoggerFull(const std::string& dirname) : LoggerBase<LogValueFull>(dirname, "full") {}
+
+    virtual void SaveValues(const LogValueFull log_value) override
+    {
+        std::ofstream file(filename_, std::ios::app);  // 以追加模式打开文件
+        file << std::scientific << std::setprecision(10);
+        if (file.is_open())
+        {
+            file << log_value.timestamp << " "
+                 << log_value.px << " "
+                 << log_value.py << " "
+                 << log_value.pz << " "
+                 << log_value.vx << " "
+                 << log_value.vy << " "
+                 << log_value.vz << " "
+                 << log_value.roll << " "
+                 << log_value.pitch << " "
+                 << log_value.yaw << " "
+                 << log_value.bias_acc_x << " "
+                 << log_value.bias_acc_y << " "
+                 << log_value.bias_acc_z << " "
+                 << log_value.bias_gyro_x << " "
+                 << log_value.bias_gyro_y << " "
+                 << log_value.bias_gyro_z << " "
+                 << log_value.sigma_px << " "
+                 << log_value.sigma_py << " "
+                 << log_value.sigma_pz << " "
+                 << log_value.sigma_vx << " "
+                 << log_value.sigma_vy << " "
+                 << log_value.sigma_vz << " "
+                 << log_value.sigma_roll << " "
+                 << log_value.sigma_pitch << " "
+                 << log_value.sigma_yaw << " "
+                 << log_value.sigma_bias_acc_x << " "
+                 << log_value.sigma_bias_acc_y << " "
+                 << log_value.sigma_bias_acc_z << " "
+                 << log_value.sigma_bias_gyro_x << " "
+                 << log_value.sigma_bias_gyro_y << " "
+                 << log_value.sigma_bias_gyro_z << " "
+                 << log_value.visual_updated << " "
+                 << log_value.ZuptUpdated << " "
+                 << log_value.keyframe << " "
+                 << log_value.diff_px << " "
+                 << log_value.diff_py << " "
+                 << log_value.diff_pz << " "
+                 << log_value.init_vnorm << " "
+                 << log_value.groundtruth_vnorm << std::endl;
 
             last_log_value = log_value;  // backup current log value
             // 写入数据到文件
@@ -199,15 +265,11 @@ class Logger
         }
         else
         {
-            std::cerr << "无法打开文件：" << _file_name << std::endl;
+            std::cerr << "Can not save vio state to: " << filename_ << std::endl;
         }
     }
 
-    LogValue last_log_value;
-
-   private:
-    std::string _path;
-    std::string _file_name;
+    LogValueFull last_log_value;
 };
 
 }  // namespace utils

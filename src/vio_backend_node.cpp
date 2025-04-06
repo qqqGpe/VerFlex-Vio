@@ -46,7 +46,15 @@ int main(int argc, char** argv)
 
     // initialize vio_backend
     std::shared_ptr<VioManager> vio_manager = std::make_shared<VioManager>(params);
-    vio_manager->SetInitialTimeStamp(time_init.toSec());
+    if (params.set_init_timestamp_to_zero == true)
+    {
+        vio_manager->SetInitialTimeStamp(time_init.toSec());
+    }
+    else
+    {
+        vio_manager->SetInitialTimeStamp(0);
+    }
+
     // vio_manager.SetInitialTimeStamp(0);
 
     // start vio updater

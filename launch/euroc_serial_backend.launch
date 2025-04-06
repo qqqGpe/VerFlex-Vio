@@ -24,6 +24,8 @@
     <!-- MASTER NODE! -->
     <node name="vio_backend" pkg="vio_backend" type="vio_backend_node" output="screen" clear_params="true" required="true">
 
+        <param name="set_init_timestamp_to_zero"         type="bool"    value="false" />
+
         <param name="use_multi_thread"         type="bool"    value="false" />
         <!-- 0: info, 1: warning, 2: error, 3: fatal -->
         <param name="log_level"                type="int"     value="0" />

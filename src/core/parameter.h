@@ -14,6 +14,7 @@ class Param
 
     void load_params()
     {
+        _nh->param<bool>("set_init_timestamp_to_zero", set_init_timestamp_to_zero, false);
         _nh->param<bool>("use_multi_thread", use_multi_thread, false);
         _nh->param<int>("log_level", log_level, 2);
         _nh->param<int>("camera_num", camera_num, 1);
@@ -70,7 +71,7 @@ class Param
             tic[cam_id] << Tic[offset + 9], Tic[offset + 10], Tic[offset + 11];
         }
     }
-
+    bool set_init_timestamp_to_zero = false;
     bool use_multi_thread = false;
     int log_level = 2;
     int camera_num;
