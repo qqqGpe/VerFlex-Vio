@@ -11,6 +11,8 @@ class Type
    public:
     Type(int size) : _size(size) {}
 
+    virtual void reset() = 0;
+
     virtual void set_ts(const double ts) { _ts = ts; }
 
     virtual void set_local_id(int new_id) { _id = new_id; }

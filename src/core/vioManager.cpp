@@ -9,7 +9,10 @@ using namespace Sophus;
 
 namespace
 {
+constexpr double kRad2Deg = 180.0 / M_PI;
 constexpr uint32_t kNoInputDataCntThres = 100;
+constexpr double kMaxAllowedSysUpdateInterval = 1.0f;  // 2s
+constexpr uint32_t kMinVisualFeaturesForUpdate = 10;
 }  // namespace
 
 void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager)
@@ -61,7 +64,7 @@ void backend_task_entry(VioManager* vio)
         usleep(100);  // sleep for 0.01s -> 100Hz
         if (!vio->initializer->IsInitialized())
         {
-            bool status = vio->initializer->static_initialize();
+            bool status = vio->initializer->StaticInitialize();
             if (status == false)
             {
                 continue;
@@ -85,6 +88,15 @@ void VioManager::start_visual_system()
     std::thread backend_thread(backend_task_entry, this);
     frontend_thread.detach();
     backend_thread.detach();
+}
+
+void VioManager::ResetSystem()
+{
+    state->reset();
+    _visual_manager->reset();
+    initializer->reset();
+    last_update_timestamp_ = -1.0;
+    LOG(INFO) << "VIO system reset";
 }
 
 GroundTruth VioManager::InterpolateGroundTruth(const double ts) const
@@ -126,7 +138,7 @@ void VioManager::ProcessMeasurementOnce()
 {
     if (!initializer->is_orientation_initialized || !initializer->is_bias_initialized)
     {
-        if (!initializer->static_initialize())
+        if (!initializer->StaticInitialize())
         {
             LOG(ERROR) << "failed to initialize orientation and bias";
             return;
@@ -174,19 +186,28 @@ void VioManager::ProcessMeasurementOnce()
             if (initializer->StereoVisualInitialize(feature_observes))
             {
                 log_value.init_vnorm = state->_imu_state->v()->vec().norm();
+                last_update_timestamp_ = state->ts_sec();
+                state->StochasticClone(state->_imu_state->pose());
                 GroundTruth gt_pv = InterpolateGroundTruth(feature_observes.first);
                 log_value.groundtruth_vnorm = gt_pv.v_.norm();
-                state->StochasticClone(state->_imu_state->pose());
             }
             continue;
         }
 
-        if (_imu_manager->static_status())
+        // if (_imu_manager->IsStaticStatus())
+        // {
+        //     eskfSolver::PropagateStateAndCovariance(state, _imu_manager, _imu_manager->_imu_latest_timestamp - 0.1);
+        //     _imu_manager->ZuptUpdate(state);
+
+        //     last_update_timestamp_ = state->ts_sec();
+        //     zupt_updated = true;
+        //     LOG(INFO) << "ZUPT updated";
+        // }
+
+        if (feature_observes.second.size() < kMinVisualFeaturesForUpdate)
         {
-            eskfSolver::PropagateStateAndCovariance(state, _imu_manager, _imu_manager->_imu_latest_timestamp - 0.1);
-            _imu_manager->ZuptUpdate(state);
-            zupt_updated = true;
-            LOG(INFO) << "ZUPT updated";
+            LOG(INFO) << cv::format("Not enough features to update, feature size: %d", int(feature_observes.second.size()));
+            continue;
         }
         else
         {
@@ -196,8 +217,22 @@ void VioManager::ProcessMeasurementOnce()
             if (_visual_manager->VisualUpdate())
             {
                 visual_updated = true;
-                LOG(INFO) << "Visual updated";
+                last_update_timestamp_ = state->ts_sec();
+                LOG(INFO) << cv::format("VIO update success, current state ts: %f, pos: [%.3f, %.3f, %.3f], vel: [%.3f, %.3f, %.3f], rpy: [%.3f, %.3f, %.3f]",
+                                        state->ts_sec(),
+                                        state->_imu_state->p()->vec().x(), state->_imu_state->p()->vec().y(), state->_imu_state->p()->vec().z(),
+                                        state->_imu_state->v()->vec().x(), state->_imu_state->v()->vec().y(), state->_imu_state->v()->vec().z(),
+                                        state->_imu_state->q()->rpy().x(), state->_imu_state->q()->rpy().y(), state->_imu_state->q()->rpy().z());
             }
+        }
+
+        double vio_update_intervals = std::abs(feature_observes.first - last_update_timestamp_);
+        if (vio_update_intervals > kMaxAllowedSysUpdateInterval)
+        {
+            LOG(WARNING) << cv::format("VIO update intervals: %f, is larger than %f, reset vio system",
+                                       vio_update_intervals, kMaxAllowedSysUpdateInterval);
+            ResetSystem();
+            continue;
         }
 
         /* Assign full log values */
@@ -289,5 +324,5 @@ void VioManager::CameraCallback(const sensor_msgs::ImageConstPtr& msg0, const se
     Utils::transfer_image(msg0, image_l);
     Utils::transfer_image(msg1, image_r);
     _camera_model_0->RectifyStereoImages(image_l, image_r, image_l_rectify, image_r_rectify);
-    _visual_manager->feed_image({ts_sec, {image_l_rectify, image_r_rectify}});
+    _visual_manager->FeedImages({ts_sec, {image_l_rectify, image_r_rectify}});
 }

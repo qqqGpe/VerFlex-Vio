@@ -18,6 +18,7 @@ class VisualManager
 {
    public:
     VisualManager() = default;
+
     ~VisualManager()
     {
         for (int i = 0; i < _max_feat_n; i++)
@@ -80,11 +81,13 @@ class VisualManager
 
     void set_state(std::shared_ptr<State> state) { _state = state; }  // only for debug
 
-    void feed_image(const std::pair<double, std::pair<cv::Mat, cv::Mat>> input);
+    void FeedImages(const std::pair<double, std::pair<cv::Mat, cv::Mat>> input);
 
     KeyFrameStatus GetKeyframeState() { return _keyframe; }
 
     std::vector<Feature*> GetFeatureBase() { return _feature_base; }
+
+    void reset();
 
     uint32_t _max_clone_pose = 6;
     uint32_t _max_feat_n = 0;

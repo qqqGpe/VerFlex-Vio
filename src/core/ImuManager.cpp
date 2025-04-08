@@ -176,7 +176,7 @@ void ImuManager::ConstructZuptConstraint(std::shared_ptr<State> state,
     res = weight * res;
 }
 
-void ImuManager::delete_old_measurements(const double ts)
+void ImuManager::ClearExpiredMeasurements(const double ts)
 {
     while (!_data->empty())
     {
@@ -187,11 +187,11 @@ void ImuManager::delete_old_measurements(const double ts)
     }
 }
 
-bool ImuManager::static_status()
+bool ImuManager::IsStaticStatus()
 {
-    constexpr int kImuLenToCalc = 10;
-    static int is_static_cnt = 0;
-    constexpr int kIsStaticCntThres = 5;
+    constexpr uint32_t kImuFreq = 200; // 200Hz
+    constexpr int kImuLenToCalc = 1.0 * kImuFreq; // 1s
+    constexpr int kIsStaticCntThres = 50;
 
     if (_data->size() < kImuLenToCalc)
     {
@@ -218,8 +218,7 @@ bool ImuManager::static_status()
     }
     acc_var = acc_var / data_buffer.size();  // 加计的方差，若方差小于阈值则认为系统处于静止状态
 
-    bool is_static = false;
-
+    static int is_static_cnt = 0;
     if (acc_var < _imu_acc_var_static_thres && gyro_mean.norm() < _imu_gyro_static_thres)
     {
         if (is_static_cnt < kIsStaticCntThres)
@@ -237,8 +236,10 @@ bool ImuManager::static_status()
 
     if (is_static_cnt == kIsStaticCntThres)
     {
-        is_static = true;
+        return true;
     }
-
-    return is_static;
+    else
+    {
+        return false;
+    }
 }

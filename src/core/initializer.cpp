@@ -9,6 +9,16 @@ constexpr int kMaxVisualStereoSize = 5;
 constexpr int kMinStereoFeaturesForInit = 25;
 }  // namespace
 
+void Initializer::reset()
+{
+    is_orientation_initialized = false;
+    is_bias_initialized = false;
+    is_position_initialized = false;
+    is_velocity_initialized = false;
+    feature_obs_buffer_.clear();
+    imu_data.clear();
+}
+
 void Initializer::FeedImuMeasurement(const ImuData& data)
 {
     if (!imu_data.empty() && data.ts_sec <= imu_data.back().ts_sec)
@@ -127,15 +137,13 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     // Calculate visual parallex between current and previous observations
     std::unordered_map<uint32_t, CameraObs> candidate_obs_umap;
     double max_average_parallex = -1.f;
-    for (const auto& prev_obs_umap : feature_obs_buffer_)
+    for (const auto& prev_feature_umap : feature_obs_buffer_)
     {
-        double average_parallex = calcVisualObsParallex(prev_obs_umap, current_feature_umap);
-        // std::cout << cv::format("average_parallex: %f, feature_obs_buffer_.size(): %d\n", average_parallex,
-        // static_cast<int>(feature_obs_buffer_.size()));
+        double average_parallex = calcVisualObsParallex(prev_feature_umap, current_feature_umap);
         if (average_parallex > max_average_parallex)
         {
             max_average_parallex = average_parallex;
-            candidate_obs_umap = prev_obs_umap;
+            candidate_obs_umap = prev_feature_umap;
         }
     }
 
@@ -202,8 +210,7 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     Eigen::MatrixXd stereo_init_covariance = imu_state->covariance();
     stereo_init_covariance.block(imu_state->p()->id(), imu_state->p()->id(), 3, 3) = std::pow(0.1, 2) * Eigen::Matrix3d::Identity();  // p
     stereo_init_covariance.block(imu_state->v()->id(), imu_state->v()->id(), 3, 3) = std::pow(0.1, 2) * Eigen::Matrix3d::Identity();  // v
-    imu_state->set_covariance(stereo_init_covariance);
-    state_->_covariance.block(imu_state->id(), imu_state->id(), imu_state->size(), imu_state->size()) = stereo_init_covariance;
+    state_->SetCovariance(stereo_init_covariance);
 
     // Init feature base
     std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_obs_global;
@@ -221,7 +228,7 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     return true;
 }
 
-bool Initializer::static_initialize()
+bool Initializer::StaticInitialize()
 {
     LOG(INFO) << "trying to initialize with static states";
     if (is_orientation_initialized && is_bias_initialized)
@@ -298,9 +305,8 @@ bool Initializer::static_initialize()
     is_orientation_initialized = true;
     is_bias_initialized = true;
 
-    std::cout << "ba: " << imu_state->ba()->vec().transpose() << std::endl;
-    std::cout << "bg: " << imu_state->bg()->vec().transpose() << std::endl;
-
+    LOG(INFO) << cv::format("ba: [%f, %f, %f]", imu_state->ba()->vec().x(), imu_state->ba()->vec().y(), imu_state->ba()->vec().z());
+    LOG(INFO) << cv::format("bg: [%f, %f, %f]", imu_state->bg()->vec().x(), imu_state->bg()->vec().y(), imu_state->bg()->vec().z());
     LOG(INFO) << "orientation inialization success!";
     LOG(INFO) << "IMU bias initialization success!";
 

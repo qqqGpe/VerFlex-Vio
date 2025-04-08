@@ -122,10 +122,11 @@ class LogValueFull
     int ZuptUpdated = 0;
     int keyframe = 0;
 
-    // pvdiff
+    // posiiton-velocity difference
     double diff_px = 0;
     double diff_py = 0;
     double diff_pz = 0;
+
     double init_vnorm = 0;
     double groundtruth_vnorm = 0;
 };
@@ -134,19 +135,19 @@ template <typename Derived>
 class LoggerBase
 {
    public:
-    LoggerBase(const std::string& dirname, const std::string log_type = "default")
+    LoggerBase(const std::string& dirname, const std::string log_type = "default", const bool use_title = true)
     {
-        if (!InitLogFile(dirname, log_type))
+        if (!InitLogFile(dirname, log_type, use_title))
         {
             LOG(ERROR) << "Failed to make logging file";
             std::exit(1);
         }
     }
 
-    virtual void SaveValues(const Derived log_value) = 0;
+    virtual void SaveValues(const Derived log_value) const = 0;
 
    protected:
-    bool InitLogFile(std::string dirname, const std::string log_type)
+    bool InitLogFile(const std::string dirname, const std::string log_type, const bool use_title)
     {
         char time_str[100];
         std::time_t now = std::time(nullptr);
@@ -163,29 +164,32 @@ class LoggerBase
         std::ofstream file(filename_);
         if (file.is_open())
         {
-            file << log_title << std::endl;
-            file.close();
-            return true;
+            if (use_title)
+            {
+                file << log_title << std::endl;
+                file.close();
+            }
         }
         else
         {
             std::cerr << "Failed to create file" << filename_ << std::endl;
             return false;
         }
-        return false;
+        return true;
     }
 
     std::string filename_;
 };
 
+/* Save Vio state values as TUM format */
 class LoggerTUM : public LoggerBase<LogValueTUM>
 {
    public:
-    LoggerTUM(const std::string& dirname) : LoggerBase<LogValueTUM>(dirname, "tum") {}
+    LoggerTUM(const std::string& dirname) : LoggerBase<LogValueTUM>(dirname, "tum", false) {}
 
-    virtual void SaveValues(const LogValueTUM log_value) override
+    virtual void SaveValues(const LogValueTUM log_value) const override
     {
-        std::ofstream file(filename_, std::ios::app);  // 以追加模式打开文件
+        std::ofstream file(filename_, std::ios::app);
         file << std::scientific << std::setprecision(10);
         if (file.is_open())
         {
@@ -197,25 +201,24 @@ class LoggerTUM : public LoggerBase<LogValueTUM>
                  << log_value.qy << " "
                  << log_value.qz << " "
                  << log_value.qw << "\n";
-
-            // 写入数据到文件
-            file.close();
         }
         else
         {
-            std::cerr << "无法打开文件：" << filename_ << std::endl;
+            std::cerr << "Can not save TUM data to: " << filename_ << std::endl;
         }
+        file.close();
     }
 };
 
+/* Save full log values for analysis */
 class LoggerFull : public LoggerBase<LogValueFull>
 {
    public:
-    LoggerFull(const std::string& dirname) : LoggerBase<LogValueFull>(dirname, "full") {}
+    LoggerFull(const std::string& dirname) : LoggerBase<LogValueFull>(dirname, "full", true) {}
 
-    virtual void SaveValues(const LogValueFull log_value) override
+    virtual void SaveValues(const LogValueFull log_value) const override
     {
-        std::ofstream file(filename_, std::ios::app);  // 以追加模式打开文件
+        std::ofstream file(filename_, std::ios::app);
         file << std::scientific << std::setprecision(10);
         if (file.is_open())
         {
@@ -258,18 +261,17 @@ class LoggerFull : public LoggerBase<LogValueFull>
                  << log_value.diff_pz << " "
                  << log_value.init_vnorm << " "
                  << log_value.groundtruth_vnorm << std::endl;
-
-            last_log_value = log_value;  // backup current log value
-            // 写入数据到文件
-            file.close();
+            // last_log_value = log_value;  // backup current log value
         }
         else
         {
             std::cerr << "Can not save vio state to: " << filename_ << std::endl;
         }
+
+        file.close();
     }
 
-    LogValueFull last_log_value;
+    // LogValueFull last_log_value;
 };
 
 }  // namespace utils

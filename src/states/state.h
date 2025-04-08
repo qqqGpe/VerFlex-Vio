@@ -54,7 +54,7 @@ class State
         }
 
         // initialize state covariance
-        _covariance = Eigen::MatrixXd::Identity(_dim, _dim);  // initialize covariance size;
+        SetCovariance(Eigen::MatrixXd::Identity(_dim, _dim)); // initialize covariance size;
     }
     ~State() {}
 
@@ -92,7 +92,7 @@ class State
         _clone_pose.insert(std::make_pair(clone->ts(), std::dynamic_pointer_cast<Pose>(clone)));
         _variables.push_back(clone);
         _dim += clone->size();
-        _covariance = covariance_new;
+        SetCovariance(covariance_new);
     }
 
     std::map<double, CameraPose> AccessClonePoseBuffer() const
@@ -196,26 +196,27 @@ class State
         {
             covariance_small.block(0, 0, id_to_marge, id_to_marge) = _covariance.block(0, 0, id_to_marge, id_to_marge).eval();
         }
-        // _covariance.setZero(_dim, _dim);
-        // _covariance.noalias() = covariance_small.eval();
 
-        // int cur_i = 0;
-        // for (int i = 0; i < _variables.size(); i++)
-        // {
-        //     std::shared_ptr<Type> var_i = _variables[i];
-        //     int cur_j = 0;
-        //     for (int j = 0; j < _variables.size(); j++)
-        //     {
-        //         std::shared_ptr<Type> var_j = _variables[j];
-        //         covariance_small.block(cur_i, cur_j, var_i->size(), var_j->size()) =
-        //             _covariance.block(var_i->id(), var_j->id(), var_i->size(), var_j->size()).eval();
-        //         cur_j += var_j->size();
-        //     }
-        //     cur_i += var_i->size();
-        // }
-        // _covariance = Eigen::MatrixXd::Zero(_dim, _dim);
-        _covariance = covariance_small;
-        // std::cout << "Cov after marge:\n " << std::setprecision(2) << _covariance << std::endl;
+        SetCovariance(covariance_small);
+    }
+
+    void SetCovariance(const Eigen::MatrixXd& covariance_new)
+    {
+        _covariance = covariance_new;
+        _imu_state->set_covariance(covariance_new.block(_imu_state->id(), _imu_state->id(), _imu_state->size(), _imu_state->size()));
+    }
+
+    void reset()
+    {
+        _imu_state->reset();
+
+        for (auto it = _clone_pose.begin(); it != _clone_pose.end(); it++)
+        {
+            _variables.erase(std::remove(_variables.begin(), _variables.end(), it->second), _variables.end());
+            _dim = _dim - it->second->size();
+        }
+        _clone_pose.clear();
+        SetCovariance(Eigen::MatrixXd::Identity(_dim, _dim));
     }
 
     int _dim = 0;

@@ -16,9 +16,7 @@ public:
         _imu_acc_var_static_thres = param.imu_acc_var_static_thres;
         _imu_gyro_static_thres = param.imu_gyro_static_thres;
         _gravity_magn = Eigen::Vector3d(0, 0, -param.gravity_magn);
-        _state = state;
         _data = std::make_shared<std::deque<ImuData>>();
-        _data->clear();
     }
 
     ~ImuManager() { }
@@ -30,7 +28,7 @@ public:
     void ConstructZuptConstraint(std::shared_ptr<State> state, ImuData imu_data, Eigen::MatrixXd& Hx,
         std::vector<std::shared_ptr<Type>>& _Hx_order, std::unordered_map<std::shared_ptr<Type>, size_t>& _map_hx, Eigen::VectorXd& res);
 
-    bool static_status();
+    bool IsStaticStatus();
 
     ImuData InterpolateImuData(const ImuData& imu_1, const ImuData& imu_2, double timestamp);
 
@@ -38,7 +36,7 @@ public:
 
     std::vector<ImuData> AccessIntervalImuMeasurements(const double ts_start, const double ts_end);
 
-    void delete_old_measurements(const double ts);
+    void ClearExpiredMeasurements(const double ts);
 
     double _sigma_na;
     double _sigma_nw;
@@ -48,7 +46,6 @@ public:
     double _imu_latest_timestamp = 0;
 
 private:
-    std::shared_ptr<State> _state;
     std::shared_ptr<std::deque<ImuData>> _data;
     Eigen::Vector3d _gravity_magn;
     double _imu_acc_var_static_thres = 0.5;

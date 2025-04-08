@@ -55,8 +55,6 @@ int main(int argc, char** argv)
         vio_manager->SetInitialTimeStamp(0);
     }
 
-    // vio_manager.SetInitialTimeStamp(0);
-
     // start vio updater
     // if (params.use_multi_thread)
     // {
@@ -169,7 +167,8 @@ int main(int argc, char** argv)
     }
 
     // waiting for program to exit
-    ros::spin();
+    // ros::spin();
     google::ShutdownGoogleLogging();
+    ros::shutdown();
     return 0;
 }

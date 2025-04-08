@@ -115,9 +115,14 @@ std::vector<bool> VioFrontend::TrackFeatures(const cv::Mat image_left,
                                              const std::vector<cv::Point2f> pts_to_track,
                                              std::vector<cv::Point2f>& pts_tracked)
 {
-    assert(!pts_to_track.empty());
+    std::vector<bool> status;
     std::vector<uchar> forward_status, backward_status;
     std::vector<float> err;
+
+    if (pts_to_track.empty())
+    {
+        return status;
+    }
 
     // forward tracking
     cv::calcOpticalFlowPyrLK(image_left, image_right, pts_to_track, pts_tracked, forward_status, err);
@@ -128,7 +133,6 @@ std::vector<bool> VioFrontend::TrackFeatures(const cv::Mat image_left,
                              cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
 
     // double check if the tracked point is out of range
-    std::vector<bool> status;
     for (int i = 0; i < forward_status.size(); i++)
     {
         if (forward_status[i] && backward_status[i] && (Distance(pts_to_track[i], reverse_pts[i]) < kPixelErrorThreshold) &&
@@ -452,7 +456,7 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::
 
     // add new features to ref_feat_to_track_
     if (*_keyframe != KeyFrameStatus::kNone || is_first_frame_)
-    {   // debug always keyframe
+    {  // debug always keyframe
         // if (1) { // debug: always keyframe
         std::deque<CameraObs> feats_new;
         std::vector<cv::Point2f> corners;

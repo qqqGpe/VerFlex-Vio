@@ -3,6 +3,7 @@
 
 #include <sophus/so3.hpp>
 #include "Type.h"
+#include "mathematical_tools.h"
 
 class Quat : public Type
 {
@@ -12,6 +13,14 @@ class Quat : public Type
         state_name = "Quat";
         _quat.setIdentity();
         _quat_fej.setIdentity();
+    }
+
+    virtual void reset() override
+    {
+        _quat.setIdentity();
+        _quat_fej.setIdentity();
+        set_value(_quat.coeffs());
+        // _fej.setZero();
     }
 
     virtual void set_value(const Eigen::MatrixXd& new_value) override
@@ -36,7 +45,6 @@ class Quat : public Type
     {
         assert(d_theta.rows() == 3);
         Eigen::Matrix3d dR = Sophus::SO3d::exp(d_theta).matrix();
-        // Eigen::Matrix3d dR = Eigen::AngleAxisd(d_theta.norm(), d_theta.normalized()).toRotationMatrix();
         Eigen::Quaterniond dq(dR);
         _quat = _quat * dq;
         set_value(_quat.coeffs());
@@ -57,6 +65,11 @@ class Quat : public Type
     Eigen::Matrix3d Rot() const { return _Rot; }
 
     Eigen::Matrix3d Rot_fej() const { return _Rot_fej; }
+
+    Eigen::Vector3d rpy()
+    {
+        return MathUtils::R2rpy(_quat.toRotationMatrix()) * 180.0 / M_PI;
+    }
 
    protected:
     Eigen::Quaterniond _quat;

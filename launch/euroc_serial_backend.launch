@@ -7,7 +7,12 @@
 
     <!-- mono or stereo and what ros bag to play -->
     <arg name="bag_start"   default="0" /> <!-- v1-2: 0, mh1: 40, mh2: 35, mh3: 17.5, mh4-5: 15 -->
-    <arg name="dataset"     default="MH_01_easy" /> <!-- V1_01_easy, V1_02_medium, V1_03_difficult, V2_02_medium, dataset-room1_512_16 -->
+
+    <!-- <arg name="dataset"     default="MH_01_easy" /> -->
+    <!-- <arg name="dataset"     default="MH_02_easy" /> -->
+    <!-- <arg name="dataset"     default="MH_03_medium" /> -->
+    <arg name="dataset"     default="MH_04_difficult" />
+
     <!-- <arg name="bag"         default="/media/gao/samsung/dataset/euroc_mav/$(arg dataset).bag" /> -->
     <arg name="bag"         default="/home/gao/dataset/euroc_mav/$(arg dataset).bag" />
 
@@ -34,7 +39,7 @@
 
         <!-- bag parameters -->
         <param name="path_bag"                 type="str"    value="$(arg bag)" />
-        <param name="bag_start"                type="double" value="36" />
+        <param name="bag_start"                type="double" value="0" />
         <param name="bag_durr"                 type="int"    value="-1" />
 
         <param name="img_width"                type="int"    value="752" />
@@ -59,7 +64,7 @@
         <param name="max_feat_n"                type="int"    value="225" />
         <param name="grid_w"                    type="int"    value="15" />
         <param name="grid_h"                    type="int"    value="15" />
-        <param name="max_clone_pose"            type="int"    value="5" />
+        <param name="max_clone_pose"            type="int"    value="6" />
         <param name="verbosity"                 type="str"    value="$(arg verbosity)" />
         <param name="log_path"                  type="str"    value="$(arg log_path)" />
 

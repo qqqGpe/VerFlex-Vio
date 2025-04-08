@@ -116,7 +116,7 @@ bool VisualManager::VisualUpdate()
 
     std::shared_ptr<Type> state_to_marginalize = nullptr;
 
-    if (_state->_clone_pose.size() > _max_clone_pose)
+    if (_state->_clone_pose.size() >= _max_clone_pose)
     {
         _keyframe = KeyFrameStatus::kNone;
         _keyframe = CheckKeyframe(_state, feat_msckf);
@@ -134,6 +134,7 @@ bool VisualManager::VisualUpdate()
     }
 
     _state->MarginalizeState(state_to_marginalize);
+
     return visual_updated;
 }
 
@@ -548,7 +549,25 @@ bool VisualManager::StereoLeastSqureTriangulation(const std::shared_ptr<CameraMo
     return true;
 }
 
-void VisualManager::feed_image(const std::pair<double, std::pair<cv::Mat, cv::Mat>> input)
+void VisualManager::reset()
+{
+    _feature_mapping_success = 0;
+    _feature_mapping_in = 0;
+    _feature_tracked.clear();
+    _feature_lost.clear();
+    _feature_new.clear();
+    _input_image_buffer = std::queue<std::pair<double, std::pair<cv::Mat, cv::Mat>>>();
+    feature_obs_buffer = std::queue<std::pair<double, std::vector<CameraObs>>>();
+    stored_images_.clear();
+
+    assert(_feature_base.size() == _max_feat_n);
+    for (int i = 0; i < _max_feat_n; i++)
+    {
+        _feature_base[i]->reset();
+    }
+}
+
+void VisualManager::FeedImages(const std::pair<double, std::pair<cv::Mat, cv::Mat>> input)
 {
     while (_input_image_buffer.size() > kMaxImageBufferSize)
     {

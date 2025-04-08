@@ -16,6 +16,12 @@ class Pose : public Type
         _p = std::make_shared<Vec>();
     }
 
+    virtual void reset() override
+    {
+        _q->reset();
+        _p->reset();
+    }
+
     virtual void set_ts(const double ts) override
     {
         if (ts <= 0)

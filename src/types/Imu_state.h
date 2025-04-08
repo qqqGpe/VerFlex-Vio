@@ -17,6 +17,15 @@ class IMU_state : public Type
         _ba = std::make_shared<Vec>();
     }
 
+    virtual void reset() override
+    {
+        _pose->reset();
+        _v->reset();
+        _bg->reset();
+        _ba->reset();
+        _covariance = Eigen::MatrixXd::Identity(15, 15);
+    }
+
     virtual void set_ts(const double ts) override
     {
         _ts = ts;
@@ -105,7 +114,7 @@ class IMU_state : public Type
     std::shared_ptr<Vec> _v;
     std::shared_ptr<Vec> _ba;
     std::shared_ptr<Vec> _bg;
-    Eigen::MatrixXd _covariance = Eigen::MatrixXd::Zero(15, 15);
+    Eigen::MatrixXd _covariance = Eigen::MatrixXd::Identity(15, 15);
 };
 
 #endif

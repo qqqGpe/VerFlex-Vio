@@ -52,6 +52,8 @@ class VioManager
 
     void CameraCallback(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1);
 
+    void ResetSystem();
+
     // bool PropagateStateAndCovariance(std::shared_ptr<State> state, std::shared_ptr<ImuManager> imu_manager, double ts);
 
     GroundTruth InterpolateGroundTruth(const double ts) const;
@@ -70,6 +72,9 @@ class VioManager
 
     boost::posix_time::ptime vio_rT, vio_rT1, vio_rT2, vio_rT3, vio_rT4;
     boost::posix_time::ptime pro_rT, pro_rT1, pro_rT2, pro_rT3, pro_rT4;
+
+   private:
+    double last_update_timestamp_ = -1.0;
 };
 
 void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager);

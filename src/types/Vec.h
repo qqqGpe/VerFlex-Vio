@@ -13,6 +13,12 @@ class Vec : public Type
         _fej = Eigen::VectorXd::Zero(3);
     }
 
+    virtual void reset() override
+    {
+        _value.setZero();
+        _fej.setZero();
+    }
+
     virtual void update(const Eigen::VectorXd& dx) override
     {
         assert(dx.rows() == _size);

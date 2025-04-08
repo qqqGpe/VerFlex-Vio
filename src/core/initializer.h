@@ -29,20 +29,22 @@ class Initializer
     }
     ~Initializer() {};
 
+    void reset();
+
     bool StereoVisualInitialize(const std::pair<double, std::vector<CameraObs>> feature_observes);
 
     void FeedImuMeasurement(const ImuData& data);
 
-    bool static_initialize();
+    bool StaticInitialize();
 
     Eigen::Matrix3d Gram_Schmidt(const Eigen::Vector3d& gravity_body);
 
     bool IsInitialized();
 
+    bool is_bias_initialized = false;
     bool is_orientation_initialized = false;
     bool is_position_initialized = false;
     bool is_velocity_initialized = false;
-    bool is_bias_initialized = false;
 
    private:
     double calcVisualObsParallex(std::unordered_map<uint32_t, CameraObs> visual_obs_a,
