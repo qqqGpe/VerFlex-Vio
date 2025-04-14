@@ -8,10 +8,10 @@
     <!-- mono or stereo and what ros bag to play -->
     <arg name="bag_start"   default="0" /> <!-- v1-2: 0, mh1: 40, mh2: 35, mh3: 17.5, mh4-5: 15 -->
 
-    <!-- <arg name="dataset"     default="MH_01_easy" /> -->
+    <arg name="dataset"     default="MH_01_easy" />
     <!-- <arg name="dataset"     default="MH_02_easy" /> -->
     <!-- <arg name="dataset"     default="MH_03_medium" /> -->
-    <arg name="dataset"     default="MH_04_difficult" />
+    <!-- <arg name="dataset"     default="MH_04_difficult" /> -->
 
     <!-- <arg name="bag"         default="/media/gao/samsung/dataset/euroc_mav/$(arg dataset).bag" /> -->
     <arg name="bag"         default="/home/gao/dataset/euroc_mav/$(arg dataset).bag" />
@@ -39,7 +39,7 @@
 
         <!-- bag parameters -->
         <param name="path_bag"                 type="str"    value="$(arg bag)" />
-        <param name="bag_start"                type="double" value="0" />
+        <param name="bag_start"                type="double" value="35" />
         <param name="bag_durr"                 type="int"    value="-1" />
 
         <param name="img_width"                type="int"    value="752" />
@@ -77,6 +77,8 @@
         <param name="sigma_nw"              type="double" value="1.6968e-03" />
         <param name="sigma_ba"              type="double" value="3.0000e-3" />
         <param name="sigma_bg"              type="double" value="1.9393e-03" />
+
+        <param name="solver_type"            type="int"    value="1" />
 
         <rosparam param="camera_topic">   ["/cam0/image_raw", "/cam1/image_raw"]   </rosparam>
         <param name="imu_topic"         type="str"    value="/imu0" />

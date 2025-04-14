@@ -58,7 +58,8 @@ add_library(
 target_include_directories(msckf_core PUBLIC
 src/states/
 src/types/
-src/utils/)
+src/utils/
+src/solver)
 target_link_libraries(msckf_core glog::glog)
 
 add_subdirectory(src/core)

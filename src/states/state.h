@@ -55,6 +55,7 @@ class State
 
         // initialize state covariance
         SetCovariance(Eigen::MatrixXd::Identity(_dim, _dim)); // initialize covariance size;
+        SetSqrtPt(Eigen::MatrixXd::Identity(_dim, _dim)); // initialize covariance size;
     }
     ~State() {}
 
@@ -68,32 +69,6 @@ class State
     }
 
     double ts_sec() { return _imu_state->ts(); }
-
-    void StochasticClone(std::shared_ptr<Type> variable_to_clone)
-    {
-        int old_rows = _covariance.rows();
-        int old_cols = _covariance.cols();
-        int new_rows = old_rows + variable_to_clone->size();
-        int new_cols = old_cols + variable_to_clone->size();
-        int variable_size = variable_to_clone->size();
-
-        Eigen::MatrixXd covariance_new = Eigen::MatrixXd::Zero(new_rows, new_cols);
-        covariance_new.block(0, 0, old_rows, old_cols) = _covariance;
-        // _covariance.conservativeResize(new_rows, new_cols);
-
-        int old_loc = variable_to_clone->id();
-
-        covariance_new.block(old_rows, old_cols, variable_size, variable_size) = _covariance.block(old_loc, old_loc, variable_size, variable_size);
-        covariance_new.block(0, old_cols, old_rows, variable_size) = _covariance.block(0, old_loc, old_rows, variable_size);
-        covariance_new.block(old_rows, 0, variable_size, old_cols) = _covariance.block(old_loc, 0, variable_size, old_cols);
-
-        std::shared_ptr<Type> clone = variable_to_clone->clone();
-        clone->set_local_id(old_cols);
-        _clone_pose.insert(std::make_pair(clone->ts(), std::dynamic_pointer_cast<Pose>(clone)));
-        _variables.push_back(clone);
-        _dim += clone->size();
-        SetCovariance(covariance_new);
-    }
 
     std::map<double, CameraPose> AccessClonePoseBuffer() const
     {
@@ -112,98 +87,21 @@ class State
         return camera_clone_poses;
     }
 
-    void MarginalizeState(std::shared_ptr<Type>& state_to_marg)
-    {
-        if (state_to_marg == nullptr)
-        {
-            return;
-        }
-
-        auto it_marge = std::find(_variables.begin(), _variables.end(), state_to_marg);
-        if (it_marge == _variables.end())
-        {
-            LOG(ERROR) << "marginalization failed, no such variable in states";
-            return;
-        }
-
-        _variables.erase(it_marge);
-
-        MarginalizeCovariance(state_to_marg->id(), state_to_marg->size());
-
-        double timestamp_to_marge = state_to_marg->ts();
-        if (_clone_pose.count(timestamp_to_marge) != 0)
-        {
-            _clone_pose.erase(timestamp_to_marge);
-        }
-
-        _dim = _dim - state_to_marg->size();
-
-        for (auto it = _variables.begin(); it != _variables.end(); it++)
-        {
-            if ((*it)->id() > state_to_marg->id())
-            {
-                (*it)->set_local_id((*it)->id() - state_to_marg->size());
-            }
-        }
-    }
-
-    Eigen::MatrixXd GetMarginalCovariance(const std::vector<std::shared_ptr<Type>>& small_variables)
-    {
-        int32_t size = 0;
-        for (const auto& x : small_variables)
-        {
-            size += x->size();
-        }
-
-        Eigen::MatrixXd covariance_small = Eigen::MatrixXd::Zero(size, size);
-
-        int32_t current_row = 0;
-        for (int32_t i = 0; i < small_variables.size(); i++)
-        {
-            std::shared_ptr<Type> var_i = small_variables[i];
-            int32_t current_col = 0;
-            for (int32_t j = 0; j < small_variables.size(); j++)
-            {
-                std::shared_ptr<Type> var_j = small_variables[j];
-                covariance_small.block(current_row, current_col, var_i->size(), var_j->size()) =
-                    _covariance.block(var_i->id(), var_j->id(), var_i->size(), var_j->size());
-                current_col += var_j->size();
-            }
-            current_row += var_i->size();
-        }
-        return covariance_small;
-    }
-
-    void MarginalizeCovariance(const uint32_t id_to_marge, const uint32_t size_to_marge)
-    {
-        uint32_t old_dim = _covariance.rows();
-        uint32_t new_dim = old_dim - size_to_marge;
-        Eigen::MatrixXd covariance_small = Eigen::MatrixXd::Zero(new_dim, new_dim);
-        if (id_to_marge + size_to_marge < old_dim)
-        {
-            covariance_small.block(0, 0, id_to_marge, id_to_marge) = _covariance.block(0, 0, id_to_marge, id_to_marge);
-
-            covariance_small.block(id_to_marge, 0, old_dim - id_to_marge - size_to_marge, id_to_marge) =
-                _covariance.block(id_to_marge + size_to_marge, 0, old_dim - id_to_marge - size_to_marge, id_to_marge);
-
-            covariance_small.block(0, id_to_marge, id_to_marge, old_dim - id_to_marge - size_to_marge) =
-                _covariance.block(0, id_to_marge + size_to_marge, id_to_marge, old_dim - id_to_marge - size_to_marge);
-
-            covariance_small.block(id_to_marge, id_to_marge, old_dim - id_to_marge - size_to_marge, old_dim - id_to_marge - size_to_marge) =
-                _covariance.block(id_to_marge + size_to_marge, id_to_marge + size_to_marge, old_dim - id_to_marge - size_to_marge, old_dim - id_to_marge - size_to_marge);
-        }
-        else
-        {
-            covariance_small.block(0, 0, id_to_marge, id_to_marge) = _covariance.block(0, 0, id_to_marge, id_to_marge).eval();
-        }
-
-        SetCovariance(covariance_small);
-    }
+    Eigen::MatrixXd Covariance() { return _covariance; }
 
     void SetCovariance(const Eigen::MatrixXd& covariance_new)
     {
         _covariance = covariance_new;
         _imu_state->set_covariance(covariance_new.block(_imu_state->id(), _imu_state->id(), _imu_state->size(), _imu_state->size()));
+    }
+
+    Eigen::MatrixXd Sqrt_Pt() { return sqrt_Pt_; }
+
+    void SetSqrtPt(const Eigen::MatrixXd& sqrt_Pt_new)
+    {
+        assert(sqrt_Pt_new.cols() == _dim);
+        sqrt_Pt_.noalias() = sqrt_Pt_new;
+        _imu_state->set_sqrt_Pt(sqrt_Pt_new.block(_imu_state->id(), _imu_state->id(), _imu_state->size(), _imu_state->size()));
     }
 
     void reset()
@@ -225,6 +123,7 @@ class State
     std::shared_ptr<Pose> _Tic;  // R_CtoI, p_CinI
     std::vector<std::shared_ptr<Type>> _variables;
     Eigen::MatrixXd _covariance;
+    Eigen::MatrixXd sqrt_Pt_;
     int32_t _do_calibration_update = 0;
 };
 

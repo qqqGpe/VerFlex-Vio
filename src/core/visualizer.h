@@ -13,6 +13,7 @@
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 
 #include "vioManager.h"
+#include "eskf_solver.h"
 
 class Visualizer
 {
@@ -39,6 +40,7 @@ protected:
     std::vector<geometry_msgs::PoseStamped> imu_path_;
 
     uint32_t pub_path_div_ = 4;
+
     nav_msgs::Path path_output;
 };
 

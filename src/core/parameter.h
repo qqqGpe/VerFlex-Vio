@@ -58,6 +58,8 @@ class Param
         _nh->param<double>("imu_acc_var_static_thres", imu_acc_var_static_thres, 0.5);
         _nh->param<double>("imu_gyro_static_thres", imu_gyro_static_thres, 0.5);
 
+        _nh->param<int>("solver_type", solver_type, 0);
+
         Ric.resize(camera_num, Eigen::Matrix3d::Identity());
         tic.resize(camera_num, Eigen::Vector3d::Zero());
 
@@ -99,6 +101,8 @@ class Param
 
     std::vector<Eigen::Matrix3d> Ric;
     std::vector<Eigen::Vector3d> tic;
+
+    int solver_type = 0;  // 0: ESKF, 1: SqrtESKF
 
    private:
     std::shared_ptr<ros::NodeHandle> _nh;

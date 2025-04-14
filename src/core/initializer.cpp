@@ -170,8 +170,7 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     }
 
     // triangulate stereo observations
-    std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>>
-        stereo_obs_triangulated;  // {feature_id, {cur_obs, pwf}}
+    std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_obs_triangulated;  // {feature_id, {cur_obs, pwf}}
     for (auto& [obs_prev, obs_cur] : stereo_obs_pairs)
     {
         Eigen::Vector3d pcf;
@@ -198,8 +197,7 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     auto& [obs_prev, obs_cur] = stereo_obs_pairs[0];
     double delta_ts = abs(obs_cur.ts_sec - obs_prev.ts_sec);
     Eigen::Vector3d v_CinG = p_CpinG / delta_ts;  // initial velocity of camera in global coordinate
-    LOG(INFO) << cv::format("Stereo visual initialization success! Initial velocity: [%f, %f, %f]", v_CinG.x(),
-                            v_CinG.y(), v_CinG.z());
+    LOG(INFO) << cv::format("Stereo visual initialization success! Initial velocity: [%f, %f, %f]", v_CinG.x(), v_CinG.y(), v_CinG.z());
 
     // initialize position and velocity
     state_->set_ts_sec(ts_sec);
@@ -211,6 +209,9 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     stereo_init_covariance.block(imu_state->p()->id(), imu_state->p()->id(), 3, 3) = std::pow(0.1, 2) * Eigen::Matrix3d::Identity();  // p
     stereo_init_covariance.block(imu_state->v()->id(), imu_state->v()->id(), 3, 3) = std::pow(0.1, 2) * Eigen::Matrix3d::Identity();  // v
     state_->SetCovariance(stereo_init_covariance);
+
+    Eigen::MatrixXd sqrt_stereo_init_covariance = stereo_init_covariance.llt().matrixL().transpose();
+    state_->SetSqrtPt(sqrt_stereo_init_covariance);
 
     // Init feature base
     std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_obs_global;
@@ -293,13 +294,10 @@ bool Initializer::StaticInitialize()
     imu_state->set_value(init_imu_state);
 
     // initialize static imu covariance
-    Eigen::MatrixXd init_imu_covariance =
-        std::pow(0.02, 2) * Eigen::MatrixXd::Identity(imu_state->size(), imu_state->size());
-    // init_imu_covariance.block(3, 3, 3, 3) = std::pow(0.05, 2) * Eigen::Matrix3d::Identity(); // p
-    // init_imu_covariance.block(6, 6, 3, 3) = std::pow(0.01, 2) * Eigen::Matrix3d::Identity(); // v (static)
-    imu_state->set_covariance(init_imu_covariance);
-    state_->_covariance.block(imu_state->id(), imu_state->id(), imu_state->size(), imu_state->size()) =
-        init_imu_covariance;
+    Eigen::MatrixXd init_imu_covariance = std::pow(0.02, 2) * Eigen::MatrixXd::Identity(imu_state->size(), imu_state->size());
+    Eigen::MatrixXd sqrt_init_imu_covariance = init_imu_covariance.llt().matrixL().transpose();
+    state_->SetCovariance(init_imu_covariance);
+    state_->SetSqrtPt(sqrt_init_imu_covariance);
     imu_state->set_ts(imu_data_for_init.back().ts_sec);
 
     is_orientation_initialized = true;

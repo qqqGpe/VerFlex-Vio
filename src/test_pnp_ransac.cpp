@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "Pose.h"
+#include "solver.h"
 
 #define DEG2RAD M_PI / 180
 #define POINT_NUM_N 20
@@ -106,7 +107,7 @@ int main()
     std::vector<double> distortion;     // empty distortion coeff for debugging
     std::shared_ptr<CameraModel> camera_model = std::make_shared<CameraModel>(params);
     std::shared_ptr<State> state = make_shared<State>();
-    VisualManager visual_manager(params, state, camera_model);
+    VisualManager visual_manager(params, state, camera_model, nullptr);
 
     generate_camera_pose();
     project_to_camera();

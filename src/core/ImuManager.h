@@ -4,19 +4,19 @@
 #include "parameter.h"
 #include "sensor_data.h"
 #include "state.h"
+#include "solver.h"
+
+class SolverBase;
 
 class ImuManager {
 public:
-    ImuManager(const Param& param, std::shared_ptr<State> state)
+    ImuManager(const Param& param, std::shared_ptr<State> state, std::shared_ptr<MsckfSolverBase> solver)
     {
-        _sigma_na = param.sigma_ba;
-        _sigma_nw = param.sigma_nw;
-        _sigma_ba = param.sigma_ba;
-        _sigma_bg = param.sigma_bg;
         _imu_acc_var_static_thres = param.imu_acc_var_static_thres;
         _imu_gyro_static_thres = param.imu_gyro_static_thres;
         _gravity_magn = Eigen::Vector3d(0, 0, -param.gravity_magn);
         _data = std::make_shared<std::deque<ImuData>>();
+        solver_ = solver;
     }
 
     ~ImuManager() { }
@@ -38,17 +38,20 @@ public:
 
     void ClearExpiredMeasurements(const double ts);
 
-    double _sigma_na;
-    double _sigma_nw;
-    double _sigma_ba;
-    double _sigma_bg;
+    void SetImuNoise(const double sigma_na, const double sigma_nw, const double sigma_ba, const double sigma_bg);
 
     double _imu_latest_timestamp = 0;
+
+    inline static double _sigma_na;
+    inline static double _sigma_nw;
+    inline static double _sigma_ba;
+    inline static double _sigma_bg;
 
 private:
     std::shared_ptr<std::deque<ImuData>> _data;
     Eigen::Vector3d _gravity_magn;
     double _imu_acc_var_static_thres = 0.5;
     double _imu_gyro_static_thres = 0.5;
+    std::shared_ptr<MsckfSolverBase> solver_;
 };
 #endif

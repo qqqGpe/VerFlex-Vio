@@ -182,12 +182,13 @@ void VioManager::ProcessMeasurementOnce()
         // stereo visual initialization
         if (!initializer->IsInitialized())
         {
-            eskfSolver::PropagateStateAndCovariance(state, _imu_manager, feature_observes.first);
+            std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(state->_imu_state->ts(), feature_observes.first);
+            solver->PropagateStateAndCovariance(imu_data, feature_observes.first, state);
             if (initializer->StereoVisualInitialize(feature_observes))
             {
                 log_value.init_vnorm = state->_imu_state->v()->vec().norm();
                 last_update_timestamp_ = state->ts_sec();
-                state->StochasticClone(state->_imu_state->pose());
+                solver->StochasticClone(state);
                 GroundTruth gt_pv = InterpolateGroundTruth(feature_observes.first);
                 log_value.groundtruth_vnorm = gt_pv.v_.norm();
             }
@@ -196,7 +197,9 @@ void VioManager::ProcessMeasurementOnce()
 
         // if (_imu_manager->IsStaticStatus())
         // {
-        //     eskfSolver::PropagateStateAndCovariance(state, _imu_manager, _imu_manager->_imu_latest_timestamp - 0.1);
+        //     std::vector<ImuData> imu_data =
+        //         _imu_manager->AccessIntervalImuMeasurements(state->_imu_state->ts(), _imu_manager->_imu_latest_timestamp - 0.1);
+        //     solver->PropagateStateAndCovariance(imu_data, _imu_manager->_imu_latest_timestamp - 0.1, state);
         //     _imu_manager->ZuptUpdate(state);
 
         //     last_update_timestamp_ = state->ts_sec();
@@ -211,8 +214,9 @@ void VioManager::ProcessMeasurementOnce()
         }
         else
         {
-            eskfSolver::PropagateStateAndCovariance(state, _imu_manager, feature_observes.first);
-            state->StochasticClone(state->_imu_state->pose());
+            std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(state->_imu_state->ts(), feature_observes.first);
+            solver->PropagateStateAndCovariance(imu_data, feature_observes.first, state);
+            solver->StochasticClone(state);
             _visual_manager->UpdateFeature(feature_observes);  // visual update
             if (_visual_manager->VisualUpdate())
             {

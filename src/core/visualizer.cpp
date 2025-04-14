@@ -33,7 +33,8 @@ void Visualizer::PublishVioState()
     state_pub.push_back(app_->state->_imu_state->p());
     state_pub.push_back(app_->state->_imu_state->q());
 
-    Eigen::MatrixXd covariance_small = app_->state->GetMarginalCovariance(state_pub);
+    Eigen::MatrixXd covariance_small = eskfSolver::MarginalCovariance(app_->state, state_pub);
+
     for (int r = 0; r < 6; r++)
     {
         for (int c = 0; c < 6; c++)

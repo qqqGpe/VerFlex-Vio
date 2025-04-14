@@ -101,7 +101,7 @@ void ImuManager::ZuptUpdate(std::shared_ptr<State> state)
     ImuData imu_data = GetImuData(state->ts_sec());
     ConstructZuptConstraint(state, imu_data, Hx, _Hx_order, _map_hx, res);
     Eigen::MatrixXd R = Eigen::MatrixXd::Identity(res.rows(), res.rows());
-    eskfSolver::update(state, Hx, res, _Hx_order, _map_hx, R);
+    solver_->update(state, Hx, res, _Hx_order, _map_hx, R);
 }
 
 void ImuManager::ConstructZuptConstraint(std::shared_ptr<State> state,
@@ -185,6 +185,15 @@ void ImuManager::ClearExpiredMeasurements(const double ts)
             _data->pop_front();
         }
     }
+}
+
+void ImuManager::SetImuNoise(const double sigma_na, const double sigma_nw, const double sigma_ba, const double sigma_bg)
+{
+    _sigma_na = sigma_na;
+    _sigma_nw = sigma_nw;
+    _sigma_ba = sigma_ba;
+    _sigma_bg = sigma_bg;
+    LOG(INFO) << "Imu noise set: na: " << _sigma_na << ", nw: " << _sigma_nw << ", ba: " << _sigma_ba << ", bg: " << _sigma_bg;
 }
 
 bool ImuManager::IsStaticStatus()

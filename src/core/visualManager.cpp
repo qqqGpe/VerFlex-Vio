@@ -8,7 +8,6 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-#include "eskf_solver.h"
 #include "mathematical_tools.h"
 #include "visualManager.h"
 
@@ -104,7 +103,7 @@ bool VisualManager::VisualUpdate()
 
         if (_state->_clone_pose.size() >= 2)
         {
-            eskfSolver::update(_state, Hx_msckf, res, _Hx_order, _map_hx, R);
+            solver_->update(_state, Hx_msckf, res, _Hx_order, _map_hx, R);
             visual_updated = true;
         }
     }
@@ -133,7 +132,8 @@ bool VisualManager::VisualUpdate()
         }
     }
 
-    _state->MarginalizeState(state_to_marginalize);
+    // _state->MarginalizeState(state_to_marginalize);
+    solver_->MarginalizeState(_state, state_to_marginalize);
 
     return visual_updated;
 }

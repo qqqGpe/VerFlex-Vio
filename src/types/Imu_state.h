@@ -23,7 +23,8 @@ class IMU_state : public Type
         _v->reset();
         _bg->reset();
         _ba->reset();
-        _covariance = Eigen::MatrixXd::Identity(15, 15);
+        covariance_ = Eigen::MatrixXd::Zero(15, 15);
+        sqrt_Pt_ = Eigen::MatrixXd::Zero(15, 15);
     }
 
     virtual void set_ts(const double ts) override
@@ -76,7 +77,14 @@ class IMU_state : public Type
     {
         assert(covariance_new.rows() == 15);
         assert(covariance_new.cols() == 15);
-        _covariance.noalias() = covariance_new;
+        covariance_.noalias() = covariance_new;
+    }
+
+    void set_sqrt_Pt(const Eigen::MatrixXd& sqrt_Pt_new)
+    {
+        assert(sqrt_Pt_new.rows() == 15);
+        assert(sqrt_Pt_new.cols() == 15);
+        sqrt_Pt_.noalias() = sqrt_Pt_new;
     }
 
     virtual std::shared_ptr<Type> clone() override
@@ -96,7 +104,8 @@ class IMU_state : public Type
         return clone_variable;
     }
 
-    Eigen::MatrixXd covariance() const { return _covariance; }
+    Eigen::MatrixXd covariance() const { return covariance_; }
+    Eigen::MatrixXd Sqrt_Pt() const { return sqrt_Pt_; }
 
     std::shared_ptr<Pose> pose() const { return _pose; }
     std::shared_ptr<Quat> q() const { return _pose->_q; }
@@ -114,7 +123,8 @@ class IMU_state : public Type
     std::shared_ptr<Vec> _v;
     std::shared_ptr<Vec> _ba;
     std::shared_ptr<Vec> _bg;
-    Eigen::MatrixXd _covariance = Eigen::MatrixXd::Identity(15, 15);
+    Eigen::MatrixXd covariance_ = Eigen::MatrixXd::Zero(15, 15);
+    Eigen::MatrixXd sqrt_Pt_ = Eigen::MatrixXd::Zero(15, 15);
 };
 
 #endif

@@ -9,6 +9,9 @@
 #include "parameter.h"
 #include "sensor_data.h"
 #include "state.h"
+#include "solver.h"
+#include "eskf_solver.h"
+#include "sqrt_eskf_solver.h"
 
 namespace {
     constexpr int kMaxImageBufferSize = 10000;
@@ -27,13 +30,17 @@ class VisualManager
         }
     }
 
-    VisualManager(const Param& paramters, std::shared_ptr<State>& state, std::shared_ptr<CameraModel>& camera_model)
+    VisualManager(const Param& paramters,
+                  std::shared_ptr<State>& state,
+                  std::shared_ptr<CameraModel>& camera_model,
+                  std::shared_ptr<MsckfSolverBase> solver = nullptr)
     {
         _state = state;
         _camera_model = camera_model;
         vio_frontend = std::make_shared<VioFrontend>(paramters, camera_model, &_keyframe);
         _max_clone_pose = paramters.max_clone_pose;
         _max_feat_n = paramters.max_feat_n;
+        solver_ = solver;
         for (int i = 0; i < _max_feat_n; i++)
         {
             Feature* feat = new Feature();
@@ -120,6 +127,7 @@ class VisualManager
     std::unordered_map<std::shared_ptr<Type>, size_t> _map_hx;
     std::vector<std::shared_ptr<Type>> _Hx_order;
     int _origin_feature_tracked = 0.f;
+    std::shared_ptr<MsckfSolverBase> solver_;
 };
 
 #endif
