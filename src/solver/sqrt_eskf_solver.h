@@ -298,6 +298,9 @@ class SqrtEskfSolver : public MsckfSolverBase
         assert(SqrtPt_tmp.cols() == state->Sqrt_Pt().cols());
         state->SetSqrtPt(SqrtPt_propagated);
 
+        Eigen::MatrixXd Cov_full = SqrtPt_propagated.transpose() * SqrtPt_propagated;
+        state->SetCovariance(0.5 * (Cov_full + Cov_full.transpose()));
+
         return true;
     }
 };

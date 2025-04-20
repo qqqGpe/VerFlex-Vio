@@ -24,7 +24,7 @@ find_package(glog REQUIRED)
 
 catkin_package(
  LIBRARIES vio_backend
- INCLUDE_DIRS src/core src/states src/types src/utils
+ INCLUDE_DIRS src/core src/types src/utils
  CATKIN_DEPENDS cv_bridge geometry_msgs nav_msgs image_transport nav_msgs rosbag roscpp sensor_msgs std_msgs tf
 )
 
@@ -33,7 +33,6 @@ include_directories(
   ${Boost_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
   ${Sophus_INCLUDE_DIRS}
-  src/states/
   src/types/
   src/utils/
   src/core/
@@ -56,7 +55,6 @@ add_library(
         ${CORE_FILE_LIST}
 )
 target_include_directories(msckf_core PUBLIC
-src/states/
 src/types/
 src/utils/
 src/solver)
