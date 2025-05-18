@@ -29,7 +29,7 @@ class ImuPreintegrator
         }
     }
 
-    inline static ImuPreintegrator midPointIntegrate(std::shared_ptr<State> state, const std::vector<ImuData> imu_input, const double ts_start, const double ts_end);
+    static ImuPreintegrator midPointIntegrate(std::shared_ptr<State> state, const std::vector<ImuData> imu_input, const double ts_start, const double ts_end);
 
     void update(const Eigen::Vector3d delta_ba, const Eigen::Vector3d delta_bg);
 
@@ -63,7 +63,7 @@ class ImuPreintegrator
     double start_ts_ = 0.f;
     double end_ts_ = 0.f;
     std::vector<ImuData> imu_data_;
-    Imu_State imu_state_;
+    ImuState imu_state_;
     Eigen::Matrix3d dR_ = Eigen::Matrix3d::Identity();
     Eigen::Vector3d dp_ = Eigen::Vector3d::Zero();
     Eigen::Vector3d dv_ = Eigen::Vector3d::Zero();

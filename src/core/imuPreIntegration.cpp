@@ -1,14 +1,16 @@
 #include "imuPreIntegration.h"
 
-inline static ImuPreintegrator ImuPreintegrator::midPointIntegrate(std::shared_ptr<State> state,
-                                         const std::vector<ImuData> imu_input,
-                                         const double ts_start,
-                                         const double ts_end)
+ImuPreintegrator ImuPreintegrator::midPointIntegrate(std::shared_ptr<State> state,
+                                                     const std::vector<ImuData> imu_input,
+                                                     const double ts_start,
+                                                     const double ts_end)
 {
+    ImuPreintegrator preIntegrator;
+
     if (ts_start >= ts_end || imu_input.empty())
     {
-        LOG(WARNING) << "Invalid imu data or time range for mid-point integration";
-        return;
+        LOG(ERROR) << "Invalid imu data or time range for mid-point integration";
+        return preIntegrator;
     }
 
     const uint32_t p_id = state->_imu_state->p()->id();
@@ -28,8 +30,8 @@ inline static ImuPreintegrator ImuPreintegrator::midPointIntegrate(std::shared_p
     // Cov_m.block(kNoiseGyroBiasId, kNoiseGyroBiasId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_bg, 2);
     // Cov_m.block(kNoiseAccBiasId, kNoiseAccBiasId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_ba, 2);
 
-    Eigen::Matrix3d dp = Eigen::Matrix3d::Zero();
-    Eigen::Matrix3d dv = Eigen::Matrix3d::Zero();
+    Eigen::Vector3d dp = Eigen::Vector3d::Zero();
+    Eigen::Vector3d dv = Eigen::Vector3d::Zero();
     Eigen::Matrix3d dR = Eigen::Matrix3d::Identity();
     Eigen::Matrix3d dp_dba = Eigen::Matrix3d::Zero();
     Eigen::Matrix3d dp_dbg = Eigen::Matrix3d::Zero();
@@ -38,8 +40,8 @@ inline static ImuPreintegrator ImuPreintegrator::midPointIntegrate(std::shared_p
     Eigen::Matrix3d dR_dbg = Eigen::Matrix3d::Zero();
     Eigen::Matrix3d Cov = Eigen::Matrix3d::Zero();
 
-    Eigen::Vector3d ba = state->getImuState()->ba()->vec();
-    Eigen::Vector3d bg = state->getImuState()->bg()->vec();
+    Eigen::Vector3d ba = state->_imu_state->ba()->vec();
+    Eigen::Vector3d bg = state->_imu_state->bg()->vec();
 
     for (int i = 0; i < imu_input.size() - 1; i++)
     {
@@ -85,11 +87,10 @@ inline static ImuPreintegrator ImuPreintegrator::midPointIntegrate(std::shared_p
         }
     }
 
-    ImuPreintegrator preIntegrator;
     preIntegrator.start_ts_ = ts_start;
     preIntegrator.end_ts_ = ts_end;
     preIntegrator.imu_data_ = imu_input;
-    preIntegrator.imu_state_ = *state->getImuState();
+    preIntegrator.imu_state_ = state->getImuState();
     preIntegrator.set_dp(dp);
     preIntegrator.set_dv(dv);
     preIntegrator.set_dR(dR);
