@@ -78,6 +78,7 @@
         <param name="sigma_ba"              type="double" value="3.0000e-3" />
         <param name="sigma_bg"              type="double" value="1.9393e-03" />
 
+        <!-- 0: eskf_solver, 1: sqrt_root_eskf_solver -->
         <param name="solver_type"            type="int"    value="1" />
 
         <rosparam param="camera_topic">   ["/cam0/image_raw", "/cam1/image_raw"]   </rosparam>

@@ -27,7 +27,7 @@ class Initializer
         state_ = state;
         gravity_mag = paramters.gravity_magn;
     }
-    ~Initializer() {};
+    virtual ~Initializer() {};
 
     void reset();
 

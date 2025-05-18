@@ -25,7 +25,7 @@ class State
    public:
     State()
     {
-        _imu_state = std::make_shared<IMU_state>();
+        _imu_state = std::make_shared<ImuState>();
         _Tic = std::make_shared<Pose>();
 
         // initialize local id
@@ -104,6 +104,8 @@ class State
         _imu_state->set_sqrt_Pt(sqrt_Pt_new.block(_imu_state->id(), _imu_state->id(), _imu_state->size(), _imu_state->size()));
     }
 
+    ImuState getImuState() { return *_imu_state; }
+
     void reset()
     {
         _imu_state->reset();
@@ -118,7 +120,7 @@ class State
     }
 
     int _dim = 0;
-    std::shared_ptr<IMU_state> _imu_state;
+    std::shared_ptr<ImuState> _imu_state;
     std::map<double, std::shared_ptr<Pose>> _clone_pose;
     std::shared_ptr<Pose> _Tic;  // R_CtoI, p_CinI
     std::vector<std::shared_ptr<Type>> _variables;

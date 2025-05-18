@@ -27,7 +27,7 @@ class MsckfSolverBase
 {
    public:
     MsckfSolverBase() = default;
-    ~MsckfSolverBase() = default;
+    virtual ~MsckfSolverBase() {}
 
     virtual void update(std::shared_ptr<State>& state,
                         const Eigen::Ref<Eigen::MatrixXd>& Hx,

@@ -15,7 +15,7 @@ Visualizer::Visualizer(std::shared_ptr<ros::NodeHandle> &nh, std::shared_ptr<Vio
 
 void Visualizer::PublishVioState()
 {
-    std::shared_ptr<IMU_state> imu_state = app_->state->_imu_state;
+    std::shared_ptr<ImuState> imu_state = app_->state->_imu_state;
 
     geometry_msgs::PoseWithCovarianceStamped pose_imu;
     pose_imu.header.stamp = ros::Time(imu_state->ts());

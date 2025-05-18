@@ -14,8 +14,8 @@ using namespace Sophus;
 class SqrtEskfSolver : public MsckfSolverBase
 {
    public:
-   SqrtEskfSolver() = default;
-    ~SqrtEskfSolver() {}
+    SqrtEskfSolver() = default;
+    virtual ~SqrtEskfSolver() {}
 
     virtual void StochasticClone(std::shared_ptr<State> state) override
     {
@@ -199,20 +199,16 @@ class SqrtEskfSolver : public MsckfSolverBase
         uint32_t bg_id = state->_imu_state->bg()->id();
         uint32_t ba_id = state->_imu_state->ba()->id();
 
-        uint32_t na_id = 0;
-        uint32_t ng_id = 3;
-        uint32_t nbg_id = 6;
-        uint32_t nba_id = 9;
+        constexpr uint32_t kNoiseAccId = 0;
+        constexpr uint32_t kNoiseGyroId = 3;
+        constexpr uint32_t kNoiseGyroBiasId = 6;
+        constexpr uint32_t kNoiseAccBiasId = 9;
 
-        double sigma_a2 = std::pow(ImuManager::_sigma_na, 2);
-        double sigma_w2 = std::pow(ImuManager::_sigma_nw, 2);
-        double sigma_bg2 = std::pow(ImuManager::_sigma_bg, 2);
-        double sigma_ba2 = std::pow(ImuManager::_sigma_ba, 2);
         Eigen::MatrixXd Q = Eigen::MatrixXd::Identity(12, 12);
-        Q.block(na_id, na_id, 3, 3) = Eigen::Matrix3d::Identity() * sigma_a2;
-        Q.block(ng_id, ng_id, 3, 3) = Eigen::Matrix3d::Identity() * sigma_w2;
-        Q.block(nbg_id, nbg_id, 3, 3) = Eigen::Matrix3d::Identity() * sigma_bg2;
-        Q.block(nba_id, nba_id, 3, 3) = Eigen::Matrix3d::Identity() * sigma_ba2;
+        Q.block(kNoiseAccId, kNoiseAccId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_na, 2);
+        Q.block(kNoiseGyroId, kNoiseGyroId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_nw, 2);
+        Q.block(kNoiseGyroBiasId, kNoiseGyroBiasId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_bg, 2);
+        Q.block(kNoiseAccBiasId, kNoiseAccBiasId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_ba, 2);
 
         Eigen::MatrixXd Phi_sum = Eigen::MatrixXd::Identity(imu_state_dim, imu_state_dim);
         Eigen::MatrixXd Q_sum = Eigen::MatrixXd::Zero(imu_state_dim, imu_state_dim);
@@ -256,11 +252,11 @@ class SqrtEskfSolver : public MsckfSolverBase
                 F.block<3, 3>(ba_id, ba_id) = Eigen::Matrix3d::Identity();
 
                 // For measurement noise
-                G.block<3, 3>(th_id, ng_id) = -Eigen::Matrix3d::Identity() * dt;
-                G.block<3, 3>(p_id, na_id) = -0.5 * R * dt * dt;
-                G.block<3, 3>(v_id, na_id) = -R * dt;
-                G.block<3, 3>(bg_id, nbg_id) = Eigen::Matrix3d::Identity();
-                G.block<3, 3>(ba_id, nba_id) = Eigen::Matrix3d::Identity();
+                G.block<3, 3>(th_id, kNoiseGyroId) = -Eigen::Matrix3d::Identity() * dt;
+                G.block<3, 3>(p_id, kNoiseAccId) = -0.5 * R * dt * dt;
+                G.block<3, 3>(v_id, kNoiseAccId) = -R * dt;
+                G.block<3, 3>(bg_id, kNoiseGyroBiasId) = Eigen::Matrix3d::Identity();
+                G.block<3, 3>(ba_id, kNoiseAccBiasId) = Eigen::Matrix3d::Identity();
 
                 // State propagation
                 P_next = P + V * dt - 0.5 * state->_imu_state->gravity_inG * dt * dt + 0.5 * (R * am_mid * dt * dt);

@@ -6,8 +6,6 @@
 #include "state.h"
 #include "solver.h"
 
-class SolverBase;
-
 class ImuManager {
 public:
     ImuManager(const Param& param, std::shared_ptr<State> state, std::shared_ptr<MsckfSolverBase> solver)

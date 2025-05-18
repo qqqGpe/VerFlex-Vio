@@ -189,7 +189,7 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
         return false;
     }
 
-    std::shared_ptr<IMU_state>& imu_state = state_->_imu_state;
+    std::shared_ptr<ImuState>& imu_state = state_->_imu_state;
     assert(imu_state->ts() == ts_sec);
     Eigen::Matrix3d R_ItoG = imu_state->q()->Rot();
     Eigen::Matrix3d R_CtoI = state_->_Tic->quat().toRotationMatrix();
@@ -283,7 +283,7 @@ bool Initializer::StaticInitialize()
     Eigen::Vector3d init_bg = gyro_mean;
     Eigen::Vector3d init_ba = acc_mean - R_GtoI * gravity_inG;
 
-    std::shared_ptr<IMU_state>& imu_state = state_->_imu_state;
+    std::shared_ptr<ImuState>& imu_state = state_->_imu_state;
 
     // initialize static imu state
     Eigen::VectorXd init_imu_state = Eigen::VectorXd::Zero(16);

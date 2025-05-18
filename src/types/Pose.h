@@ -73,7 +73,7 @@ class Pose : public Type
     Eigen::Quaterniond quat_fej() const { return _q->q_fej(); }
     Eigen::Vector3d p_fej() const { return _p->fej(); }
 
-    friend class IMU_state;
+    friend class ImuState;
 
    protected:
     std::shared_ptr<Quat> _q;

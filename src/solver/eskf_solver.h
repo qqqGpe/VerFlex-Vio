@@ -15,7 +15,7 @@ class eskfSolver : public MsckfSolverBase
 {
    public:
     eskfSolver() = default;
-    ~eskfSolver() {}
+    virtual ~eskfSolver() {}
 
     virtual void StochasticClone(std::shared_ptr<State> state) override
     {
@@ -218,27 +218,23 @@ class eskfSolver : public MsckfSolverBase
         Eigen::Vector3d ba_next = ba;
         Eigen::Vector3d bg_next = bg;
 
-        uint32_t dim = state->_imu_state->size();
-        uint32_t th_id = state->_imu_state->q()->id();
-        uint32_t p_id = state->_imu_state->p()->id();
-        uint32_t v_id = state->_imu_state->v()->id();
-        uint32_t bg_id = state->_imu_state->bg()->id();
-        uint32_t ba_id = state->_imu_state->ba()->id();
+        const uint32_t dim = state->_imu_state->size();
+        const uint32_t th_id = state->_imu_state->q()->id();
+        const uint32_t p_id = state->_imu_state->p()->id();
+        const uint32_t v_id = state->_imu_state->v()->id();
+        const uint32_t bg_id = state->_imu_state->bg()->id();
+        const uint32_t ba_id = state->_imu_state->ba()->id();
 
-        uint32_t na_id = 0;
-        uint32_t ng_id = 3;
-        uint32_t nbg_id = 6;
-        uint32_t nba_id = 9;
+        constexpr uint32_t kNoiseAccId = 0;
+        constexpr uint32_t kNoiseGyroId = 3;
+        constexpr uint32_t kNoiseGyroBiasId = 6;
+        constexpr uint32_t kNoiseAccBiasId = 9;
 
-        double sigma_a2 = std::pow(ImuManager::_sigma_na, 2);
-        double sigma_w2 = std::pow(ImuManager::_sigma_nw, 2);
-        double sigma_bg2 = std::pow(ImuManager::_sigma_bg, 2);
-        double sigma_ba2 = std::pow(ImuManager::_sigma_ba, 2);
         Eigen::MatrixXd Cov_m = Eigen::MatrixXd::Identity(12, 12);
-        Cov_m.block(na_id, na_id, 3, 3) = Eigen::Matrix3d::Identity() * sigma_a2;
-        Cov_m.block(ng_id, ng_id, 3, 3) = Eigen::Matrix3d::Identity() * sigma_w2;
-        Cov_m.block(nbg_id, nbg_id, 3, 3) = Eigen::Matrix3d::Identity() * sigma_bg2;
-        Cov_m.block(nba_id, nba_id, 3, 3) = Eigen::Matrix3d::Identity() * sigma_ba2;
+        Cov_m.block(kNoiseAccId, kNoiseAccId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_na, 2);
+        Cov_m.block(kNoiseGyroId, kNoiseGyroId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_nw, 2);
+        Cov_m.block(kNoiseGyroBiasId, kNoiseGyroBiasId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_bg, 2);
+        Cov_m.block(kNoiseAccBiasId, kNoiseAccBiasId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_ba, 2);
 
         Eigen::MatrixXd Phi_sum = Eigen::MatrixXd::Identity(dim, dim);
         Eigen::MatrixXd Cov_imu_old = state->_imu_state->covariance().block<15, 15>(state->_imu_state->id(), state->_imu_state->id());
@@ -284,11 +280,11 @@ class eskfSolver : public MsckfSolverBase
                 F.block<3, 3>(ba_id, ba_id) = Eigen::Matrix3d::Identity();
 
                 // for sigma noise
-                G.block<3, 3>(th_id, ng_id) = -Eigen::Matrix3d::Identity() * dt;
-                G.block<3, 3>(p_id, na_id) = -0.5 * R * dt * dt;
-                G.block<3, 3>(v_id, na_id) = -R * dt;
-                G.block<3, 3>(bg_id, nbg_id) = Eigen::Matrix3d::Identity();
-                G.block<3, 3>(ba_id, nba_id) = Eigen::Matrix3d::Identity();
+                G.block<3, 3>(th_id, kNoiseGyroId) = -Eigen::Matrix3d::Identity() * dt;
+                G.block<3, 3>(p_id, kNoiseAccId) = -0.5 * R * dt * dt;
+                G.block<3, 3>(v_id, kNoiseAccId) = -R * dt;
+                G.block<3, 3>(bg_id, kNoiseGyroBiasId) = Eigen::Matrix3d::Identity();
+                G.block<3, 3>(ba_id, kNoiseAccBiasId) = Eigen::Matrix3d::Identity();
 
                 // state propagation
                 P_next = P + V * dt - 0.5 * state->_imu_state->gravity_inG * dt * dt + 0.5 * (R * am_mid * dt * dt);

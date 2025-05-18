@@ -5,10 +5,10 @@
 #include "Type.h"
 #include "Vec.h"
 
-class IMU_state : public Type
+class ImuState : public Type
 {
    public:
-    IMU_state() : Type(15)
+    ImuState() : Type(15)
     {
         state_name = "Imu_state";
         _pose = std::make_shared<Pose>();
@@ -89,7 +89,7 @@ class IMU_state : public Type
 
     virtual std::shared_ptr<Type> clone() override
     {
-        std::shared_ptr<IMU_state> clone_variable = std::make_shared<IMU_state>();
+        std::shared_ptr<ImuState> clone_variable = std::make_shared<ImuState>();
         clone_variable->_pose = std::dynamic_pointer_cast<Pose>(_pose->clone());
         clone_variable->_v = std::dynamic_pointer_cast<Vec>(_v->clone());
         clone_variable->_bg = std::dynamic_pointer_cast<Vec>(_bg->clone());

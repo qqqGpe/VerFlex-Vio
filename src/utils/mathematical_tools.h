@@ -9,17 +9,23 @@
 class MathUtils
 {
    public:
-    static Eigen::Matrix<double, 3, 3> skew(const Eigen::Vector3d& w)
+   template <typename Derived>
+    static Eigen::Matrix<typename Derived::Scalar, 3, 3> skew(const Eigen::MatrixBase<Derived>& w)
     {
-        Eigen::Matrix<double, 3, 3> w_x;
+        assert(w.rows() == 3 && w.cols() == 1);
+        typedef typename Derived::Scalar Scalar_t;
+        Eigen::Matrix<Scalar_t, 3, 3> w_x;
         w_x << 0, -w(2), w(1), w(2), 0, -w(0), -w(1), w(0), 0;
         return w_x;
     }
 
-    static Eigen::Matrix3d Rodrigues(Eigen::Vector3d vec, double theta)
+    template<typename Derived>
+    static Eigen::Matrix<typename Derived::Scalar, 3, 3> Rodrigues(const Eigen::MatrixBase<Derived> vec, const double theta)
     {
-        Eigen::Matrix3d R;
-        Eigen::Matrix3d I3x3 = Eigen::Matrix3d::Identity();
+        assert(vec.rows() == 3 && vec.cols() == 1);
+        typedef typename Derived::Scalar Scalar_t;
+        Eigen::Matrix<Scalar_t, 3, 3> R;
+        const Eigen::Matrix<Scalar_t, 3, 3> I3x3 = Eigen::Matrix<Scalar_t, 3, 3>::Identity();
         if (theta < 1e-6)
         {
             R = I3x3 + skew(vec * theta);
@@ -72,6 +78,64 @@ class MathUtils
         Eigen::Vector3d p_right = K.inverse() * uv_right.homogeneous();
         double depth = baseline / (p_left - p_right).norm();
         return depth;
+    }
+
+    template <typename Derived>
+    static Derived cot(const Derived& tanx)
+    {
+        if (abs(tanx) < 1e-12)
+        {
+            return 0;
+        }
+        else
+        {
+            return 1.0 / tanx;
+        }
+    }
+
+    template <typename Derived>
+    static Eigen::Matrix<typename Derived::Scalar, 3, 3> Jl(const Eigen::MatrixBase<Derived> &phi)
+    {
+        typedef typename Derived::Scalar Scalar_t;
+        Eigen::Matrix<Scalar_t, 3, 3> Jl;
+        Scalar_t theta = phi.norm();
+        Eigen::Matrix<Scalar_t, 3, 1> vec = phi / theta;
+        if (theta < 1e-12)
+        {
+            Jl = Eigen::Matrix<Scalar_t, 3, 3>::Identity();
+        }
+        else
+        {
+            Jl = (sin(theta) / theta) * Eigen::Matrix<Scalar_t, 3, 3>::Identity() + (1 - sin(theta) / theta) * vec * vec.transpose() +
+                 (1 - cos(theta)) / theta * skew(vec);
+        }
+        return Jl;
+    }
+
+    template <typename Derived>
+    static Eigen::Matrix<typename Derived::Scalar, 3, 3> Jl_inv(const Eigen::MatrixBase<Derived>& phi)
+    {
+        typedef typename Derived::Scalar Scalar_t;
+        Eigen::Matrix<Scalar_t, 3, 3> Jl_inv;
+        Scalar_t theta = phi.norm();
+        if (theta < 1e-12)
+        {
+            Jl_inv = Eigen::Matrix<Scalar_t, 3, 3>::Identity();
+        }
+        else
+        {
+            Scalar_t half_theta = theta / 2;
+            Eigen::Matrix<Scalar_t, 3, 1> vec = phi / theta;
+            Jl_inv = half_theta * cot(half_theta) * Eigen::Matrix<Scalar_t, 3, 3>::Identity() +
+                     (1 - half_theta * cot(half_theta)) * vec * vec.transpose() - half_theta * skew(vec);
+        }
+        return Jl_inv;
+    }
+
+    template <typename Derived>
+    static Eigen::Matrix<typename Derived::Scalar, 3, 3> Jr(const Eigen::MatrixBase<Derived>& phi)
+    {
+        return Jl(-phi);
     }
 
     template <typename Derived>
