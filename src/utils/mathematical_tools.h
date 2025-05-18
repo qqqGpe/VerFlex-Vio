@@ -69,6 +69,11 @@ class MathUtils
         euler_angle(1) = std::atan2(-rot(2, 0), std::sqrt(rot(2, 1) * rot(2, 1) + rot(2, 2) * rot(2, 2)));
         euler_angle(2) = std::atan2(rot(1, 0), rot(0, 0));
 
+        // Format Angle to [-pi, pi]
+        euler_angle(0) = std::fmod(euler_angle(0) + M_PI, 2 * M_PI) - M_PI;
+        euler_angle(1) = std::fmod(euler_angle(1) + M_PI, 2 * M_PI) - M_PI;
+        euler_angle(2) = std::fmod(euler_angle(2) + M_PI, 2 * M_PI) - M_PI;
+
         return euler_angle;
     }
 

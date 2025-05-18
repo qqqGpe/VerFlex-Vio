@@ -16,11 +16,15 @@
 using namespace Eigen;
 using namespace std;
 
+namespace
+{
+constexpr double camera_ts[] = {0.0, 1.0, 2.0, 3.0, 4.0};
+constexpr double intrinsic[] = {458.654, 457.296, 367.215, 248.375};  // fu, fv, cu, cv
+constexpr double baseline = 0.5;
+}  // namespace
+
 Matrix3d K;
 MatrixXd pts_g; // 3d points in world frame
-double camera_ts[] = { 0.0, 1.0, 2.0, 3.0, 4.0 };
-double intrinsic[] = { 458.654, 457.296, 367.215, 248.375 }; // fu, fv, cu, cv
-double baseline = 0.5;
 std::map<double, CameraPose> camera_pose_buffer;
 std::vector<Feature*> feats;
 
@@ -95,8 +99,7 @@ int main()
     pts_g = MatrixXd::Random(3, POINT_NUM_N).array().abs();
     pts_g.block<2, POINT_NUM_N>(0, 0) *= 1;
     pts_g.block<1, POINT_NUM_N>(2, 0) *= 5;
-    std::cout << "generated pwf: \n"
-              << std::endl;
+    std::cout << "generated pwf: \n" << std::endl;
     std::cout << pts_g << std::endl;
 
     VisualManager visual_manager;

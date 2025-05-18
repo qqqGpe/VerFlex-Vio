@@ -21,6 +21,7 @@ find_package(Sophus REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV 4 REQUIRED)
 find_package(glog REQUIRED)
+find_package(GTest REQUIRED)
 
 catkin_package(
  LIBRARIES vio_backend
@@ -33,6 +34,7 @@ include_directories(
   ${Boost_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
   ${Sophus_INCLUDE_DIRS}
+  ${GTEST_INCLUDE_DIRS}
   src/types/
   src/utils/
   src/core/
@@ -74,6 +76,7 @@ target_link_libraries(test_triangulation
                       msckf_core
                       ${catkin_LIBRARIES}
                       ${thirdparty_libraries}
+                      GTest::GTest
 )
 
 add_executable(test_givens_rotation src/test_givens_rotation.cpp)
@@ -81,6 +84,7 @@ target_link_libraries(test_givens_rotation
                       msckf_core
                       ${catkin_LIBRARIES}
                       ${thirdparty_libraries}
+                      GTest::GTest
 )
 
 add_executable(test_feature_jacobian src/test_feature_jacobian.cpp)
@@ -88,21 +92,19 @@ target_link_libraries(test_feature_jacobian
                       msckf_core
                       ${catkin_LIBRARIES}
                       ${thirdparty_libraries}
+                      GTest::GTest
 )
 
 add_executable(test_pnp_ransac src/test_pnp_ransac.cpp)
 target_link_libraries(test_pnp_ransac
                       msckf_core
                       ${catkin_LIBRARIES}
-                      ${thirdparty_libraries})
+                      ${thirdparty_libraries}
+                      GTest::GTest
+  )
 
 add_executable(test_rotation_matrix_to_euler src/test_rotation_matrix_to_euler.cpp)
-
-add_executable(test_show_mat src/test_mat_show.cpp)
-target_link_libraries(test_show_mat
-                      msckf_core
-                      ${catkin_LIBRARIES}
+target_link_libraries(test_rotation_matrix_to_euler
                       ${thirdparty_libraries}
+                      GTest::GTest
 )
-# target_link_libraries(test_rotation_matrix_to_euler
-#                       ${thirdparty_libraries})
