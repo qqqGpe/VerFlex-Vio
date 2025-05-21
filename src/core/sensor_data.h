@@ -50,7 +50,6 @@ struct CameraObs
 {
     CameraObs() = default;
     CameraObs(double ts_sec, float u, float v, float ur, float vr) : ts_sec(ts_sec), u(u), v(v), ur(ur), vr(vr) {}
-
     CameraObs(float u, float v, float u_norm, float v_norm) : u(u), v(v), u_norm(u_norm), v_norm(v_norm) {}
 
     void set_invalid()

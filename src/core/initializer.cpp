@@ -62,34 +62,6 @@ Eigen::Matrix3d Initializer::Gram_Schmidt(const Eigen::Vector3d& gravity_inI)
     return R_GtoI;
 }
 
-double Initializer::PixelDistance(CameraObs obs_a, CameraObs obs_b) const
-{
-    double dx = obs_a.u_norm - obs_b.u_norm;
-    double dy = obs_a.v_norm - obs_b.v_norm;
-    return sqrt(dx * dx + dy * dy);
-}
-
-double Initializer::calcVisualObsParallex(std::unordered_map<uint32_t, CameraObs> visual_obs_a,
-                                          std::unordered_map<uint32_t, CameraObs> visual_obs_b) const
-{
-    double average_parallex = 0.0;
-    int count = 0;
-    for (const auto& [feature_id, obs_a] : visual_obs_a)
-    {
-        if (visual_obs_b.find(feature_id) != visual_obs_b.end())
-        {
-            CameraObs obs_b = visual_obs_b.at(feature_id);
-            double parallex = PixelDistance(obs_a, obs_b);
-            average_parallex += parallex;
-            count++;
-        }
-    }
-    if (count > 0)
-    {
-        average_parallex = average_parallex / count;
-    }
-    return average_parallex;
-}
 
 bool Initializer::IsInitialized()
 {
@@ -139,7 +111,7 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     double max_average_parallex = -1.f;
     for (const auto& prev_feature_umap : feature_obs_buffer_)
     {
-        double average_parallex = calcVisualObsParallex(prev_feature_umap, current_feature_umap);
+        double average_parallex = VisualManager::calcVisualObsParallex(prev_feature_umap, current_feature_umap);
         if (average_parallex > max_average_parallex)
         {
             max_average_parallex = average_parallex;

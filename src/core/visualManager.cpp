@@ -303,6 +303,34 @@ void VisualManager::ResetFeatureBase()
     _feature_tracked.clear();
 }
 
+double VisualManager::calcVisualObsParallex(std::unordered_map<uint32_t, CameraObs> visual_obs_a,
+                                            std::unordered_map<uint32_t, CameraObs> visual_obs_b)
+{
+    double average_parallex = 0.0;
+    auto PixelDistance = [](CameraObs obs_a, CameraObs obs_b) {
+        double dx = obs_a.u_norm - obs_b.u_norm;
+        double dy = obs_a.v_norm - obs_b.v_norm;
+        return sqrt(dx * dx + dy * dy);
+    };
+
+    int count = 0;
+    for (const auto& [feature_id, obs_a] : visual_obs_a)
+    {
+        if (visual_obs_b.find(feature_id) != visual_obs_b.end())
+        {
+            CameraObs obs_b = visual_obs_b.at(feature_id);
+            double parallex = PixelDistance(obs_a, obs_b);
+            average_parallex += parallex;
+            count++;
+        }
+    }
+    if (count > 0)
+    {
+        average_parallex = average_parallex / count;
+    }
+    return average_parallex;
+}
+
 void VisualManager::InitFeatureBase(std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_feature_triangulated)
 {
     int cnt = 0;

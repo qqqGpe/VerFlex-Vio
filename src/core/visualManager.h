@@ -90,6 +90,8 @@ class VisualManager
 
     void FeedImages(const std::pair<double, std::pair<cv::Mat, cv::Mat>> input);
 
+    static double calcVisualObsParallex(std::unordered_map<uint32_t, CameraObs> visual_obs_a, std::unordered_map<uint32_t, CameraObs> visual_obs_b);
+
     KeyFrameStatus GetKeyframeState() { return _keyframe; }
 
     std::vector<Feature*> GetFeatureBase() { return _feature_base; }

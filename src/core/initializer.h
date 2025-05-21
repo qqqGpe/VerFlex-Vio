@@ -46,12 +46,7 @@ class Initializer
     bool is_position_initialized = false;
     bool is_velocity_initialized = false;
 
-   private:
-    double calcVisualObsParallex(std::unordered_map<uint32_t, CameraObs> visual_obs_a,
-                                 std::unordered_map<uint32_t, CameraObs> visual_obs_b) const;
-
-    double PixelDistance(CameraObs obs_a, CameraObs obs_b) const;
-
+   protected:
     std::shared_ptr<VisualManager> visual_manager_;
     std::shared_ptr<CameraModel> camera_model_;
     std::shared_ptr<State> state_;
