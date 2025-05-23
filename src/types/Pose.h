@@ -16,6 +16,15 @@ class Pose : public Type
         _p = std::make_shared<Vec>();
     }
 
+    Pose(const Eigen::Matrix3d R, const Eigen::Vector3d t) : Type(6)
+    {
+        state_name = "Pose";
+        _q = std::make_shared<Quat>();
+        _p = std::make_shared<Vec>();
+        _q->set_value(Eigen::Quaterniond(R).coeffs());
+        _p->set_value(t);
+    }
+
     virtual void reset() override
     {
         _q->reset();
