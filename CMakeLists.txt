@@ -17,6 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf
 )
 
+find_package(Ceres REQUIRED)
 find_package(Sophus REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV 4 REQUIRED)
@@ -35,6 +36,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${Sophus_INCLUDE_DIRS}
   ${GTEST_INCLUDE_DIRS}
+  ${CERES_INCLUDE_DIRS}
   src/types/
   src/utils/
   src/core/
@@ -46,6 +48,7 @@ list(APPEND thirdparty_libraries
         ${OpenCV_LIBRARIES}
         ${catkin_LIBRARIES}
         ${Sophus_LIBRARIES}
+        ${CERES_LIBRARIES}
         fmt
         glog::glog
 )

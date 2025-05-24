@@ -1,4 +1,5 @@
 #include "sfm.h"
+#include <optional>
 
 bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& current_feature_observe)
 {
@@ -255,14 +256,14 @@ double Sfm::findReferenceKeyframeTimestamp()
 bool Sfm::initSfmSolver()
 {
     // Find reference keyframe having the largest visual parallex pixels with the oldest keyframe
-    const double oldest_keyframe_timestamp = all_feature_observes_.begin()->first;
+    oldest_keyframe_timestamp_ = all_feature_observes_.begin()->first;
     const std::vector<CameraObs> oldest_keyframe_observes = all_feature_observes_.begin()->second;
-    const double reference_keyframe_timestamp = findReferenceKeyframeTimestamp();
+    reference_keyframe_timestamp_ = findReferenceKeyframeTimestamp();
 
     // Calculate the up-to-scale relative pose between the oldest keyframe and the reference keyframe
     Eigen::Matrix3d R_rto0;
     Eigen::Vector3d p_rin0;
-    std::vector<CameraObs> reference_keyframe_observes = all_feature_observes_[reference_keyframe_timestamp];
+    std::vector<CameraObs> reference_keyframe_observes = all_feature_observes_[reference_keyframe_timestamp_];
     if (!calcRelativePose(oldest_keyframe_observes, reference_keyframe_observes, R_rto0, p_rin0))
     {
         LOG(INFO) << "Failed to calculate relative pose";
@@ -270,8 +271,8 @@ bool Sfm::initSfmSolver()
     }
     Pose reference_keyframe_pose(R_rto0, p_rin0);
     Pose oldest_keyframe_pose(Eigen::Matrix3d::Identity(), Eigen::Vector3d::Zero());
-    keyframe_poses_.insert({oldest_keyframe_timestamp, oldest_keyframe_pose});
-    keyframe_poses_.insert({reference_keyframe_timestamp, reference_keyframe_pose});
+    keyframe_poses_.insert({oldest_keyframe_timestamp_, oldest_keyframe_pose});
+    keyframe_poses_.insert({reference_keyframe_timestamp_, reference_keyframe_pose});
 
     // Triangulate points between the oldest keyframe and the reference keyframe
     triangulateFramePoints(oldest_keyframe_observes, reference_keyframe_observes, oldest_keyframe_pose, reference_keyframe_pose);
@@ -281,7 +282,7 @@ bool Sfm::initSfmSolver()
     std::vector<CameraObs> previous_observes;
     for (auto it = all_feature_observes_.begin(); it != all_feature_observes_.end(); ++it)
     {
-        if (it->first == oldest_keyframe_timestamp && it->first == reference_keyframe_timestamp)
+        if (it->first == oldest_keyframe_timestamp_ && it->first == reference_keyframe_timestamp)
         {
             previous_observes = it->second;
             previous_pose = keyframe_poses_[it->first];
@@ -305,7 +306,7 @@ bool Sfm::initSfmSolver()
     // Clear features having less than 3 observations
     for (auto it = all_features_.begin(); it != all_features_.end();)
     {
-        if (it->second._visual_obs_buffer.size() < 3)
+        if (it->second._visual_obs_buffer.size() < kMinRequiredObservTimesPerFeature)
         {
             it = all_features_.erase(it);
         }
@@ -316,7 +317,7 @@ bool Sfm::initSfmSolver()
     }
 
     // Check if we have enough features for sfm
-    if (all_features_.size() < kMinRequiredKeyframesForSfm)
+    if (all_features_.size() < kMinRequiredFeaturesForSfm)
     {
         LOG(INFO) << "Not enough features for sfm";
         return false;
@@ -340,4 +341,54 @@ bool Sfm::Optimization()
     }
 
     // TODO: Implement optimization logic here
+    ceres::Problem problem;
+    ceres::Manifold *quat_manifold = new ceres::QuaternionManifold();
+    ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
+    double qs[kRequiredKeyframesForSfm][4] = {0.f};
+    double ps[kRequiredKeyframesForSfm][3] = {0.f};
+
+    auto indexInMap = [](const std::map<double, Pose>& poses, const double timestamp) -> std::optional<int>
+    {
+        auto it = poses.find(timestamp);
+        if (it != poses.end())
+            return static_cast<int>(std::distance(poses.begin(), it));
+        return std::nullopt;  // Not found
+    };
+
+    // Set parameter blocks for keyframe poses
+    for (const auto& [timestamp, pose] : keyframe_poses_)
+    {
+        std::optional<int> idx = indexInMap(keyframe_poses_, timestamp);
+        if (!idx.has_value())
+        {
+            LOG(INFO) << "Keyframe pose not found for timestamp: " << timestamp;
+            return false;
+        }
+        Eigen::Quaterniond q(pose.R());
+        Eigen::Vector3d p(pose.t());
+        qs[idx][0] = q.w();
+        qs[idx][1] = q.x();
+        qs[idx][2] = q.y();
+        qs[idx][3] = q.z();
+
+        ps[idx][0] = p.x();
+        ps[idx][1] = p.y();
+        ps[idx][2] = p.z();
+
+        problem.AddParameterBlock(qs[idx], 4, quat_manifold);
+        problem.AddParameterBlock(ps[idx], 3);
+
+        if (timestamp == oldest_keyframe_timestamp_)
+        {
+            problem.SetParameterBlockConstant(qs[i]);
+            problem.SetParameterBlockConstant(ps[i]);
+        }
+        else if (timestamp == reference_keyframe_timestamp_)
+        {
+            problem.SetParameterBlockConstant(ps[i]);
+        }
+    }
+
+    // Add residuals for each feature
+
 }
