@@ -4,40 +4,75 @@
 #include "cameraModel.h"
 #include "parameter.h"
 #include "sensor_data.h"
+#include "mathematical_tools.h"
 #include "Pose.h"
 #include "utils.h"
 
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
-#include <ceres/local_parameterization.h>
 #include <opencv2/core/core.hpp>
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-struct FeatureReprojectionFactor
+struct FeatureReprojectionFactor : ceres::SizedCostFunction<2, 3, 4, 3>
 {
-    FeatureReprojectionFactor(const CameraObs& obs, const Eigen::Vector3d& pwf, const std::shared_ptr<CameraModel>& camera_model)
-        : obs_(obs), pwf_(pwf), camera_model_(camera_model) {}
+public:
+    FeatureReprojectionFactor(const CameraObs &obs) : obs_(obs) {}
 
-    template <typename T>
-    bool operator()(const T* const q, const T* const p, T* residuals) const;
+    bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
+    {
+        Eigen::Vector3d p_finG(parameters[0][0], parameters[0][1], parameters[0][2]);
+        Eigen::Quaterniond q_CtoG(parameters[1][3], parameters[1][0], parameters[1][1], parameters[1][2]);
+        Eigen::Vector3d p_CinG(parameters[2][0], parameters[2][1], parameters[2][2]);
 
-    static ceres::CostFunction* Create(const CameraObs& obs, const Eigen::Vector3d& pwf, const std::shared_ptr<CameraModel>& camera_model);
+        Eigen::Matrix3d R_CtoG = q_CtoG.toRotationMatrix();
+        Eigen::Vector3d p_finC = R_CtoG.transpose() * (p_finG - p_CinG);
 
-   private:
+        residuals[0] = obs_.u_norm - (p_finC(0) / p_finC(2));
+        residuals[1] = obs_.v_norm - (p_finC(1) / p_finC(2));
+
+        Eigen::Matrix<double, 2, 3> dz_dpcf = Eigen::Matrix<double, 2, 3>::Zero();
+        dz_dpcf <<
+            1.0 / p_finC(2), 0, -p_finC(0) / (p_finC(2) * p_finC(2)),
+            0, 1.0 / p_finC(2), -p_finC(1) / (p_finC(2) * p_finC(2));
+
+        if (jacobians)
+        {
+            if (jacobians[0])
+            {
+                Eigen::Matrix<double, 2, 3> dz_dpwf = dz_dpcf * R_CtoG.transpose();
+                Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>>(jacobians[0]) = dz_dpwf;
+            }
+
+            if (jacobians[1])
+            {
+                Eigen::Matrix<double, 2, 3> dz_dqwc = dz_dpcf * R_CtoG.transpose() * MathUtils::skew(p_finG - p_CinG);
+                Eigen::Map<Eigen::Matrix<double, 2, 4, Eigen::RowMajor>> J_dz_dqwc(jacobians[1]);
+                J_dz_dqwc.setZero();
+                J_dz_dqwc.leftCols<3>() = 2 * dz_dqwc;
+            }
+
+            if (jacobians[2])
+            {
+                Eigen::Matrix<double, 2, 3> dz_dpwc = dz_dpcf * (-R_CtoG.transpose());
+                Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>>(jacobians[2]) = dz_dpwc;
+            }
+        }
+        return true;
+    }
+
+private:
     CameraObs obs_;
-    Eigen::Vector3d pwf_;
-    std::shared_ptr<CameraModel> camera_model_;
 };
 
 class Sfm
 {
-   public:
+public:
     Sfm() = default;
-    Sfm(const Param& parameters, const std::shared_ptr<CameraModel> camera_model) { camera_model_ = camera_model; }
+    Sfm(const Param &parameters, const std::shared_ptr<CameraModel> camera_model) { camera_model_ = camera_model; }
     virtual ~Sfm() = default;
 
-    void ResetSfm()
+    void Reset()
     {
         all_features_.clear();
         all_feature_observes_.clear();
@@ -48,13 +83,16 @@ class Sfm
         reference_keyframe_timestamp_ = 0.f;
     }
 
-    void triangulateFramePoints(const std::vector<CameraObs>& obs_A, const std::vector<CameraObs>& obs_B, const Pose& pose_a, const Pose& pose_b);
+    template <typename KeyType, typename ValueType>
+    std::optional<int> indexInMap(const std::map<KeyType, ValueType> &map, const KeyType &key) const;
 
-    Eigen::Vector3d triangulatePoint(const Pose pose0, const Pose pose1, const Vector2d& point0, const Vector2d& point1);
+    void triangulateFramePoints(const std::vector<CameraObs> &obs_A, const std::vector<CameraObs> &obs_B, const Pose &pose_a, const Pose &pose_b);
+
+    Eigen::Vector3d triangulatePoint(const Pose pose0, const Pose pose1, const Vector2d &point0, const Vector2d &point1);
 
     bool initSfmSolver();
 
-    bool MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& feature_observes);
+    bool MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>> &feature_observes);
 
     bool solveFrameByPnp(const std::vector<CameraObs> current_obsv, Pose &current_pose);
 
@@ -64,21 +102,22 @@ class Sfm
 
     bool isReady() const { return all_feature_observes_.size() == kRequiredKeyframesForSfm; }
 
-    bool calcRelativePose(const std::vector<CameraObs>& obs_a,
-                          const std::vector<CameraObs>& obs_b,
-                          Eigen::Matrix3d& R_relative,
-                          Eigen::Vector3d& p_relative);
+    bool calcRelativePose(const std::vector<CameraObs> &obs_a,
+                          const std::vector<CameraObs> &obs_b,
+                          Eigen::Matrix3d &R_relative,
+                          Eigen::Vector3d &p_relative);
 
     std::map<double, Pose> getSfmPoses() const { return keyframe_poses_; }
 
     static constexpr uint32_t kMinRequiredObservTimesPerFeature = 3;
     static constexpr uint32_t kMinRequiredFeaturesPerFrame = 20;
     static constexpr double kMaxTimeIntervalBetweenKeyframes = 2.0f;  // seconds
-    static constexpr double kMinPixelParallexBetweenKeyframes = 5.0f;  // pixels
+    static constexpr double kMinPixelParallexBetweenKeyframes = 5.0f; // pixels
     static constexpr uint32_t kMinRequiredFeaturesForSfm = 50;
+    static constexpr uint32_t kMaxFeaturesForSfm = 200;
     static constexpr uint32_t kRequiredKeyframesForSfm = 10;
 
-   private:
+private:
     std::shared_ptr<CameraModel> camera_model_;
     std::map<double, std::vector<CameraObs>> all_feature_observes_;
     std::map<uint32_t, Feature> all_features_;

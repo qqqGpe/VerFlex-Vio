@@ -1,7 +1,7 @@
 #include "sfm.h"
 #include <optional>
 
-bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& current_feature_observe)
+bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>> &current_feature_observe)
 {
     if (feature_observes.second.size() < kMinRequiredFeaturesPerFrame)
     {
@@ -18,11 +18,11 @@ bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& 
     {
         std::unordered_map<uint32_t, CameraObs> latest_keyframe_observe_umap;
         std::unordered_map<uint32_t, CameraObs> current_keyframe_observe_umap;
-        for (auto& obs : latest_keyframe_observe_.second)
+        for (auto &obs : latest_keyframe_observe_.second)
         {
             latest_keyframe_observe_umap.insert({obs.feat_id, obs});
         }
-        for (auto& obs : current_feature_observe.second)
+        for (auto &obs : current_feature_observe.second)
         {
             current_keyframe_observe_umap.insert({obs.feat_id, obs});
         }
@@ -37,7 +37,6 @@ bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& 
         else if (abs(current_feature_observe.first - latest_keyframe_observe_.first) > kMaxTimeIntervalBetweenKeyframes)
         {
             LOG(INFO) << "Platform moves too slow, can not perform dynamic-initialization";
-            ResetSfm();
             return false;
         }
     }
@@ -45,10 +44,10 @@ bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& 
     return false;
 }
 
-bool Sfm::calcRelativePose(const std::vector<CameraObs>& obs_a,
-                           const std::vector<CameraObs>& obs_b,
-                           Eigen::Matrix3d& R_relative,
-                           Eigen::Vector3d& t_relative)
+bool Sfm::calcRelativePose(const std::vector<CameraObs> &obs_a,
+                           const std::vector<CameraObs> &obs_b,
+                           Eigen::Matrix3d &R_relative,
+                           Eigen::Vector3d &t_relative)
 {
     constexpr double kMaxPixelErrorForCalcEssentialMat = 1.0f;
     constexpr uint32_t kMinRequiredFeaturesForRelativePose = 15;
@@ -61,18 +60,18 @@ bool Sfm::calcRelativePose(const std::vector<CameraObs>& obs_a,
 
     std::unordered_map<uint32_t, CameraObs> obs_a_umap;
     std::unordered_map<uint32_t, CameraObs> obs_b_umap;
-    for (auto& obs : obs_a)
+    for (auto &obs : obs_a)
     {
         obs_a_umap.insert({obs.feat_id, obs});
     }
-    for (auto& obs : obs_b)
+    for (auto &obs : obs_b)
     {
         obs_b_umap.insert({obs.feat_id, obs});
     }
 
     std::vector<cv::Point2d> corresponding_points_a;
     std::vector<cv::Point2d> corresponding_points_b;
-    for (auto& [point_id, obs] : obs_a_umap)
+    for (auto &[point_id, obs] : obs_a_umap)
     {
         auto it = obs_b_umap.find(point_id);
         if (it != obs_b_umap.end())
@@ -99,7 +98,7 @@ bool Sfm::calcRelativePose(const std::vector<CameraObs>& obs_a,
     return true;
 }
 
-void Sfm::triangulateFramePoints(const std::vector<CameraObs>& obs_A, const std::vector<CameraObs>& obs_B, const Pose& pose_a, const Pose& pose_b)
+void Sfm::triangulateFramePoints(const std::vector<CameraObs> &obs_A, const std::vector<CameraObs> &obs_B, const Pose &pose_a, const Pose &pose_b)
 {
     constexpr double kMaxDifferenceRatio = 0.15f;
 
@@ -111,16 +110,16 @@ void Sfm::triangulateFramePoints(const std::vector<CameraObs>& obs_A, const std:
 
     std::unordered_map<uint32_t, CameraObs> obs_A_umap;
     std::unordered_map<uint32_t, CameraObs> obs_B_umap;
-    for (auto& obs : obs_A)
+    for (auto &obs : obs_A)
     {
         obs_A_umap.insert({obs.feat_id, obs});
     }
-    for (auto& obs : obs_B)
+    for (auto &obs : obs_B)
     {
         obs_B_umap.insert({obs.feat_id, obs});
     }
 
-    for (auto& [point_id, obs_a] : obs_A_umap)
+    for (auto &[point_id, obs_a] : obs_A_umap)
     {
         if (obs_B_umap.count(point_id) == 0)
         {
@@ -134,7 +133,7 @@ void Sfm::triangulateFramePoints(const std::vector<CameraObs>& obs_A, const std:
         // Update sfm feature base
         if (all_features_.find(point_id) != all_features_.end())
         {
-            Feature& feature = all_features_[point_id];
+            Feature &feature = all_features_[point_id];
             if ((feature._pwf - point_3d).norm() / feature._pwf.norm() > kMaxDifferenceRatio)
             {
                 all_features_.erase(point_id);
@@ -155,7 +154,7 @@ void Sfm::triangulateFramePoints(const std::vector<CameraObs>& obs_A, const std:
     }
 }
 
-Eigen::Vector3d Sfm::triangulatePoint(const Pose pose0, const Pose pose1, const Vector2d& point0, const Vector2d& point1)
+Eigen::Vector3d Sfm::triangulatePoint(const Pose pose0, const Pose pose1, const Vector2d &point0, const Vector2d &point1)
 {
     Eigen::Matrix3d Rwc0 = pose0.R();
     Eigen::Matrix3d Rwc1 = pose1.R();
@@ -192,20 +191,20 @@ bool Sfm::solveFrameByPnp(const std::vector<CameraObs> current_obsv, Pose &curre
     }
 
     std::unordered_map<uint32_t, CameraObs> current_obsv_umap;
-    for (auto& obs : current_obsv)
+    for (auto &obs : current_obsv)
     {
         current_obsv_umap.insert({obs.feat_id, obs});
     }
 
     std::vector<cv::Point2d> corresponding_points;
     std::vector<cv::Point3d> corresponding_points_3d;
-    for (auto& [point_id, obs] : current_obsv_umap)
+    for (auto &[point_id, obs] : current_obsv_umap)
     {
         if (all_features_.count(point_id) == 0)
         {
             continue;
         }
-        Feature& feature = all_features_[point_id];
+        Feature &feature = all_features_[point_id];
         corresponding_points.push_back(cv::Point2d(obs.u, obs.v));
         corresponding_points_3d.push_back(cv::Point3d(feature._pwf(0), feature._pwf(1), feature._pwf(2)));
     }
@@ -213,7 +212,7 @@ bool Sfm::solveFrameByPnp(const std::vector<CameraObs> current_obsv, Pose &curre
     cv::Mat rvec, tvec;
     cv::Mat K = cv::eigen2cv(camera_model_->K_l());
     cv::Mat dist_coeffs = cv::Mat::zeros(4, 1, CV_64F);
-    cv::solvePnP(corresponding_points_3d, corresponding_points, K, dist_coeffs, rvec, tvec);    // R_wtoc, p_winc
+    cv::solvePnP(corresponding_points_3d, corresponding_points, K, dist_coeffs, rvec, tvec); // R_wtoc, p_winc
 
     Eigen::Matrix3d R = cv::cv2eigen(cv::Rodrigues(rvec)).transpose();
     Eigen::Vector3d t = -R * cv::cv2eigen(tvec);
@@ -227,7 +226,7 @@ double Sfm::findReferenceKeyframeTimestamp()
     const double oldest_keyframe_timestamp = all_feature_observes_.begin()->first;
     const std::vector<CameraObs> oldest_keyframe_observes = all_feature_observes_.begin()->second;
     std::unordered_map<uint32_t, CameraObs> oldest_keyframe_observe_umap;
-    for (auto& obs : oldest_keyframe_observes)
+    for (auto &obs : oldest_keyframe_observes)
     {
         oldest_keyframe_observe_umap.insert({obs.feat_id, obs});
     }
@@ -237,7 +236,7 @@ double Sfm::findReferenceKeyframeTimestamp()
     for (auto &[timestamp, observes] : all_feature_observes_)
     {
         std::unordered_map<uint32_t, CameraObs> current_keyframe_observe_umap;
-        for (auto& obs : observes)
+        for (auto &obs : observes)
         {
             current_keyframe_observe_umap.insert({obs.feat_id, obs});
         }
@@ -326,6 +325,17 @@ bool Sfm::initSfmSolver()
     return true;
 }
 
+template <typename KeyType, typename ValueType>
+std::optional<uint32_t> Sfm::indexInMap(const std::map<KeyType, ValueType> &map, const KeyType &key) const
+{
+    auto it = map.find(key);
+    if (it != map.end())
+    {
+        return static_cast<uint32_t>(std::distance(map.begin(), it));
+    }
+    return std::nullopt; // Not found
+}
+
 bool Sfm::Optimization()
 {
     if (!isReady())
@@ -340,55 +350,97 @@ bool Sfm::Optimization()
         return false;
     }
 
-    // TODO: Implement optimization logic here
     ceres::Problem problem;
-    ceres::Manifold *quat_manifold = new ceres::QuaternionManifold();
+    ceres::Manifold *quat_manifold = new ceres::EigenQuaternionManifold();
     ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
     double qs[kRequiredKeyframesForSfm][4] = {0.f};
     double ps[kRequiredKeyframesForSfm][3] = {0.f};
 
-    auto indexInMap = [](const std::map<double, Pose>& poses, const double timestamp) -> std::optional<int>
-    {
-        auto it = poses.find(timestamp);
-        if (it != poses.end())
-            return static_cast<int>(std::distance(poses.begin(), it));
-        return std::nullopt;  // Not found
-    };
-
     // Set parameter blocks for keyframe poses
-    for (const auto& [timestamp, pose] : keyframe_poses_)
+    for (const auto &[timestamp, pose] : keyframe_poses_)
     {
-        std::optional<int> idx = indexInMap(keyframe_poses_, timestamp);
-        if (!idx.has_value())
+        std::optional<uint32_t> pose_idx = indexInMap<double, Pose>(keyframe_poses_, timestamp);
+        if (!pose_idx.has_value())
         {
             LOG(INFO) << "Keyframe pose not found for timestamp: " << timestamp;
             return false;
         }
         Eigen::Quaterniond q(pose.R());
         Eigen::Vector3d p(pose.t());
-        qs[idx][0] = q.w();
-        qs[idx][1] = q.x();
-        qs[idx][2] = q.y();
-        qs[idx][3] = q.z();
+        qs[pose_idx][0] = q.x();
+        qs[pose_idx][1] = q.y();
+        qs[pose_idx][2] = q.z();
+        qs[pose_idx][3] = q.w();
 
-        ps[idx][0] = p.x();
-        ps[idx][1] = p.y();
-        ps[idx][2] = p.z();
+        ps[pose_idx][0] = p.x();
+        ps[pose_idx][1] = p.y();
+        ps[pose_idx][2] = p.z();
 
-        problem.AddParameterBlock(qs[idx], 4, quat_manifold);
-        problem.AddParameterBlock(ps[idx], 3);
+        problem.AddParameterBlock(qs[pose_idx], 4, quat_manifold);
+        problem.AddParameterBlock(ps[pose_idx], 3);
 
         if (timestamp == oldest_keyframe_timestamp_)
         {
-            problem.SetParameterBlockConstant(qs[i]);
-            problem.SetParameterBlockConstant(ps[i]);
+            problem.SetParameterBlockConstant(qs[pose_idx]);
+            problem.SetParameterBlockConstant(ps[pose_idx]);
         }
         else if (timestamp == reference_keyframe_timestamp_)
         {
-            problem.SetParameterBlockConstant(ps[i]);
+            problem.SetParameterBlockConstant(ps[pose_idx]);
         }
     }
 
     // Add residuals for each feature
+    uint32_t all_feature_nums = all_features_.size();
+    double feature_3d[kMaxFeaturesForSfm][3] = {0.f};
+    for (const auto &[feature_id, feature] : all_features_)
+    {
+        uint32_t feature_idx = indexInMap<uint32_t, Feature>(allocated_features_, feature_id).value();
+        feature_3d[feature_idx][0] = Feature._pwf(0);
+        feature_3d[feature_idx][1] = Feature._pwf(1);
+        feature_3d[feature_idx][2] = Feature._pwf(2);
+        problem.AddParameterBlock(feature_3d[feature_idx]);
 
+        for (const auto &[timestamp, single_obs] : feature._visual_obs_buffer)
+        {
+            uint32_t pose_idx = indexInMap<double, Pose>(keyframe_poses_, timestamp).value();
+            ceres::CostFunction *cost_function = new FeatureReprojectionFactor(single_obs);
+            problem.AddResidualBlock(cost_function, loss_function, feature_3d[feature_idx], qs[pose_idx], ps[pose_idx]);
+        }
+    }
+
+    // Solve full bundle adjustment
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_QR;
+    options.minimizer_progress_to_stdout = false;
+    options.max_num_iterations = 50;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
+    if (summary.termination_type == ceres::CONVERGENCE)
+    {
+        LOG(INFO) << "SFM finished with " << summary.final_cost << " cost";
+    }
+    else
+    {
+        LOG(INFO) << "SFM optimization failed";
+        return false;
+    }
+
+    // Update keyframe poses
+    for (auto &[timestamp, pose] : keyframe_poses_)
+    {
+        uint32_t pose_idx = indexInMap<double, Pose>(keyframe_poses_, timestamp).value();
+        Eigen::Quaterniond q_updated(qs[pose_idx][3], qs[pose_idx][0], qs[pose_idx][1], qs[pose_idx][2]);   // w, x, y, z
+        Eigen::Vector3d p_updated(ps[pose_idx][0], ps[pose_idx][1], ps[pose_idx][2]);
+        keyframe_poses_[timestamp].set_pose(q_updated.toRotationMatrix(), p_updated);
+    }
+
+    // Update features
+    for (auto &[feature_id, feature] : all_features_)
+    {
+        uint32_t feature_idx = indexInMap<uint32_t, Feature>(allocated_features_, feature_id).value();
+        feature._pwf << feature_3d[feature_idx][0], feature_3d[feature_idx][1], feature_3d[feature_idx][2];
+    }
+
+    return true;
 }
