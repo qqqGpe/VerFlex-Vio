@@ -1,9 +1,9 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.15)
 project(vio_backend)
 
 add_compile_options(-std=c++17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_BUILD_TYPE Debug) # Debug Releasea
+set(CMAKE_BUILD_TYPE Debug) # Debug Release
 
 find_package(catkin REQUIRED COMPONENTS
   cv_bridge
@@ -109,5 +109,11 @@ target_link_libraries(test_pnp_ransac
 add_executable(test_rotation_matrix_to_euler src/test_rotation_matrix_to_euler.cpp)
 target_link_libraries(test_rotation_matrix_to_euler
                       ${thirdparty_libraries}
-                      GTest::GTest
-)
+                      GTest::GTest)
+
+add_executable(test_sfm src/test_sfm.cpp)
+target_link_libraries(test_sfm
+                      msckf_core
+                      ${catkin_LIBRARIES}
+                      ${thirdparty_libraries}
+                      GTest::GTest)

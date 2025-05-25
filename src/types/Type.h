@@ -29,7 +29,7 @@ class Type
 
     virtual std::shared_ptr<Type> clone() = 0;
 
-    double ts() { return _ts; }
+    double ts() const { return _ts; }
 
     virtual void set_value(const Eigen::MatrixXd& new_value)
     {

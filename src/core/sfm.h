@@ -40,22 +40,24 @@ public:
         {
             if (jacobians[0])
             {
+                Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>>J_dz_dpwf(jacobians[0]);
                 Eigen::Matrix<double, 2, 3> dz_dpwf = dz_dpcf * R_CtoG.transpose();
-                Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>>(jacobians[0]) = dz_dpwf;
+                J_dz_dpwf = dz_dpwf;
             }
 
             if (jacobians[1])
             {
-                Eigen::Matrix<double, 2, 3> dz_dqwc = dz_dpcf * R_CtoG.transpose() * MathUtils::skew(p_finG - p_CinG);
                 Eigen::Map<Eigen::Matrix<double, 2, 4, Eigen::RowMajor>> J_dz_dqwc(jacobians[1]);
+                Eigen::Matrix<double, 2, 3> dz_dqwc = dz_dpcf * (-R_CtoG.transpose()) * MathUtils::skew(p_finG - p_CinG);
                 J_dz_dqwc.setZero();
                 J_dz_dqwc.leftCols<3>() = 2 * dz_dqwc;
             }
 
             if (jacobians[2])
             {
+                Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>>J_dz_dpwc(jacobians[2]);
                 Eigen::Matrix<double, 2, 3> dz_dpwc = dz_dpcf * (-R_CtoG.transpose());
-                Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>>(jacobians[2]) = dz_dpwc;
+                J_dz_dpwc = dz_dpwc;
             }
         }
         return true;
@@ -84,7 +86,7 @@ public:
     }
 
     template <typename KeyType, typename ValueType>
-    std::optional<int> indexInMap(const std::map<KeyType, ValueType> &map, const KeyType &key) const;
+    std::optional<uint32_t> indexInMap(const std::map<KeyType, ValueType> &map, const KeyType &key) const;
 
     void triangulateFramePoints(const std::vector<CameraObs> &obs_A, const std::vector<CameraObs> &obs_B, const Pose &pose_a, const Pose &pose_b);
 
@@ -104,8 +106,8 @@ public:
 
     bool calcRelativePose(const std::vector<CameraObs> &obs_a,
                           const std::vector<CameraObs> &obs_b,
-                          Eigen::Matrix3d &R_relative,
-                          Eigen::Vector3d &p_relative);
+                          Eigen::Matrix3d &R_BtoA,
+                          Eigen::Vector3d &p_BinA);
 
     std::map<double, Pose> getSfmPoses() const { return keyframe_poses_; }
 
