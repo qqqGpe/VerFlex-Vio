@@ -263,7 +263,8 @@ bool Sfm::solveFrameByPnp(const std::vector<CameraObs> current_obsv, Pose &curre
     Eigen::Vector3d p_GinC;
     cv::cv2eigen(R_GtoC_cv, R_GtoC);
     cv::cv2eigen(tvec, p_GinC);
-    Eigen::Matrix3d R_CtoG = R_GtoC.transpose() * generateRandomSmallRotation();
+    // Eigen::Matrix3d R_CtoG = R_GtoC.transpose() * generateRandomSmallRotation(); // For debug
+    Eigen::Matrix3d R_CtoG = R_GtoC.transpose();
     Eigen::Vector3d p_CinG = -R_CtoG * p_GinC;
 
     current_pose = Pose(R_CtoG, p_CinG);
