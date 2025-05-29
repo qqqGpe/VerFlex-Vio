@@ -8,14 +8,22 @@
 namespace
 {
     constexpr uint32_t kCameraPoses = 10;
-    constexpr double kSectorAngle = 60; // degrees
+    constexpr double kSectorAngle = 72; // degrees
     constexpr double kSquareLength = 10.0f;
-    constexpr uint32_t kFeatureNumForEachSqaureSide = 15;
+    constexpr uint32_t kFeatureNumForEachSqaureSide = 8;
     constexpr uint32_t kAllFeatureNum = kFeatureNumForEachSqaureSide * kFeatureNumForEachSqaureSide;
     constexpr double focal_x = 300;
     constexpr double focal_y = 300;
     constexpr double canvas_size_u = 640;
     constexpr double canvas_size_v = 480;
+}
+
+double generateRandomSmallDistance() {
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<double> dis(-5, 5);
+    return dis(gen);
 }
 
 // Create a grid of feature points in a square area
@@ -35,7 +43,7 @@ std::vector<Feature> CreateFeaturePoints(const double center_z)
             Feature feature;
             double x = -kSquareLength / 2 + i * stride;
             double y = -kSquareLength / 2 + j * stride;
-            feature._pwf << x, y, center_z;
+            feature._pwf << x, y, center_z + generateRandomSmallDistance();
             feature._id = feature_id++;
             features.push_back(feature);
         }
@@ -51,7 +59,7 @@ std::vector<Pose> CreateCameraPoses(const double sector_r)
     const double angle_stride = kSectorAngle / (kCameraPoses - 1);
     for (uint32_t i = 0; i < kCameraPoses; ++i)
     {
-        double angle = (kSectorAngle / 2 - i * angle_stride) * DEG2RAD;
+        double angle = (0 - i * angle_stride) * DEG2RAD;
         Eigen::Matrix3d R = Eigen::AngleAxisd(angle, Vector3d::UnitY()).toRotationMatrix();
         double x = sector_r * sin(-angle);
         double y = 0.f;
@@ -118,19 +126,40 @@ void ShowObservations(const std::vector<CameraObs> &observations)
     cv::waitKey(0);
 }
 
-int main()
+TEST(VioTest, Sfm)
 {
-    testing::InitGoogleTest();
-    double center_distance = 10.0f;
+    std::shared_ptr<CameraModel> camera_model_ptr = std::make_shared<CameraModel>();
+    camera_model_ptr->SetCameraIntrinsicMatrix({focal_x, focal_y, canvas_size_u / 2, canvas_size_v / 2});
+
+    const double center_distance = 10.0f;
     std::vector<Feature> features = CreateFeaturePoints(center_distance);
     std::vector<Pose> camera_poses = CreateCameraPoses(center_distance);
     std::map<double, std::vector<CameraObs>> camera_observations;
+    Sfm sfm_solver(Param(), camera_model_ptr);
+
+    auto first_R = camera_poses.begin()->quat().toRotationMatrix();
+    auto last_R = camera_poses.rbegin()->quat().toRotationMatrix();
+    Eigen::Matrix3d R_relative = first_R.transpose() * last_R;
+    Eigen::Vector3d rpy = MathUtils::R2rpy(R_relative) * RAD2DEG;
+    std::cout << cv::format("True rpy: [%.2f, %.2f, %.2f] deg\n", rpy.x(), rpy.y(), rpy.z());
+
     for (const auto& camera_pose : camera_poses)
     {
         std::vector<CameraObs> observations;
         CreateObservations(camera_pose, features, observations);
         ShowObservations(observations);
         camera_observations.insert({camera_pose.ts(), observations});
+        sfm_solver.MaybeAddSfmKeyframes(std::make_pair(camera_pose.ts(), observations));
     }
-    // return RUN_ALL_TESTS();
+
+    if (sfm_solver.isReady())
+    {
+        sfm_solver.Optimization();
+    }
+}
+
+int main()
+{
+    testing::InitGoogleTest();
+    return RUN_ALL_TESTS();
 }

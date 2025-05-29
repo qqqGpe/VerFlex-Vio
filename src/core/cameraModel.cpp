@@ -16,26 +16,17 @@ void CameraModel::CalculateUndistortRectifyMap(const Eigen::Matrix3d& K,
     cv::cv2eigen(new_K, K_undistort);
 }
 
-void CameraModel::set_camera_intrin_matrix(const std::vector<double>& intrinsic_coeff, Eigen::Matrix3d& K)
+void CameraModel::SetCameraIntrinsicMatrix(const std::vector<double>& intrinsic_coeff)
 {
-    K.setIdentity();
-    K(0, 0) = intrinsic_coeff[0];
-    K(1, 1) = intrinsic_coeff[1];
-    K(0, 2) = intrinsic_coeff[2];
-    K(1, 2) = intrinsic_coeff[3];
+    Kl_undistort_ = Eigen::Matrix3d::Identity();
+    Kl_undistort_(0, 0) = intrinsic_coeff[0];
+    Kl_undistort_(1, 1) = intrinsic_coeff[1];
+    Kl_undistort_(0, 2) = intrinsic_coeff[2];
+    Kl_undistort_(1, 2) = intrinsic_coeff[3];
 }
 
-void CameraModel::set_camera_distort_coeff(const std::vector<double>& distort_coeff, Eigen::VectorXd& param)
+void CameraModel::set_camera_distort_coeff(const std::vector<double>& distort_coeff)
 {
-    if (distort_coeff.empty())
-    {
-        return;
-    }
-    param = Eigen::VectorXd::Zero(distort_coeff.size());
-    for (size_t i = 0; i < distort_coeff.size(); i++)
-    {
-        param(i) = distort_coeff[i];
-    }
 }
 
 Eigen::Vector2d CameraModel::project_left(Eigen::Vector3d p3d_norm)

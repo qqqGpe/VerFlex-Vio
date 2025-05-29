@@ -14,59 +14,6 @@
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-struct FeatureReprojectionFactor : ceres::SizedCostFunction<2, 3, 4, 3>
-{
-public:
-    FeatureReprojectionFactor(const CameraObs &obs) : obs_(obs) {}
-
-    bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
-    {
-        Eigen::Vector3d p_finG(parameters[0][0], parameters[0][1], parameters[0][2]);
-        Eigen::Quaterniond q_CtoG(parameters[1][3], parameters[1][0], parameters[1][1], parameters[1][2]);
-        Eigen::Vector3d p_CinG(parameters[2][0], parameters[2][1], parameters[2][2]);
-
-        Eigen::Matrix3d R_CtoG = q_CtoG.toRotationMatrix();
-        Eigen::Vector3d p_finC = R_CtoG.transpose() * (p_finG - p_CinG);
-
-        residuals[0] = obs_.u_norm - (p_finC(0) / p_finC(2));
-        residuals[1] = obs_.v_norm - (p_finC(1) / p_finC(2));
-
-        Eigen::Matrix<double, 2, 3> dz_dpcf = Eigen::Matrix<double, 2, 3>::Zero();
-        dz_dpcf <<
-            1.0 / p_finC(2), 0, -p_finC(0) / (p_finC(2) * p_finC(2)),
-            0, 1.0 / p_finC(2), -p_finC(1) / (p_finC(2) * p_finC(2));
-
-        if (jacobians)
-        {
-            if (jacobians[0])
-            {
-                Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>>J_dz_dpwf(jacobians[0]);
-                Eigen::Matrix<double, 2, 3> dz_dpwf = dz_dpcf * R_CtoG.transpose();
-                J_dz_dpwf = dz_dpwf;
-            }
-
-            if (jacobians[1])
-            {
-                Eigen::Map<Eigen::Matrix<double, 2, 4, Eigen::RowMajor>> J_dz_dqwc(jacobians[1]);
-                Eigen::Matrix<double, 2, 3> dz_dqwc = dz_dpcf * (-R_CtoG.transpose()) * MathUtils::skew(p_finG - p_CinG);
-                J_dz_dqwc.setZero();
-                J_dz_dqwc.leftCols<3>() = 2 * dz_dqwc;
-            }
-
-            if (jacobians[2])
-            {
-                Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>>J_dz_dpwc(jacobians[2]);
-                Eigen::Matrix<double, 2, 3> dz_dpwc = dz_dpcf * (-R_CtoG.transpose());
-                J_dz_dpwc = dz_dpwc;
-            }
-        }
-        return true;
-    }
-
-private:
-    CameraObs obs_;
-};
-
 class Sfm
 {
 public:
@@ -84,6 +31,14 @@ public:
         oldest_keyframe_timestamp_ = 0.f;
         reference_keyframe_timestamp_ = 0.f;
     }
+
+    static constexpr uint32_t kMinRequiredObservTimesPerFeature = 3;
+    static constexpr uint32_t kMinRequiredFeaturesPerFrame = 20;
+    static constexpr double kMaxTimeIntervalBetweenKeyframes = 2.0f;  // seconds
+    static constexpr double kMinPixelParallexBetweenKeyframes = 4.0f; // pixels
+    static constexpr uint32_t kMinRequiredFeaturesForSfm = 30;
+    static constexpr uint32_t kMaxFeaturesForSfm = 300;
+    static constexpr uint32_t kRequiredKeyframesForSfm = 10;
 
     template <typename KeyType, typename ValueType>
     std::optional<uint32_t> indexInMap(const std::map<KeyType, ValueType> &map, const KeyType &key) const;
@@ -111,13 +66,7 @@ public:
 
     std::map<double, Pose> getSfmPoses() const { return keyframe_poses_; }
 
-    static constexpr uint32_t kMinRequiredObservTimesPerFeature = 3;
-    static constexpr uint32_t kMinRequiredFeaturesPerFrame = 20;
-    static constexpr double kMaxTimeIntervalBetweenKeyframes = 2.0f;  // seconds
-    static constexpr double kMinPixelParallexBetweenKeyframes = 5.0f; // pixels
-    static constexpr uint32_t kMinRequiredFeaturesForSfm = 50;
-    static constexpr uint32_t kMaxFeaturesForSfm = 200;
-    static constexpr uint32_t kRequiredKeyframesForSfm = 10;
+    void ShowPoseWrtFirstFrame(const Pose current_pose);
 
 private:
     std::shared_ptr<CameraModel> camera_model_;
@@ -127,4 +76,57 @@ private:
     std::pair<double, std::vector<CameraObs>> latest_keyframe_observe_;
     double oldest_keyframe_timestamp_ = 0.0;
     double reference_keyframe_timestamp_ = 0.0;
+};
+
+struct FeatureReprojectionFactor : ceres::SizedCostFunction<2, 3, 4, 3>
+{
+public:
+    FeatureReprojectionFactor(const CameraObs &obs) : obs_(obs) {}
+
+    bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
+    {
+        Eigen::Vector3d p_finG(parameters[0][0], parameters[0][1], parameters[0][2]);
+        Eigen::Quaterniond q_CtoG(parameters[1][3], parameters[1][0], parameters[1][1], parameters[1][2]);
+        Eigen::Vector3d p_CinG(parameters[2][0], parameters[2][1], parameters[2][2]);
+
+        Eigen::Matrix3d R_CtoG = q_CtoG.toRotationMatrix();
+        Eigen::Vector3d p_finC = R_CtoG.transpose() * (p_finG - p_CinG);
+
+        residuals[0] = (p_finC(0) / p_finC(2)) - obs_.u_norm;
+        residuals[1] = (p_finC(1) / p_finC(2)) - obs_.v_norm;
+
+        Eigen::Matrix<double, 2, 3, Eigen::RowMajor> dz_dpcf;
+        dz_dpcf <<
+            1.0 / p_finC(2), 0, -p_finC(0) / (p_finC(2) * p_finC(2)),
+            0, 1.0 / p_finC(2), -p_finC(1) / (p_finC(2) * p_finC(2));
+
+        if (jacobians)
+        {
+            if (jacobians[0])
+            {
+                Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J_dz_dpwf(jacobians[0]);
+                Eigen::Matrix<double, 2, 3> dz_dpwf = dz_dpcf * R_CtoG.transpose();
+                J_dz_dpwf = dz_dpwf;
+            }
+
+            if (jacobians[1])
+            {
+                Eigen::Map<Eigen::Matrix<double, 2, 4, Eigen::RowMajor>> J_dz_dqwc(jacobians[1]);
+                Eigen::Matrix<double, 2, 3> dz_dqwc = dz_dpcf * R_CtoG.transpose() * MathUtils::skew(p_finG - p_CinG);
+                J_dz_dqwc.leftCols<3>() = 2 * dz_dqwc;
+                J_dz_dqwc.rightCols<1>().setZero();
+            }
+
+            if (jacobians[2])
+            {
+                Eigen::Map<Eigen::Matrix<double, 2, 3, Eigen::RowMajor>> J_dz_dpwc(jacobians[2]);
+                Eigen::Matrix<double, 2, 3> dz_dpwc = dz_dpcf * (-R_CtoG.transpose());
+                J_dz_dpwc = dz_dpwc;
+            }
+        }
+        return true;
+    }
+
+private:
+    CameraObs obs_;
 };

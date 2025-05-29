@@ -39,9 +39,11 @@ class CameraModel
 
     void CalculateUndistortRectifyMap(const Eigen::Matrix3d& K, const Eigen::VectorXd& D, Eigen::Matrix3d& K_undistort, cv::Mat& map1, cv::Mat& map2);
 
-    void set_camera_intrin_matrix(const std::vector<double>& intrinsic_coeff, Eigen::Matrix3d& K);
+    // For debug
+    void SetCameraIntrinsicMatrix(const std::vector<double>& intrinsic_coeff);
 
-    void set_camera_distort_coeff(const std::vector<double>& distort_coeff, Eigen::VectorXd& param);
+    // For debug
+    void set_camera_distort_coeff(const std::vector<double>& distort_coeff);
 
     Eigen::Vector2d project_left(Eigen::Vector3d p3d_norm);
 

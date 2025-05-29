@@ -9,8 +9,8 @@
 
 TEST(VioTest, RotationMatrixToEuler)
 {
-    double roll = -30 * DEG2RAD;
-    double pitch = -75 * DEG2RAD;
+    double roll = 26 * DEG2RAD;
+    double pitch = 70 * DEG2RAD;
     double yaw = 20 * DEG2RAD;
 
     Eigen::AngleAxisd Rx = Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX());

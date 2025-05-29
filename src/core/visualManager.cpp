@@ -308,8 +308,8 @@ double VisualManager::calcVisualObsParallex(std::unordered_map<uint32_t, CameraO
 {
     double average_parallex = 0.0;
     auto PixelDistance = [](CameraObs obs_a, CameraObs obs_b) {
-        double dx = obs_a.u_norm - obs_b.u_norm;
-        double dy = obs_a.v_norm - obs_b.v_norm;
+        double dx = obs_a.u - obs_b.u;
+        double dy = obs_a.v - obs_b.v;
         return sqrt(dx * dx + dy * dy);
     };
 
