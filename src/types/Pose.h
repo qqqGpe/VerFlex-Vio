@@ -83,6 +83,7 @@ class Pose : public Type
     }
 
     Eigen::Quaterniond quat() const { return _q->q(); }
+    Eigen::Matrix3d R() const { return quat().toRotationMatrix(); }
     Eigen::Vector3d p() const { return _p->vec(); }
 
     Eigen::Quaterniond quat_fej() const { return _q->q_fej(); }

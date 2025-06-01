@@ -112,9 +112,9 @@ void Sfm::triangulateFramePoints(const std::vector<CameraObs> &obs_A, const std:
 {
     constexpr double kMaxDifferenceRatio = 0.15f;
 
-    std::cout << cv::format("Observation A timestamp: %f, Observation B timestamp: %f, A feature observations: %d, B feature observations: %d",
-                            obs_A.front().ts_sec, obs_B.front().ts_sec, obs_A.size(), obs_B.size())
-              << std::endl;
+    // std::cout << cv::format("Observation A timestamp: %f, Observation B timestamp: %f, A feature observations: %d, B feature observations: %d",
+    //                         obs_A.front().ts_sec, obs_B.front().ts_sec, obs_A.size(), obs_B.size())
+    //           << std::endl;
 
     if (obs_A.size() < kMinRequiredFeaturesPerFrame || obs_B.size() < kMinRequiredFeaturesPerFrame)
     {
@@ -499,10 +499,10 @@ bool Sfm::Optimization()
         }
     }
 
+    std::cout << "Pose before optimization: " << std::endl;
     for (auto &[timestamp, pose] : keyframe_poses_)
     {
         Eigen::Vector3d rpy = MathUtils::R2rpy(pose.quat().toRotationMatrix()) * RAD2DEG;
-        std::cout << "pose before optimization: " << std::endl;
         std::cout << cv::format("timestamp: %f, rpy: [%f, %f, %f], p: [%f, %f, %f]", timestamp, rpy.x(), rpy.y(), rpy.z(), pose.p().x(),
                                 pose.p().y(), pose.p().z())
                 << std::endl;
@@ -510,7 +510,7 @@ bool Sfm::Optimization()
 
     // Solve full bundle adjustment
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_QR;
+    options.linear_solver_type = ceres::DENSE_SCHUR;
     options.minimizer_progress_to_stdout = true;
     options.max_num_iterations = 50;
     ceres::Solver::Summary summary;
@@ -536,6 +536,7 @@ bool Sfm::Optimization()
     }
 
     // Update keyframe poses
+    std::cout << "Pose after optimization: " << std::endl;
     for (auto &[timestamp, pose] : keyframe_poses_)
     {
         uint32_t pose_idx = indexInMap<double, Pose>(keyframe_poses_, timestamp).value();
