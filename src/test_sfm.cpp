@@ -138,12 +138,6 @@ TEST(VioTest, Sfm)
     std::map<double, std::vector<CameraObs>> camera_observations;
     Sfm sfm_solver(Param(), camera_model_ptr);
 
-    auto first_R = camera_poses.begin()->quat().toRotationMatrix();
-    auto last_R = camera_poses.rbegin()->quat().toRotationMatrix();
-    Eigen::Matrix3d R_relative = first_R.transpose() * last_R;
-    Eigen::Vector3d rpy = MathUtils::R2rpy(R_relative) * RAD2DEG;
-    std::cout << cv::format("True rpy: [%.2f, %.2f, %.2f] deg\n", rpy.x(), rpy.y(), rpy.z());
-
     for (const auto& camera_pose : camera_poses)
     {
         std::vector<CameraObs> observations;
