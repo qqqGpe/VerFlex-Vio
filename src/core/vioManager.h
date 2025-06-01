@@ -14,6 +14,7 @@
 #include "cameraModel.h"
 #include "frontend.h"
 #include "initializer.h"
+#include "dynamicInitializer.h"
 #include "logger.h"
 #include "mathematical_tools.h"
 #include "parameter.h"

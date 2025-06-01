@@ -18,7 +18,7 @@ class Sfm
 {
 public:
     Sfm() = default;
-    Sfm(const Param &parameters, const std::shared_ptr<CameraModel> camera_model) { camera_model_ = camera_model; }
+    Sfm(const Param &parameters, const std::shared_ptr<CameraModel> camera_model) : params_(parameters), camera_model_(camera_model) {}
     virtual ~Sfm() = default;
 
     void Reset()
@@ -68,7 +68,10 @@ public:
 
     void ShowPoseWrtFirstFrame(const Pose current_pose);
 
+    const std::map<double, std::vector<CameraObs>>& getAllFeatureObservations() const { return all_feature_observes_; }
+
 private:
+    Param params_;
     std::shared_ptr<CameraModel> camera_model_;
     std::map<double, std::vector<CameraObs>> all_feature_observes_;
     std::map<uint32_t, Feature> all_features_;

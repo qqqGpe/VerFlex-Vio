@@ -59,7 +59,11 @@ class ImuPreintegrator
 
     void set_dv_dbg (const Eigen::Matrix3d& dv_dbg) { dv_dbg_ = dv_dbg; }
 
-   private:
+    double start_ts() const { return start_ts_; }
+
+    double end_ts() const { return end_ts_; }
+
+private:
     double start_ts_ = 0.f;
     double end_ts_ = 0.f;
     std::vector<ImuData> imu_data_;
