@@ -31,6 +31,8 @@ class ImuPreintegrator
 
     static ImuPreintegrator midPointIntegrate(std::shared_ptr<State> state, const std::vector<ImuData> imu_input, const double ts_start, const double ts_end);
 
+    void Propagate(const Eigen::Vector3d ba, const Eigen::Vector3d bg);
+
     void update(const Eigen::Vector3d delta_ba, const Eigen::Vector3d delta_bg);
 
     Eigen::Matrix3d dR() const { return dR_; }
@@ -39,7 +41,23 @@ class ImuPreintegrator
 
     Eigen::Vector3d dv() const { return dv_; }
 
+    Eigen::Matrix3d dR_dbg() const { return dR_dbg_; }
+
+    Eigen::Matrix3d dp_dba() const { return dp_dba_; }
+
+    Eigen::Matrix3d dp_dbg() const { return dp_dbg_; }
+
+    Eigen::Matrix3d dv_dba() const { return dv_dba_; }
+
+    Eigen::Matrix3d dv_dbg() const { return dv_dbg_; }
+
     Eigen::Matrix3d Cov() const { return Cov_; }
+
+    double start_ts() const { return start_ts_; }
+
+    double end_ts() const { return end_ts_; }
+
+private:
 
     void set_dR (const Eigen::Matrix3d& dR) { dR_ = dR; }
 
@@ -59,19 +77,16 @@ class ImuPreintegrator
 
     void set_dv_dbg (const Eigen::Matrix3d& dv_dbg) { dv_dbg_ = dv_dbg; }
 
-    double start_ts() const { return start_ts_; }
-
-    double end_ts() const { return end_ts_; }
-
-private:
     double start_ts_ = 0.f;
     double end_ts_ = 0.f;
+
+    std::shared_ptr<ImuState> imu_state_;
     std::vector<ImuData> imu_data_;
-    ImuState imu_state_;
+
     Eigen::Matrix3d dR_ = Eigen::Matrix3d::Identity();
     Eigen::Vector3d dp_ = Eigen::Vector3d::Zero();
     Eigen::Vector3d dv_ = Eigen::Vector3d::Zero();
-    Eigen::MatrixXd Cov_ = Eigen::MatrixXd::Zero(15, 15);
+    Eigen::MatrixXd Cov_ = Eigen::MatrixXd::Zero(9, 9);
 
     Eigen::Matrix3d dR_dbg_ = Eigen::Matrix3d::Zero();
     Eigen::Matrix3d dv_dba_ = Eigen::Matrix3d::Zero();

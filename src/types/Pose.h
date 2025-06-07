@@ -66,7 +66,7 @@ class Pose : public Type
         _p->set_value(new_value.block<3, 1>(4, 0));
     }
 
-    void set_pose(const Eigen::Matrix3d R, const Eigen::Vector3d t)
+    void set_pose(const Eigen::Matrix3d& R, const Eigen::Vector3d& t)
     {
         _q->set_value(Eigen::Quaterniond(R).coeffs());
         _p->set_value(t);

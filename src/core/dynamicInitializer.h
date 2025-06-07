@@ -22,6 +22,8 @@ public:
         : Initializer(paramters, visual_manager, camera_model, state)
     {
         sfm_solver = std::make_unique<Sfm>(paramters, camera_model);
+        R_CtoI_ = paramters.Ric[0];
+        p_CinI_ = paramters.tic[0];
     }
 
     virtual ~DynamicInitializer() {};
@@ -41,17 +43,15 @@ public:
 private:
     bool visualInertialAlignment();
 
-    bool solveRotationAndGyroBias();
+    bool solveGyroscopeBias();
 
     bool LinearAlignment();
 
+    Eigen::Matrix3d R_CtoI_;
+    Eigen::Matrix3d p_CinI_;
     std::map<double, Pose> sfm_poses_;
-
     std::unique_ptr<Sfm> sfm_solver;
-
     bool is_ready_to_initialize_ = false;
-
-    std::map<double, ImuState> imu_state_map_;
-
+    std::map<double, std::shared_ptr<ImuState>> imu_state_map_;
     std::map<double, ImuPreintegrator> imu_preIntegration_map_;
 };

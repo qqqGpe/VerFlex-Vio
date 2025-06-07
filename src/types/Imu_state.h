@@ -7,7 +7,16 @@
 
 class ImuState : public Type
 {
-   public:
+public:
+    enum class VariableId
+    {
+        kQ = 0,
+        kP = 3,
+        kV = 6,
+        kBg = 9,
+        kBa = 12
+    };
+
     ImuState() : Type(15)
     {
         state_name = "Imu_state";
@@ -87,6 +96,26 @@ class ImuState : public Type
         sqrt_Pt_.noalias() = sqrt_Pt_new;
     }
 
+    void set_pose(const Eigen::Matrix3d& R, const Eigen::Vector3d& p)
+    {
+        _pose->set_pose(R, p);
+    }
+
+    void set_velocity(const Eigen::Vector3d& v)
+    {
+        _v->set_value(v);
+    }
+
+    void set_bg(const Eigen::Vector3d& bg)
+    {
+        _bg->set_value(bg);
+    }
+
+    void set_ba(const Eigen::Vector3d& ba)
+    {
+        _ba->set_value(ba);
+    }
+
     virtual std::shared_ptr<Type> clone() override
     {
         std::shared_ptr<ImuState> clone_variable = std::make_shared<ImuState>();
@@ -118,7 +147,7 @@ class ImuState : public Type
     Eigen::Vector3d last_wm = Eigen::Vector3d::Zero();
     Eigen::Vector3d gravity_inG = Eigen::Vector3d(0, 0, -9.81);
 
-   protected:
+protected:
     std::shared_ptr<Pose> _pose;
     std::shared_ptr<Vec> _v;
     std::shared_ptr<Vec> _ba;
