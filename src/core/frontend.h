@@ -26,7 +26,7 @@ class VioFrontend
         STATUS_ERROR
     };
 
-    VioFrontend(const Param parameters, std::shared_ptr<CameraModel>& camera_model, KeyFrameStatus* keyframe)
+    VioFrontend(const Param parameters, std::shared_ptr<CameraModel>& camera_model, std::shared_ptr<KeyFrameStatus> keyframe)
     {
         width_ = parameters.img_width;
         height_ = parameters.img_height;
@@ -65,7 +65,7 @@ class VioFrontend
     uint32_t width_, height_;
     uint32_t _max_feat_n;
     uint32_t grid_w_, grid_h_;
-    KeyFrameStatus* _keyframe;
+    std::shared_ptr<KeyFrameStatus> _keyframe;
     std::shared_ptr<CameraModel> _camera_model;
     boost::posix_time::ptime frontend_rT, frontend_rT1, frontend_rT2, frontend_rT3, frontend_rT4;
 };

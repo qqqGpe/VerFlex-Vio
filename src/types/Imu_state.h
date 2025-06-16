@@ -116,7 +116,7 @@ public:
         _ba->set_value(ba);
     }
 
-    virtual std::shared_ptr<Type> clone() override
+    virtual std::shared_ptr<Type> clone() const override
     {
         std::shared_ptr<ImuState> clone_variable = std::make_shared<ImuState>();
         clone_variable->_pose = std::dynamic_pointer_cast<Pose>(_pose->clone());

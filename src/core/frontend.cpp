@@ -129,7 +129,7 @@ std::vector<bool> VioFrontend::TrackFeatures(const cv::Mat image_left,
 
     // backward tracking
     std::vector<cv::Point2f> reverse_pts = pts_tracked;
-    cv::calcOpticalFlowPyrLK(image_right, image_left, pts_tracked, reverse_pts, backward_status, err, cv::Size(21, 21), 3,
+    cv::calcOpticalFlowPyrLK(image_right, image_left, pts_tracked, reverse_pts, backward_status, err, cv::Size(21, 21), 4,
                              cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
 
     // double check if the tracked point is out of range
@@ -295,7 +295,7 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
     }
 
     // Add new features to current observations if keyframe or first frame
-    bool is_keyframe = ((*_keyframe) != KeyFrameStatus::kNone) || is_first_entry;
+    bool is_keyframe = (*_keyframe != KeyFrameStatus::kNone) || is_first_entry;
     // bool is_keyframe = true; // always keyframe for debug
     if (is_keyframe)
     {
@@ -307,7 +307,11 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
         {
             if (status[i] == true)
             {
-                cur_stereo_ok_features.emplace_back(ts_sec, harris_features[i].x, harris_features[i].y, harris_tmp[i].x, harris_tmp[i].y);
+                // Eigen::Matrix3d K = _camera_model->K_l();
+                CameraObs obs(ts_sec, harris_features[i].x, harris_features[i].y, harris_tmp[i].x, harris_tmp[i].y);
+                // obs.u_norm = obs.u / K(0, 0) - K(0, 2);
+                // obs.v_norm = obs.v / K(1, 1) - K(1, 2);
+                cur_stereo_ok_features.emplace_back(obs);
             }
         }
 
@@ -327,7 +331,7 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
         }
     }
 
-    // clear invalid features
+    // clear invalid features and calculate normalized coordinates
     feature_observes.first = ts_sec;
     feature_observes.second.clear();
     for (auto it = cur_feature_obs_umap.begin(); it != cur_feature_obs_umap.end();)
@@ -338,6 +342,7 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
         }
         else
         {
+            _camera_model->back_project_stereo(it->second);
             feature_observes.second.push_back(it->second);
             ++it;
         }

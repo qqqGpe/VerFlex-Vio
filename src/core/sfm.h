@@ -30,12 +30,13 @@ public:
         latest_keyframe_observe_.second.clear();
         oldest_keyframe_timestamp_ = 0.f;
         reference_keyframe_timestamp_ = 0.f;
+        keyframe_images_.clear();
     }
 
     static constexpr uint32_t kMinRequiredObservTimesPerFeature = 3;
-    static constexpr uint32_t kMinRequiredFeaturesPerFrame = 20;
+    static constexpr uint32_t kMinRequiredFeaturesPerFrame = 40;
     static constexpr double kMaxTimeIntervalBetweenKeyframes = 2.0f;  // seconds
-    static constexpr double kMinPixelParallexBetweenKeyframes = 4.0f; // pixels
+    static constexpr double kMinPixelParallexBetweenKeyframes = 7.f; // pixels
     static constexpr uint32_t kMinRequiredFeaturesForSfm = 30;
     static constexpr uint32_t kMaxFeaturesForSfm = 300;
     static constexpr uint32_t kRequiredKeyframesForSfm = 10;
@@ -49,7 +50,8 @@ public:
 
     bool initSfmSolver();
 
-    bool MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>> &feature_observes);
+    bool MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& current_feature_observe,
+                              std::optional<std::pair<double, cv::Mat>> image);
 
     bool solveFrameByPnp(const std::vector<CameraObs> current_obsv, Pose &current_pose);
 
@@ -70,15 +72,25 @@ public:
 
     const std::map<double, std::vector<CameraObs>>& getAllFeatureObservations() const { return all_feature_observes_; }
 
-private:
+    const std::map<uint32_t, Feature>& getAllFeatures() const { return all_features_; }
+
+    const std::map<double, cv::Mat>& getKeyframeImages() const { return keyframe_images_; }
+
+    void showKeyframeImages() const;
+
+    void feedKeyframeImage(const double timestamp, const cv::Mat& image) { keyframe_images_[timestamp] = image; }
+
+   private:
     Param params_;
     std::shared_ptr<CameraModel> camera_model_;
+    std::map<double, cv::Mat> keyframe_images_;
     std::map<double, std::vector<CameraObs>> all_feature_observes_;
     std::map<uint32_t, Feature> all_features_;
     std::map<double, Pose> keyframe_poses_;
     std::pair<double, std::vector<CameraObs>> latest_keyframe_observe_;
     double oldest_keyframe_timestamp_ = 0.0;
     double reference_keyframe_timestamp_ = 0.0;
+    Eigen::Matrix3d latest_Rwc_;
 };
 
 struct FeatureReprojectionFactor : ceres::SizedCostFunction<2, 3, 4, 3>

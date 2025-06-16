@@ -77,6 +77,27 @@ class MathUtils
         return euler_angle;
     }
 
+    template <typename Derived>
+    static Eigen::Matrix<typename Derived::Scalar, 3, 3> rpy2R(const Eigen::MatrixBase<Derived>& euler_angle)
+    {
+        typedef typename Derived::Scalar Scalar_t;
+
+        // Check input
+        EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Derived, 3);
+
+        const Scalar_t roll = euler_angle(0);
+        const Scalar_t pitch = euler_angle(1);
+        const Scalar_t yaw = euler_angle(2);
+
+        const Eigen::AngleAxis<Scalar_t> Rx(roll, Eigen::Matrix<Scalar_t, 3, 1>::UnitX());
+        const Eigen::AngleAxis<Scalar_t> Ry(pitch, Eigen::Matrix<Scalar_t, 3, 1>::UnitY());
+        const Eigen::AngleAxis<Scalar_t> Rz(yaw, Eigen::Matrix<Scalar_t, 3, 1>::UnitZ());
+
+        Eigen::Matrix<Scalar_t, 3, 3> R = (Rz * Ry * Rx).toRotationMatrix();
+
+        return R;
+    }
+
     static double CalcStereoDepth(const Eigen::Vector2d uv_left, const Eigen::Vector2d uv_right, const Eigen::Matrix3d K, const double baseline)
     {
         Eigen::Vector3d p_left = K.inverse() * uv_left.homogeneous();
@@ -86,8 +107,9 @@ class MathUtils
     }
 
     template <typename Derived>
-    static Derived cot(const Derived& tanx)
+    static Derived cot(const Derived& theta)
     {
+        Derived tanx = std::tan(theta);
         if (abs(tanx) < 1e-12)
         {
             return 0;

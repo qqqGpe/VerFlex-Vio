@@ -50,10 +50,10 @@ class Quat : public Type
         set_value(_quat.coeffs());
     }
 
-    virtual std::shared_ptr<Type> clone() override
+    virtual std::shared_ptr<Type> clone() const override
     {
         std::shared_ptr<Quat> clone_variable = std::make_shared<Quat>();
-        clone_variable->set_value(this->value());
+        clone_variable->set_value(_quat.coeffs());
         // clone_variable->set_fej(this->fej());    // disable fej for debug
         return clone_variable;
     }

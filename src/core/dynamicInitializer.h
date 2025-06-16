@@ -22,36 +22,57 @@ public:
         : Initializer(paramters, visual_manager, camera_model, state)
     {
         sfm_solver = std::make_unique<Sfm>(paramters, camera_model);
+
         R_CtoI_ = paramters.Ric[0];
+
         p_CinI_ = paramters.tic[0];
     }
 
+    static constexpr double kInitSigmaRotation = 1e-2;   // rad
+    static constexpr double kInitSigmaPosition = 1e-1;   // m
+    static constexpr double kInitSigmaVelocity = 1e-1;   // m/s
+    static constexpr double kInitSigmaGyroBias = 1e-3;   // rad
+    static constexpr double kInitSigmaAccelBias = 1e-2;  // m/s
+
     virtual ~DynamicInitializer() {};
 
-    void Reset();
+    virtual void reset() override;
 
     bool isReadyToInitialize() const;
 
-    void feedVisualMeasurement(std::pair<double, std::vector<CameraObs>> feature_observes);
-
-    void feedImuMeasurements(std::vector<ImuData> imu_data);
+    bool feedVisualMeasurement(const std::pair<double, cv::Mat> image,
+                               std::pair<double, std::vector<CameraObs>> feature_observes,
+                               ImuState imu_state);
 
     void feedImuPreIntegration(ImuPreintegrator imu_preintegration);
 
     bool InitializeSystem();
+
+    std::optional<double> getLastestFeatureMeasurementTimestamp() const
+    {
+        const std::map<double, std::vector<CameraObs>>& all_sfm_feature_observations = sfm_solver->getAllFeatureObservations();
+        if (all_sfm_feature_observations.empty())
+        {
+            return std::nullopt;
+        }
+        return all_sfm_feature_observations.rbegin()->first;
+    }
 
 private:
     bool visualInertialAlignment();
 
     bool solveGyroscopeBias();
 
-    bool LinearAlignment();
+    bool LinearAlignment(Eigen::VectorXd& x);
+
+    void assignImuState(const Eigen::VectorXd velocity_gravity_scale);
+
+    void assignFeatureBase(const double scale);
 
     Eigen::Matrix3d R_CtoI_;
-    Eigen::Matrix3d p_CinI_;
+    Eigen::Vector3d p_CinI_;
     std::map<double, Pose> sfm_poses_;
     std::unique_ptr<Sfm> sfm_solver;
-    bool is_ready_to_initialize_ = false;
     std::map<double, std::shared_ptr<ImuState>> imu_state_map_;
     std::map<double, ImuPreintegrator> imu_preIntegration_map_;
 };

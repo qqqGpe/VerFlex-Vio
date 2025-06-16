@@ -27,7 +27,7 @@ class Type
 
     virtual const Eigen::MatrixXd& fej() { return _fej; }
 
-    virtual std::shared_ptr<Type> clone() = 0;
+    virtual std::shared_ptr<Type> clone() const = 0;
 
     double ts() const { return _ts; }
 

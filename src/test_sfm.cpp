@@ -11,7 +11,7 @@ namespace
     constexpr uint32_t kCameraPoses = 10;
     constexpr double kSectorAngle = 72; // degrees
     constexpr double kSquareLength = 10.0f;
-    constexpr uint32_t kFeatureNumForEachSqaureSide = 7;
+    constexpr uint32_t kFeatureNumForEachSqaureSide = 10;
     constexpr uint32_t kAllFeatureNum = kFeatureNumForEachSqaureSide * kFeatureNumForEachSqaureSide;
     constexpr double focal_x = 300;
     constexpr double focal_y = 300;
@@ -144,21 +144,22 @@ TEST(VioTest, Sfm)
         CreateObservations(camera_pose, features, observations);
         // ShowObservations(observations);
         camera_observations.insert({camera_pose.ts(), observations});
-        sfm_solver.MaybeAddSfmKeyframes(std::make_pair(camera_pose.ts(), observations));
+        sfm_solver.MaybeAddSfmKeyframes(std::make_pair(camera_pose.ts(), observations), std::nullopt);
+        if (sfm_solver.isReady())
+        {
+            break;
+        }
     }
 
-    if (sfm_solver.isReady())
+    EXPECT_TRUE(sfm_solver.Optimization());
+    std::map<double, Pose> estimate_poses = sfm_solver.getSfmPoses();
+    for (uint32_t i = 0; i < Sfm::kRequiredKeyframesForSfm; i++)
     {
-        EXPECT_TRUE(sfm_solver.Optimization());
-        std::map<double, Pose> estimate_poses = sfm_solver.getSfmPoses();
-        for (uint32_t i = 0; i < camera_poses.size(); i++)
-        {
-            Pose pose_gt = camera_poses[i];
-            Pose pose_est = estimate_poses.at(pose_gt.ts());
-            Eigen::Matrix3d R_relative = pose_gt.R().transpose() * pose_est.R();
-            Eigen::Vector3d rpy_relative = MathUtils::R2rpy(R_relative);
-            EXPECT_NEAR(rpy_relative.norm(), 0.0, 1e-2);
-        }
+        Pose pose_gt = camera_poses[i];
+        Pose pose_est = estimate_poses.at(pose_gt.ts());
+        Eigen::Matrix3d R_relative = pose_gt.R().transpose() * pose_est.R();
+        Eigen::Vector3d rpy_relative = MathUtils::R2rpy(R_relative);
+        EXPECT_NEAR(rpy_relative.norm(), 0.0, 1e-2);
     }
 }
 

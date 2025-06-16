@@ -14,22 +14,15 @@ using namespace Sophus;
 class ImuPreintegrator
 {
    public:
-    ImuPreintegrator();
+    ImuPreintegrator() = default;
     virtual ~ImuPreintegrator() = default;
 
-    void feedImuData(const ImuData& imu_data)
+    void feedImuMeasuremnts(const std::vector<ImuData>& imu_data)
     {
-        if (imu_data_.empty() || imu_data.ts_sec > imu_data_.back().ts_sec)
-        {
-            imu_data_.push_back(imu_data);
-        }
-        else
-        {
-            LOG(WARNING) << "imu data is not in order, drop this data";
-        }
+        imu_data_ = imu_data;
+        start_ts_ = imu_data_.front().ts_sec;
+        end_ts_ = imu_data_.back().ts_sec;
     }
-
-    static ImuPreintegrator midPointIntegrate(std::shared_ptr<State> state, const std::vector<ImuData> imu_input, const double ts_start, const double ts_end);
 
     void Propagate(const Eigen::Vector3d ba, const Eigen::Vector3d bg);
 

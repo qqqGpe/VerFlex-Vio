@@ -28,7 +28,6 @@ bool VisualManager::VisualUpdate()
     constexpr uint32_t kMinFeatToUpdate = 10;
     bool visual_updated = false;
     std::map<double, CameraPose> camera_pose_buffer = _state->AccessClonePoseBuffer();
-    auto feat_origin_input = _feature_tracked;
     FeatureTriangulation(_feature_tracked, camera_pose_buffer);
     CalculateFeatureParallex(_feature_tracked);
 
@@ -72,7 +71,6 @@ bool VisualManager::VisualUpdate()
             CameraPose camera_pose = camera_pose_buffer.at(timestamp);
             Eigen::Vector3d pcf = camera_pose.Rwc.transpose() * ((*it)->_pwf - camera_pose.pwc);
             Eigen::Vector2d p_uv = _camera_model->project_left(pcf);
-            cv::Point2f point_reproj(p_uv(0), p_uv(1));
 
             std::ostringstream os;
             os << std::fixed << feat_id;
@@ -80,7 +78,7 @@ bool VisualManager::VisualUpdate()
             cv::putText(clone_image_map.at(timestamp), depth_text, point, cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1);
             cv::Scalar color = cv::Scalar(int(fb * feat_id) % 255, int(fg * feat_id) % 255, int(fr * feat_id) % 255);
             cv::circle(clone_image_map.at(timestamp), point, 4, color, -1);
-            cv::circle(clone_image_map.at(timestamp), point_reproj, 5, color, 1);
+            cv::circle(clone_image_map.at(timestamp), cv::Point2f(p_uv.x(), p_uv.y()), 5, color, 1);
         }
     }
 
@@ -117,9 +115,9 @@ bool VisualManager::VisualUpdate()
 
     if (_state->_clone_pose.size() >= _max_clone_pose)
     {
-        _keyframe = KeyFrameStatus::kNone;
-        _keyframe = CheckKeyframe(_state, feat_msckf);
-        if (_keyframe == KeyFrameStatus::kNone)
+        *_keyframe = KeyFrameStatus::kNone;
+        *_keyframe = CheckKeyframe(_state, feat_msckf);
+        if (*_keyframe == KeyFrameStatus::kNone)
         {
             state_to_marginalize = _state->_clone_pose.rbegin()->second;
             DropFeatureObsrvs(state_to_marginalize->ts());
@@ -272,7 +270,7 @@ void VisualManager::UpdateFeature(std::pair<double, std::vector<CameraObs>> feat
         {
             _feature_tracked.push_back(feature);
             feature_tracked_id_uset.insert(feature->_id);
-            feature->_visual_obs_buffer.insert({ts_sec, feature_obsrv_umap[feature->_id]});
+            feature->_visual_obs_buffer.insert_or_assign(ts_sec, feature_obsrv_umap[feature->_id]);
         }
         else
         {
@@ -303,8 +301,8 @@ void VisualManager::ResetFeatureBase()
     _feature_tracked.clear();
 }
 
-double VisualManager::calcVisualObsParallex(std::unordered_map<uint32_t, CameraObs> visual_obs_a,
-                                            std::unordered_map<uint32_t, CameraObs> visual_obs_b)
+double VisualManager::calcVisualObsParallex(const std::unordered_map<uint32_t, CameraObs>& visual_obs_a,
+                                            const std::unordered_map<uint32_t, CameraObs>& visual_obs_b)
 {
     double average_parallex = 0.0;
     auto PixelDistance = [](CameraObs obs_a, CameraObs obs_b) {
@@ -329,6 +327,20 @@ double VisualManager::calcVisualObsParallex(std::unordered_map<uint32_t, CameraO
         average_parallex = average_parallex / count;
     }
     return average_parallex;
+}
+
+std::map<uint32_t, CameraObs> VisualManager::covisibleFeatures(const std::unordered_map<uint32_t, CameraObs>& visual_obs_a,
+                                                               const std::unordered_map<uint32_t, CameraObs>& visual_obs_b)
+{
+    std::map<uint32_t, CameraObs> covisible_features;
+    for (const auto& [feature_id, obs_a] : visual_obs_a)
+    {
+        if (visual_obs_b.find(feature_id) != visual_obs_b.end())
+        {
+            covisible_features[feature_id] = obs_a;
+        }
+    }
+    return covisible_features;
 }
 
 void VisualManager::InitFeatureBase(std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_feature_triangulated)

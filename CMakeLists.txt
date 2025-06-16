@@ -117,3 +117,10 @@ target_link_libraries(test_sfm
                       ${catkin_LIBRARIES}
                       ${thirdparty_libraries}
                       GTest::GTest)
+
+add_executable(test_bch src/test_bch.cpp)
+target_link_libraries(test_bch
+                      msckf_core
+                      ${catkin_LIBRARIES}
+                      ${thirdparty_libraries}
+                      GTest::GTest)

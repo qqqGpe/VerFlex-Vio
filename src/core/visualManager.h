@@ -37,7 +37,8 @@ class VisualManager
     {
         _state = state;
         _camera_model = camera_model;
-        vio_frontend = std::make_shared<VioFrontend>(paramters, camera_model, &_keyframe);
+        _keyframe = std::make_shared<KeyFrameStatus>(KeyFrameStatus::kNone);
+        vio_frontend = std::make_shared<VioFrontend>(paramters, camera_model, _keyframe);
         _max_clone_pose = paramters.max_clone_pose;
         _max_feat_n = paramters.max_feat_n;
         solver_ = solver;
@@ -90,9 +91,15 @@ class VisualManager
 
     void FeedImages(const std::pair<double, std::pair<cv::Mat, cv::Mat>> input);
 
-    static double calcVisualObsParallex(std::unordered_map<uint32_t, CameraObs> visual_obs_a, std::unordered_map<uint32_t, CameraObs> visual_obs_b);
+    static double calcVisualObsParallex(const std::unordered_map<uint32_t, CameraObs>& visual_obs_a,
+                                        const std::unordered_map<uint32_t, CameraObs>& visual_obs_b);
 
-    KeyFrameStatus GetKeyframeState() { return _keyframe; }
+    static std::map<uint32_t, CameraObs> covisibleFeatures(const std::unordered_map<uint32_t, CameraObs>& visual_obs_a,
+                                                           const std::unordered_map<uint32_t, CameraObs>& visual_obs_b);
+
+    KeyFrameStatus GetKeyframeState() { return *_keyframe; }
+
+    void SetKeyframeState(const KeyFrameStatus state) { *_keyframe = state; }
 
     std::vector<Feature*> GetFeatureBase() { return _feature_base; }
 
@@ -117,7 +124,7 @@ class VisualManager
 
     boost::posix_time::ptime visual_rT, visual_rT1, visual_rT2, visual_rT3, visual_rT4;
 
-    KeyFrameStatus _keyframe = KeyFrameStatus::kNone;
+    std::shared_ptr<KeyFrameStatus> _keyframe;
 
     std::shared_ptr<VioFrontend> vio_frontend;
 

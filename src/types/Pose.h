@@ -72,7 +72,7 @@ class Pose : public Type
         _p->set_value(t);
     }
 
-    virtual std::shared_ptr<Type> clone() override
+    virtual std::shared_ptr<Type> clone() const override
     {
         std::shared_ptr<Pose> clone_variable = std::make_shared<Pose>();
         clone_variable->_q = std::dynamic_pointer_cast<Quat>(_q->clone());

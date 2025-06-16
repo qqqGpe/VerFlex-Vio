@@ -29,7 +29,7 @@ class Initializer
     }
     virtual ~Initializer() {};
 
-    void reset();
+    virtual void reset();
 
     bool StereoVisualInitialize(const std::pair<double, std::vector<CameraObs>> feature_observes);
 

@@ -54,6 +54,8 @@ class VioManager
 
         initializer = std::make_shared<Initializer>(params, _visual_manager, _camera_model_0, state);
 
+        dynamic_initializer = std::make_unique<DynamicInitializer>(params, _visual_manager, _camera_model_0, state);
+
         vio_logger = std::make_shared<utils::LoggerFull>(params.log_path);
 
         vio_logger_tum = std::make_shared<utils::LoggerTUM>(params.log_path);
@@ -84,6 +86,7 @@ class VioManager
     double _initial_timestamp = 0.f;
     std::shared_ptr<State> state;
     std::shared_ptr<Initializer> initializer;
+    std::unique_ptr<DynamicInitializer> dynamic_initializer;
     std::shared_ptr<ImuManager> _imu_manager;
     std::shared_ptr<VisualManager> _visual_manager;
     std::shared_ptr<CameraModel> _camera_model_0;
@@ -91,7 +94,6 @@ class VioManager
     std::shared_ptr<utils::LoggerTUM> vio_logger_tum;
     std::shared_ptr<MsckfSolverBase> solver;
     std::map<double, std::pair<cv::Mat, cv::Mat>> image_bak;
-
     std::map<double, GroundTruth> ground_truth_;
 
     boost::posix_time::ptime vio_rT, vio_rT1, vio_rT2, vio_rT3, vio_rT4;
@@ -99,6 +101,8 @@ class VioManager
 
    private:
     double last_update_timestamp_ = -1.0;
+
+    std::pair<double, std::vector<CameraObs>> last_feature_observes_;
 };
 
 void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager);

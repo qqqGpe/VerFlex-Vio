@@ -1,10 +1,12 @@
 #include "sfm.h"
 #include <optional>
 
-bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>> &current_feature_observe)
+bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& current_feature_observe,
+                               std::optional<std::pair<double, cv::Mat>> image)
 {
     if (current_feature_observe.second.size() < kMinRequiredFeaturesPerFrame)
     {
+        LOG(INFO) << cv::format("Not enough features for SFM keyframe: %d < %d", current_feature_observe.second.size(), kMinRequiredFeaturesPerFrame);
         return false;
     }
 
@@ -12,12 +14,19 @@ bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>> &
     {
         all_feature_observes_.insert(current_feature_observe);
         latest_keyframe_observe_ = current_feature_observe;
+        if (image.has_value())
+        {
+            keyframe_images_.insert_or_assign(current_feature_observe.first, image->second);
+        }
+        LOG(INFO) << cv::format("First keyframe added, timestamp: %f, observations: %d", current_feature_observe.first,
+                                current_feature_observe.second.size());
         return true;
     }
     else
     {
         std::unordered_map<uint32_t, CameraObs> latest_keyframe_observe_umap;
         std::unordered_map<uint32_t, CameraObs> current_keyframe_observe_umap;
+        // Eigen::Matrix3d H = camera_model_->K_l() * latest_Rwc_.transpose() * current_Rwc;
         for (auto &obs : latest_keyframe_observe_.second)
         {
             latest_keyframe_observe_umap.insert({obs.feat_id, obs});
@@ -25,6 +34,16 @@ bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>> &
         for (auto &obs : current_feature_observe.second)
         {
             current_keyframe_observe_umap.insert({obs.feat_id, obs});
+            // CameraObs obs_eis = obs;
+            // Eigen::Vector3d uv_norm(obs.u_norm, obs.v_norm, 1.0);
+            // Eigen::Vector3d uv_norm_eis = H * uv_norm;
+            // uv_norm_eis /= uv_norm_eis.z();
+            // Eigen::Vector3d uv_eis = camera_model_->K_l() * uv_norm_eis;
+            // obs_eis.u = uv_eis.x();
+            // obs_eis.v = uv_eis.y();
+            // obs_eis.u_norm = uv_norm_eis.x();
+            // obs_eis.v_norm = uv_norm_eis.y();
+            // current_keyframe_observe_umap.insert({obs.feat_id, obs_eis});
         }
 
         double pixel_parallex = VisualManager::calcVisualObsParallex(latest_keyframe_observe_umap, current_keyframe_observe_umap);
@@ -32,16 +51,24 @@ bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>> &
         {
             all_feature_observes_.insert(current_feature_observe);
             latest_keyframe_observe_ = current_feature_observe;
+            if (image.has_value())
+            {
+                keyframe_images_.insert_or_assign(current_feature_observe.first, image->second);
+            }
+            // latest_Rwc_ = current_Rwc;
+            LOG(INFO) << cv::format("Keyframe added, timestamp: %f, pixel parallex: %f, feature observations: %d", current_feature_observe.first,
+                                    pixel_parallex, current_feature_observe.second.size());
             return true;
         }
         else if (abs(current_feature_observe.first - latest_keyframe_observe_.first) > kMaxTimeIntervalBetweenKeyframes)
         {
+            Reset();
             LOG(INFO) << "Platform moves too slow, can not perform dynamic-initialization";
             return false;
         }
         else
         {
-            LOG(INFO) << cv::format("Current parallex: %f < %f, not enough parallax to add keyframe", pixel_parallex, kMinPixelParallexBetweenKeyframes);
+            // LOG(INFO) << cv::format("Current parallex: %f < %f, not enough parallax to add keyframe", pixel_parallex, kMinPixelParallexBetweenKeyframes);
             return false;
         }
     }
@@ -112,10 +139,6 @@ void Sfm::triangulateFramePoints(const std::vector<CameraObs> &obs_A, const std:
 {
     constexpr double kMaxDifferenceRatio = 0.15f;
 
-    // std::cout << cv::format("Observation A timestamp: %f, Observation B timestamp: %f, A feature observations: %d, B feature observations: %d",
-    //                         obs_A.front().ts_sec, obs_B.front().ts_sec, obs_A.size(), obs_B.size())
-    //           << std::endl;
-
     if (obs_A.size() < kMinRequiredFeaturesPerFrame || obs_B.size() < kMinRequiredFeaturesPerFrame)
     {
         LOG(INFO) << "Not enough observations to triangulate points";
@@ -135,34 +158,34 @@ void Sfm::triangulateFramePoints(const std::vector<CameraObs> &obs_A, const std:
 
     for (auto &[point_id, obs_a] : obs_A_umap)
     {
-        if (obs_B_umap.count(point_id) == 0)
-        {
-            continue;
-        }
-        CameraObs obs_b = obs_B_umap[point_id];
-        Eigen::Vector2d obs_a_norm(obs_a.u_norm, obs_a.v_norm);
-        Eigen::Vector2d obs_b_norm(obs_b.u_norm, obs_b.v_norm);
-        Eigen::Vector3d point_3d = triangulatePoint(pose_a, pose_b, obs_a_norm, obs_b_norm);
-
-        // Update sfm feature base
         if (all_features_.find(point_id) != all_features_.end())
         {
             Feature &feature = all_features_[point_id];
-            if ((feature._pwf - point_3d).norm() / feature._pwf.norm() > kMaxDifferenceRatio)
-            {
-                std::cout << cv::format("pwf: [%f, %f, %f], current triangulated pwf: [%f, %f, %f], discard this feature.", feature._pwf.x(),
-                                        feature._pwf.y(), feature._pwf.z(), point_3d.x(), point_3d.y(), point_3d.z());
-                all_features_.erase(point_id);
-                continue;
-            }
             feature._visual_obs_buffer.insert_or_assign(obs_a.ts_sec, obs_a);
-            feature._visual_obs_buffer.insert_or_assign(obs_b.ts_sec, obs_b);
+            if (obs_B_umap.count(point_id) != 0)
+            {
+                CameraObs obs_b = obs_B_umap[point_id];
+                feature._visual_obs_buffer.insert_or_assign(obs_b.ts_sec, obs_b);
+            }
+            continue;
         }
         else
         {
+            if (obs_B_umap.count(point_id) == 0)
+            {
+                continue;
+            }
+
+            CameraObs obs_b = obs_B_umap[point_id];
+            Eigen::Vector2d obs_a_norm(obs_a.u_norm, obs_a.v_norm);
+            Eigen::Vector2d obs_b_norm(obs_b.u_norm, obs_b.v_norm);
+            Eigen::Vector3d point_3d = triangulatePoint(pose_a, pose_b, obs_a_norm, obs_b_norm);
+
+            // Add new sfm feature
             Feature feature;
             feature._id = point_id;
             feature._pwf = point_3d;
+            feature._is_triangulated = true;
             feature._visual_obs_buffer.insert({obs_a.ts_sec, obs_a});
             feature._visual_obs_buffer.insert({obs_b.ts_sec, obs_b});
             all_features_.insert({point_id, feature});
@@ -255,7 +278,9 @@ bool Sfm::solveFrameByPnp(const std::vector<CameraObs> current_obsv, Pose &curre
     cv::Mat K;
     cv::eigen2cv(camera_model_->K_l(), K);
     cv::Mat dist_coeffs = cv::Mat::zeros(4, 1, CV_64F);
-    cv::solvePnP(corresponding_points_3d, corresponding_points, K, dist_coeffs, rvec, tvec); // R_wtoc, p_winc
+    // cv::solvePnP(corresponding_points_3d, corresponding_points, K, dist_coeffs, rvec, tvec); // R_wtoc, p_winc
+    cv::solvePnPRansac(corresponding_points_3d, corresponding_points, K, dist_coeffs, rvec, tvec,
+                             false, 100, kMaxPixelErrorForPnp, 0.9); // R_wtoc, p_winc
 
     cv::Mat R_GtoC_cv;
     cv::Rodrigues(rvec, R_GtoC_cv);
@@ -293,7 +318,10 @@ double Sfm::findReferenceKeyframeTimestamp()
         }
 
         double pixel_parallex = VisualManager::calcVisualObsParallex(oldest_keyframe_observe_umap, current_keyframe_observe_umap);
-        if (pixel_parallex >= largest_pixel_parallex)
+        std::map<uint32_t, CameraObs> covisible_features =
+            VisualManager::covisibleFeatures(oldest_keyframe_observe_umap, current_keyframe_observe_umap);
+
+        if (pixel_parallex >= largest_pixel_parallex && covisible_features.size() >= kMinRequiredFeaturesPerFrame)
         {
             largest_pixel_parallex = pixel_parallex;
             reference_keyframe_timestamp = timestamp;
@@ -301,6 +329,47 @@ double Sfm::findReferenceKeyframeTimestamp()
     }
 
     return reference_keyframe_timestamp;
+}
+
+void Sfm::showKeyframeImages() const
+{
+    if (keyframe_images_.empty())
+    {
+        LOG(INFO) << "No keyframe images to show";
+        return;
+    }
+
+    const uint32_t kScale = 2;;
+    const cv::Mat image_tmp = keyframe_images_.begin()->second.clone();
+    const uint32_t width = image_tmp.cols / kScale;
+    const uint32_t height = image_tmp.rows / kScale;
+    cv::Mat Canvas(4 * height, 4 * width, CV_8UC3, cv::Scalar(0, 0, 0));
+    std::vector<cv::Mat> keyframes;
+    for (const auto &[timestamp, keyframe_image] : keyframe_images_)
+    {
+        cv::Mat resized_image;
+        cv::resize(keyframe_image, resized_image, cv::Size(width, height));
+        cv::cvtColor(resized_image, resized_image, cv::COLOR_GRAY2BGR); // Convert BGR to RGB for visualization
+        const std::vector<CameraObs> observations = all_feature_observes_.at(timestamp);  // Can not use [] at const function
+        for (const auto &obs : observations)
+        {
+            const uint32_t cb = (obs.feat_id * 13) % 255;
+            const uint32_t cg = (obs.feat_id * 23) % 255;
+            const uint32_t cr = (obs.feat_id * 33) % 255;
+            cv::circle(resized_image, cv::Point(obs.u / kScale, obs.v / kScale), 3, cv::Scalar(cb, cg, cr), -1);
+        }
+        keyframes.push_back(resized_image);
+        cv::imshow("Keyframe Image", resized_image);
+        cv::waitKey(0);
+    }
+    for (uint32_t i = 0; i < keyframes.size(); ++i)
+    {
+        uint32_t row = i / 4;
+        uint32_t col = i % 4;
+        keyframes[i].copyTo(Canvas(cv::Rect(col * width, row * height, width, height)));
+    }
+    cv::imshow("Keyframe Images", Canvas);
+    cv::waitKey(0);
 }
 
 void Sfm::ShowPoseWrtFirstFrame(const Pose current_pose)
@@ -333,8 +402,8 @@ bool Sfm::initSfmSolver()
 
     Pose reference_keyframe_pose(R_rto0, p_rin0);
     Pose oldest_keyframe_pose(Eigen::Matrix3d::Identity(), Eigen::Vector3d::Zero());
-    keyframe_poses_.insert({oldest_keyframe_timestamp_, oldest_keyframe_pose});
-    keyframe_poses_.insert({reference_keyframe_timestamp_, reference_keyframe_pose});
+    keyframe_poses_.insert_or_assign(oldest_keyframe_timestamp_, oldest_keyframe_pose);
+    keyframe_poses_.insert_or_assign(reference_keyframe_timestamp_, reference_keyframe_pose);
 
     // ShowPoseWrtFirstFrame(reference_keyframe_pose);  // For debug
     // Triangulate points between the oldest keyframe and the reference keyframe
@@ -384,8 +453,8 @@ bool Sfm::initSfmSolver()
         // cv::waitKey(0);
 
         keyframe_poses_.insert({it->first, current_pose});
-        // triangulateFramePoints(previous_observes, current_observes, previous_pose, current_pose);
-        triangulateFramePoints(oldest_keyframe_observes, current_observes, oldest_keyframe_pose, current_pose);
+        triangulateFramePoints(previous_observes, current_observes, previous_pose, current_pose);
+        // triangulateFramePoints(oldest_keyframe_observes, current_observes, oldest_keyframe_pose, current_pose);
         previous_observes = current_observes;
         previous_pose = current_pose;
     }
@@ -411,6 +480,7 @@ bool Sfm::initSfmSolver()
         return false;
     }
 
+    // showKeyframeImages();    // Debug: Show all images with features
     return true;
 }
 
@@ -512,28 +582,28 @@ bool Sfm::Optimization()
     ceres::Solver::Options options;
     options.linear_solver_type = ceres::DENSE_SCHUR;
     options.minimizer_progress_to_stdout = true;
-    options.max_num_iterations = 50;
+    options.max_num_iterations = 15;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    if (summary.termination_type == ceres::CONVERGENCE)
-    {
-        LOG(INFO) << "SFM finished with " << summary.final_cost << " cost";
-    }
-    else
-    {
-        LOG(INFO) << "SFM optimization failed";
+    // if (summary.termination_type == ceres::CONVERGENCE)
+    // {
+    //     LOG(INFO) << "SFM finished with " << summary.final_cost << " cost";
+    // }
+    // else
+    // {
+    //     LOG(INFO) << "SFM optimization failed";
 
-        for (int i = 0; i < kRequiredKeyframesForSfm; i++)
-        {
-            Eigen::Quaterniond q_updated(qs[i][3], qs[i][0], qs[i][1], qs[i][2]);   // w, x, y, z
-            Eigen::Vector3d p_updated(ps[i][0], ps[i][1], ps[i][2]);
-            Eigen::Vector3d rpy = MathUtils::R2rpy(q_updated.toRotationMatrix()) * RAD2DEG;
-            std::cout << cv::format("index: %d, rpy: [%f, %f, %f], p: [%f, %f, %f]", i, rpy.x(), rpy.y(), rpy.z(), p_updated.x(),
-                                    p_updated.y(), p_updated.z())
-                    << std::endl;
-        }
-        return false;
-    }
+    //     for (int i = 0; i < kRequiredKeyframesForSfm; i++)
+    //     {
+    //         Eigen::Quaterniond q_updated(qs[i][3], qs[i][0], qs[i][1], qs[i][2]);   // w, x, y, z
+    //         Eigen::Vector3d p_updated(ps[i][0], ps[i][1], ps[i][2]);
+    //         Eigen::Vector3d rpy = MathUtils::R2rpy(q_updated.toRotationMatrix()) * RAD2DEG;
+    //         std::cout << cv::format("index: %d, rpy: [%f, %f, %f], p: [%f, %f, %f]", i, rpy.x(), rpy.y(), rpy.z(), p_updated.x(),
+    //                                 p_updated.y(), p_updated.z())
+    //                 << std::endl;
+    //     }
+    //     return false;
+    // }
 
     // Update keyframe poses
     std::cout << "Pose after optimization: " << std::endl;
