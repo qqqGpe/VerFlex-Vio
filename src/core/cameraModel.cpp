@@ -43,12 +43,6 @@ Eigen::Vector2d CameraModel::project_right(Eigen::Vector3d p3d_norm)
     return feature_norm;
 }
 
-Eigen::Vector3d CameraModel::back_project(Eigen::Vector2d uv_2d)
-{
-    Eigen::Vector3d feat_norm((uv_2d.x() - Kr_origin_(0, 2)) / Kr_origin_(0, 0), (uv_2d.y() - Kr_origin_(1, 2)) / Kr_origin_(1, 1), 1.0);
-    return feat_norm;
-}
-
 void CameraModel::back_project_stereo(CameraObs& obs)
 {
     Eigen::Vector3d feat_norm_left((obs.u - Kl_undistort_(0, 2)) / Kl_undistort_(0, 0), (obs.v - Kl_undistort_(1, 2)) / Kl_undistort_(1, 1), 1.0);
@@ -59,6 +53,14 @@ void CameraModel::back_project_stereo(CameraObs& obs)
     obs.v_norm = feat_norm_left.y();
     obs.ur_norm = feat_norm_right.x();
     obs.vr_norm = feat_norm_right.y();
+}
+
+void CameraModel::back_project(CameraObs& obs)
+{
+    Eigen::Vector3d feat_norm_left((obs.u - Kl_undistort_(0, 2)) / Kl_undistort_(0, 0), (obs.v - Kl_undistort_(1, 2)) / Kl_undistort_(1, 1), 1.0);
+
+    obs.u_norm = feat_norm_left.x();
+    obs.v_norm = feat_norm_left.y();
 }
 
 void CameraModel::RectifyStereoImages(const cv::Mat& img_left, const cv::Mat& img_right, cv::Mat& rectified_left, cv::Mat& rectified_right)

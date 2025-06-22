@@ -45,14 +45,15 @@ class VioFrontend
     bool TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& input_image,
                         std::pair<double, std::vector<CameraObs>>& feature_observes);
 
-    bool TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& input_image, std::pair<double, std::vector<CameraObs>>& feature_observes);
+    bool TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat>> &input_image,
+                     std::pair<double, std::vector<CameraObs>> &feature_observes);
 
-    std::vector<bool> TrackFeatures(const cv::Mat image_left,
-                                    const cv::Mat image_right,
-                                    const std::vector<cv::Point2f> pts_to_track,
-                                    std::vector<cv::Point2f>& pts_tracked);
+    std::vector<uint8_t> TrackFeatures(const cv::Mat image_left,
+                                       const cv::Mat image_right,
+                                       const std::vector<cv::Point2f> pts_to_track,
+                                       std::vector<cv::Point2f> &pts_tracked);
 
-    status_t OutlierRejection(const std::vector<CameraObs>& obs_prev, const std::vector<CameraObs>& obs_curr, std::vector<uchar>& inliers);
+    status_t OutlierRejection(const std::vector<CameraObs> &obs_prev, const std::vector<CameraObs> &obs_curr, std::vector<uint8_t> &inliers);
 
     std::pair<double, cv::Mat> ref_frame;  // (ts_sec, image)
     std::pair<double, cv::Mat> cur_frame;

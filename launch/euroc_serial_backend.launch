@@ -14,7 +14,7 @@
     <!-- <arg name="dataset"     default="MH_04_difficult" /> -->
 
     <!-- <arg name="bag"         default="/media/gao/samsung/dataset/euroc_mav/$(arg dataset).bag" /> -->
-    <arg name="bag"         default="/home/gao/dataset/euroc_mav/$(arg dataset).bag" />
+    <arg name="bag"         default="/mnt/d/euroc_mav/MH_01_easy/$(arg dataset).bag" />
 
     <!-- saving trajectory path and timing information -->
     <arg name="dosave"      default="false" />

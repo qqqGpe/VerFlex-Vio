@@ -29,6 +29,8 @@ class VioManager
     VioManager() = default;
     VioManager(const Param& params)
     {
+        params_ = params;
+
         if (params.solver_type == static_cast<int>(SolverType::ESKF))
         {
             solver = std::make_shared<eskfSolver>();
@@ -100,8 +102,8 @@ class VioManager
     boost::posix_time::ptime pro_rT, pro_rT1, pro_rT2, pro_rT3, pro_rT4;
 
    private:
+    Param params_;
     double last_update_timestamp_ = -1.0;
-
     std::pair<double, std::vector<CameraObs>> last_feature_observes_;
 };
 

@@ -8,6 +8,13 @@
 #include "parameter.h"
 #include "sensor_data.h"
 
+enum class CameraId
+{
+    LEFT_CAM = 0,
+    RIGHT_CAM = 1,
+    MAX_CAM_NUM = 2
+};
+
 class CameraModel
 {
    public:
@@ -49,9 +56,9 @@ class CameraModel
 
     Eigen::Vector2d project_right(Eigen::Vector3d p3d_norm);
 
-    Eigen::Vector3d back_project(Eigen::Vector2d uv_2d);
-
     void back_project_stereo(CameraObs& obs);
+
+    void back_project(CameraObs& obs);
 
     void RectifyStereoImages(const cv::Mat& img_left, const cv::Mat& img_right, cv::Mat& rectified_left, cv::Mat& rectified_right);
 

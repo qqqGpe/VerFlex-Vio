@@ -7,12 +7,12 @@
 
 class Param
 {
-   public:
+public:
     Param(std::shared_ptr<ros::NodeHandle> nh) : _nh(nh) {}
 
     Param() = default;
 
-    void load_params()
+    bool load_params()
     {
         _nh->param<bool>("set_init_timestamp_to_zero", set_init_timestamp_to_zero, false);
         _nh->param<bool>("use_multi_thread", use_multi_thread, false);
@@ -72,6 +72,8 @@ class Param
                 Tic[offset + 7], Tic[offset + 8];
             tic[cam_id] << Tic[offset + 9], Tic[offset + 10], Tic[offset + 11];
         }
+
+        return CheckParams();
     }
     bool set_init_timestamp_to_zero = false;
     bool use_multi_thread = false;
@@ -102,9 +104,44 @@ class Param
     std::vector<Eigen::Matrix3d> Ric;
     std::vector<Eigen::Vector3d> tic;
 
-    int solver_type = 0;  // 0: ESKF, 1: SqrtESKF
+    int solver_type = 0; // 0: ESKF, 1: SqrtESKF
 
-   private:
+private:
+    bool CheckParams()
+    {
+        if (camera_num < 1 || camera_num > 2)
+        {
+            std::cerr << "Error: camera_num must be 1 or 2!" << std::endl;
+            return false;
+        }
+        if (img_width <= 0 || img_height <= 0)
+        {
+            std::cerr << "Error: img_width and img_height must be positive!" << std::endl;
+            return false;
+        }
+        if (max_feat_n <= 0)
+        {
+            std::cerr << "Error: max_feat_n must be positive!" << std::endl;
+            return false;
+        }
+        if (grid_w <= 0 || grid_h <= 0)
+        {
+            std::cerr << "Error: grid_w and grid_h must be positive!" << std::endl;
+            return false;
+        }
+        if (max_clone_pose < 0)
+        {
+            std::cerr << "Error: max_clone_pose must be non-negative!" << std::endl;
+            return false;
+        }
+        if (imu_acc_var_static_thres <= 0 || imu_gyro_static_thres <= 0)
+        {
+            std::cerr << "Error: imu_acc_var_static_thres and imu_gyro_static_thres must be positive!" << std::endl;
+            return false;
+        }
+        return true;
+    }
+
     std::shared_ptr<ros::NodeHandle> _nh;
 };
 

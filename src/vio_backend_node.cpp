@@ -29,7 +29,11 @@ int main(int argc, char** argv)
 
     // load vio_backend parameters
     Param params(nh);
-    params.load_params();
+    if (!params.load_params())
+    {
+        LOG(ERROR) << "Failed to load parameters!";
+        return -1;
+    }
 
     // set log level
     fLI::FLAGS_stderrthreshold = params.log_level;  // 0: info, 1: warning, 2: error, 3: fatal

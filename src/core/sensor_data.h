@@ -3,13 +3,6 @@
 #include <Eigen/Core>
 #include <opencv2/opencv.hpp>
 
-enum CameraId
-{
-    LEFT_CAM = 0,
-    RIGHT_CAM = 1,
-    MAX_CAM_NUM = 2
-};
-
 enum class KeyFrameStatus
 {
     kNone = 0,

@@ -175,7 +175,12 @@ void VioManager::ProcessMeasurementOnce()
         std::pair<double, std::pair<cv::Mat, cv::Mat>> new_image = _visual_manager->_input_image_buffer.front();
         _visual_manager->_input_image_buffer.pop();
         std::pair<double, std::vector<CameraObs>> feature_observes;
-        if (!_visual_manager->vio_frontend->TrackStereo(new_image, feature_observes))
+
+        if (params_.camera_num == 1 && !_visual_manager->vio_frontend->TrackMonocular(new_image, feature_observes))
+        {
+            continue;
+        }
+        else if (params_.camera_num == 2 && !_visual_manager->vio_frontend->TrackStereo(new_image, feature_observes))
         {
             continue;
         }

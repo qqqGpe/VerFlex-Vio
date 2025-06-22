@@ -4,7 +4,6 @@
 #include <Eigen/Eigen>
 #include <Eigen/Geometry>
 #include <memory>
-#include "format.h"
 
 class Type
 {

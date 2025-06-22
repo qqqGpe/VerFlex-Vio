@@ -6,7 +6,7 @@ bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& 
 {
     if (current_feature_observe.second.size() < kMinRequiredFeaturesPerFrame)
     {
-        LOG(INFO) << cv::format("Not enough features for SFM keyframe: %d < %d", current_feature_observe.second.size(), kMinRequiredFeaturesPerFrame);
+        LOG(INFO) << cv::format("Not enough features for SFM keyframe: %d < %d", static_cast<int>(current_feature_observe.second.size()), kMinRequiredFeaturesPerFrame);
         return false;
     }
 
@@ -19,7 +19,7 @@ bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& 
             keyframe_images_.insert_or_assign(current_feature_observe.first, image->second);
         }
         LOG(INFO) << cv::format("First keyframe added, timestamp: %f, observations: %d", current_feature_observe.first,
-                                current_feature_observe.second.size());
+                                static_cast<int>(current_feature_observe.second.size()));
         return true;
     }
     else
@@ -57,7 +57,7 @@ bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& 
             }
             // latest_Rwc_ = current_Rwc;
             LOG(INFO) << cv::format("Keyframe added, timestamp: %f, pixel parallex: %f, feature observations: %d", current_feature_observe.first,
-                                    pixel_parallex, current_feature_observe.second.size());
+                                    pixel_parallex, static_cast<int>(current_feature_observe.second.size()));
             return true;
         }
         else if (abs(current_feature_observe.first - latest_keyframe_observe_.first) > kMaxTimeIntervalBetweenKeyframes)
@@ -476,7 +476,7 @@ bool Sfm::initSfmSolver()
     // Check if we have enough features for sfm
     if (all_features_.size() < kMinRequiredFeaturesForSfm)
     {
-        LOG(INFO) << cv::format("Not enough points: %d, for sfm, minimum required points: %d", all_features_.size(), kMinRequiredFeaturesForSfm);
+        LOG(INFO) << cv::format("Not enough points: %d, for sfm, minimum required points: %d", static_cast<int>(all_features_.size()), kMinRequiredFeaturesForSfm);
         return false;
     }
 

@@ -4,7 +4,7 @@ bool DynamicInitializer::isReadyToInitialize() const
 {
     if (!sfm_solver->isReady())
     {
-        LOG(INFO) << cv::format("SFM solver is not ready(%d/%d), need more movement", sfm_solver->getAllFeatureObservations().size(),
+        LOG(INFO) << cv::format("SFM solver is not ready(%d/%d), need more movement", static_cast<int>(sfm_solver->getAllFeatureObservations().size()),
                                 Sfm::kRequiredKeyframesForSfm);
         return false;
     }

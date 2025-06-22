@@ -36,6 +36,7 @@ class VisualManager
                   std::shared_ptr<MsckfSolverBase> solver = nullptr)
     {
         _state = state;
+        param_ = paramters;
         _camera_model = camera_model;
         _keyframe = std::make_shared<KeyFrameStatus>(KeyFrameStatus::kNone);
         vio_frontend = std::make_shared<VioFrontend>(paramters, camera_model, _keyframe);
@@ -109,7 +110,7 @@ class VisualManager
     uint32_t _max_feat_n = 0;
     uint32_t _feature_mapping_success = 0;
     uint32_t _feature_mapping_in = 0;
-    uint32_t _max_visual_feat_to_use = 100;
+    uint32_t _max_visual_feat_to_use = 40;
 
     std::queue<std::pair<double, std::pair<cv::Mat, cv::Mat>>> _input_image_buffer;
     std::queue<std::pair<double, std::vector<CameraObs>>> feature_obs_buffer;
@@ -131,6 +132,7 @@ class VisualManager
     friend VioFrontend;
 
    protected:
+    Param param_;
     std::shared_ptr<State> _state;
     std::shared_ptr<CameraModel> _camera_model;
     std::unordered_map<std::shared_ptr<Type>, size_t> _map_hx;

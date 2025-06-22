@@ -5,6 +5,7 @@
 #include "Quat.h"
 #include "Type.h"
 #include "Vec.h"
+#include "format.h"
 
 class Pose : public Type
 {

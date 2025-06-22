@@ -377,18 +377,18 @@ bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clo
     for (auto it = feat->_visual_obs_buffer.begin(); it != feat->_visual_obs_buffer.end(); it++)
     {
         _camera_model->back_project_stereo(it->second);
-        for (int cam_id = 0; cam_id < MAX_CAM_NUM; cam_id++)
+        for (int cam_id = 0; cam_id < param_.camera_num; cam_id++)
         {
             Eigen::Matrix3d R_CitoG;
             Eigen::Vector3d p_CiinG;
             Eigen::Vector3d b_i;
-            if (cam_id == LEFT_CAM)
+            if (cam_id == static_cast<int>(CameraId::LEFT_CAM))
             {
                 R_CitoG = clone_pose_buffer[it->first].Rwc;
                 p_CiinG = clone_pose_buffer[it->first].pwc;
                 b_i << it->second.u_norm, it->second.v_norm, 1;
             }
-            else if (cam_id == RIGHT_CAM)
+            else if (cam_id == static_cast<int>(CameraId::RIGHT_CAM))
             {
                 R_CitoG = clone_pose_buffer[it->first].Rwc * _camera_model->R_rl();
                 p_CiinG = clone_pose_buffer[it->first].pwc + clone_pose_buffer[it->first].Rwc * _camera_model->p_rl();
@@ -397,8 +397,6 @@ bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clo
 
             Eigen::Matrix3d R_CitoA = R_AtoG.transpose() * R_CitoG;
             Eigen::Vector3d p_CiinA = R_AtoG.transpose() * (p_CiinG - p_AinG);
-            // std::cout << R_CitoA << std::endl;
-            // std::cout << p_CiinA.transpose() << std::endl;
 
             Eigen::Vector3d b_iinA = R_CitoA * b_i;
             ATA += MathUtils::skew(b_iinA).transpose() * MathUtils::skew(b_iinA);
@@ -462,20 +460,20 @@ bool VisualManager::GaussianNewtonOptimization(std::map<double, CameraPose>& clo
         for (auto it = feat->_visual_obs_buffer.begin(); it != feat->_visual_obs_buffer.end(); it++)
         {
             _camera_model->back_project_stereo((*it).second);
-            for (int cam_id = 0; cam_id < MAX_CAM_NUM; cam_id++)
+            for (int cam_id = 0; cam_id < param_.camera_num; cam_id++)
             {
                 double feature_timestamp = (*it).first;
                 Eigen::Matrix3d R_CitoG;
                 Eigen::Vector3d p_CiinG;
                 Eigen::Vector2d z_m;
 
-                if (cam_id == LEFT_CAM)
+                if (cam_id == static_cast<int>(CameraId::LEFT_CAM))
                 {
                     z_m << (*it).second.u_norm, (*it).second.v_norm;
                     R_CitoG = clone_pose_buffer[feature_timestamp].Rwc;
                     p_CiinG = clone_pose_buffer[feature_timestamp].pwc;
                 }
-                else if (cam_id == RIGHT_CAM)
+                else if (cam_id == static_cast<int>(CameraId::RIGHT_CAM))
                 {
                     z_m << (*it).second.ur_norm, (*it).second.vr_norm;
                     R_CitoG = clone_pose_buffer[feature_timestamp].Rwc * _camera_model->R_rl();
@@ -558,17 +556,17 @@ bool VisualManager::StereoLeastSqureTriangulation(const std::shared_ptr<CameraMo
     Eigen::Matrix3d ATA = Eigen::Matrix3d::Zero();
     Eigen::Vector3d ATb = Eigen::Vector3d::Zero();
 
-    for (int cam_id = 0; cam_id < MAX_CAM_NUM; cam_id++)
+    for (int cam_id = 0; cam_id < static_cast<int>(CameraId::MAX_CAM_NUM); cam_id++)
     {
         Eigen::Matrix3d R_CitoA = Eigen::Matrix3d::Identity();
         Eigen::Vector3d p_CiinA = Eigen::Vector3d::Zero();
         Eigen::Vector3d b_i = Eigen::Vector3d::Zero();
 
-        if (cam_id == LEFT_CAM)
+        if (cam_id == static_cast<int>(CameraId::LEFT_CAM))
         {
             b_i << cam_obs.u_norm, cam_obs.v_norm, 1;
         }
-        else if (cam_id == RIGHT_CAM)
+        else if (cam_id == static_cast<int>(CameraId::RIGHT_CAM))
         {
             b_i << cam_obs.ur_norm, cam_obs.vr_norm, 1;
             R_CitoA = camera_model->R_rl();
@@ -902,21 +900,21 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
     for (auto& obs : feat->_visual_obs_buffer)
     {
         double obs_ts = obs.first;
-        for (int cam_id = 0; cam_id < MAX_CAM_NUM; cam_id++)
+        for (int cam_id = 0; cam_id < param_.camera_num; cam_id++)
         {
             Eigen::Vector2d zm;
             double focal_length;
             Eigen::Matrix3d R_CtoI;
             Eigen::Vector3d p_CinI;
 
-            if (cam_id == LEFT_CAM)
+            if (cam_id == static_cast<int>(CameraId::LEFT_CAM))
             {
                 zm << obs.second.u, obs.second.v;
                 focal_length = _camera_model->K_l()(0, 0);
                 R_CtoI = _state->_Tic->quat().toRotationMatrix();
                 p_CinI = _state->_Tic->p();
             }
-            else if (cam_id == RIGHT_CAM)
+            else if (cam_id == static_cast<int>(CameraId::RIGHT_CAM))
             {
                 zm << obs.second.ur, obs.second.vr;
                 focal_length = _camera_model->K_r()(0, 0);
@@ -935,7 +933,7 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
 
             // compute visual residual
             Eigen::Vector2d uv;
-            uv = cam_id == LEFT_CAM ? _camera_model->project_left(p_finCi) : _camera_model->project_right(p_finCi);
+            uv = cam_id == static_cast<int>(CameraId::LEFT_CAM) ? _camera_model->project_left(p_finCi) : _camera_model->project_right(p_finCi);
 
             Eigen::Vector2d res = zm - uv;
             Hfx.block<2, 1>(2 * cnt, Hfx.cols() - 1) = res;
