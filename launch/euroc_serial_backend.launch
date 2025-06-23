@@ -14,7 +14,8 @@
     <!-- <arg name="dataset"     default="MH_04_difficult" /> -->
 
     <!-- <arg name="bag"         default="/media/gao/samsung/dataset/euroc_mav/$(arg dataset).bag" /> -->
-    <arg name="bag"         default="/mnt/d/euroc_mav/MH_01_easy/$(arg dataset).bag" />
+    <!-- <arg name="bag"         default="/mnt/d/euroc_mav/MH_01_easy/$(arg dataset).bag" /> -->
+    <arg name="bag"         default="/home/gao/dataset/euroc_mav/$(arg dataset).bag" />
 
     <!-- saving trajectory path and timing information -->
     <arg name="dosave"      default="false" />
@@ -35,7 +36,7 @@
         <!-- 0: info, 1: warning, 2: error, 3: fatal -->
         <param name="log_level"                type="int"     value="0" />
 
-        <param name="camera_num"               type="int"    value="2" />
+        <param name="camera_num"               type="int"    value="1" />
 
         <!-- bag parameters -->
         <param name="path_bag"                 type="str"    value="$(arg bag)" />

@@ -87,33 +87,16 @@ VioFrontend::status_t VioFrontend::OutlierRejection(const std::vector<CameraObs>
             points_curr.emplace_back(obs_curr[i].u, obs_curr[i].v);
         }
     }
-
-    // std::vector<uchar> inliers_homography;
     std::vector<uchar> inliers_epipolar;
-    // std::thread r1 = std::thread(HomographyRansac, points_prev, points_curr, &inliers_homography);
-    // std::thread r2 = std::thread(EpipolarRansac, points_prev, points_curr, _camera_model->intrinsic(), &inliers_epipolar);
-    // r1.join();
-    // r2.join();
-
     EpipolarRansac(points_prev, points_curr, _camera_model->K_l(), &inliers_epipolar);
-
-    // int sum_h = 0;
-    // int sum_e = 0;
-    // for (int i = 0; i < inliers_epipolar.size(); i++) {
-    //     sum_h += inliers_homography[i];
-    //     sum_e += inliers_epipolar[i];
-    // }
-
-    // inliers = (sum_h > sum_e) ? inliers_homography : inliers_epipolar;
-    // std::cout << cv::format("sum_h: %d, sum_e: %d\n", sum_h, sum_e);
     inliers = inliers_epipolar;
     return STATUS_OK;
 }
 
 std::vector<uint8_t> VioFrontend::TrackFeatures(const cv::Mat image_left,
-                                             const cv::Mat image_right,
-                                             const std::vector<cv::Point2f> pts_to_track,
-                                             std::vector<cv::Point2f>& pts_tracked)
+                                                const cv::Mat image_right,
+                                                const std::vector<cv::Point2f> pts_to_track,
+                                                std::vector<cv::Point2f>& pts_tracked)
 {
     std::vector<uint8_t> status;
     std::vector<uchar> forward_status, backward_status;
@@ -368,7 +351,7 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::
 
     const int h_step = height_ / grid_h_;
     const int w_step = width_ / grid_w_;
-    std::vector<std::vector<bool>> occupied_mat(grid_h_ + 1, std::vector<bool>(grid_w_ + 1, false));
+    std::vector<std::vector<uint8_t>> occupied_mat(grid_h_ + 1, std::vector<uint8_t>(grid_w_ + 1, 0));
 
     if (!is_first_frame_)
     {
@@ -410,15 +393,15 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::
         }
 
         // Epipolar RANSAC to reject outliers
-        // std::vector<uint8_t> inliers;
-        // OutlierRejection(ref_feat_to_track_, cur_feat_to_track, inliers);
-        // for (int i = 0; i < ref_feat_to_track_.size(); i++)
-        // {
-        //     if (inliers[i] == 0)
-        //     {
-        //         cur_feat_to_track[i].set_invalid();
-        //     }
-        // }
+        std::vector<uint8_t> inliers;
+        OutlierRejection(ref_feat_to_track_, cur_feat_to_track, inliers);
+        for (int i = 0; i < ref_feat_to_track_.size(); i++)
+        {
+            if (inliers[i] == 0)
+            {
+                cur_feat_to_track[i].set_invalid();
+            }
+        }
 
         // Remove Conflicting Observations
         std::vector<std::vector<CameraObs*>> occupied_feat(grid_h_ + 1, std::vector<CameraObs*>(grid_w_ + 1, nullptr));
@@ -430,9 +413,9 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::
             }
             int h = cur_feat_to_track[i].v / h_step;
             int w = cur_feat_to_track[i].u / w_step;
-            if (occupied_mat[h][w] == false)
+            if (occupied_mat[h][w] == 0)
             {
-                occupied_mat[h][w] = true;
+                occupied_mat[h][w] = 1;
                 occupied_feat[h][w] = &(cur_feat_to_track[i]);
             }
             else
@@ -447,43 +430,51 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::
         }
     }
 
+    // Delate invalid features
+    for (auto it = cur_feat_to_track.begin(); it != cur_feat_to_track.end();)
+    {
+        if (!it->valid)
+        {
+            it = cur_feat_to_track.erase(it);
+            continue;
+        }
+        it = std::next(it);
+    }
+
     // Add new features if keyframe
     if (*_keyframe != KeyFrameStatus::kNone || is_first_frame_)
     {
-        std::deque<CameraObs> feats_new;
-        std::vector<cv::Point2f> corners;
-        cv::goodFeaturesToTrack(cur_frame.second, corners, _max_feat_n, 0.01, 30);
-        for (auto& feat_new : corners)
+        std::deque<CameraObs> new_features;
+        std::vector<cv::Point2f> good_points;
+        cv::goodFeaturesToTrack(cur_frame.second, good_points, _max_feat_n, 0.01, 30);
+        for (auto& feat_new : good_points)
         {
             int h = feat_new.y / h_step;
             int w = feat_new.x / w_step;
-            if (occupied_mat[h][w] == false)
+            if (occupied_mat[h][w] == 0)
             {
-                CameraObs feat;
-                feat.feat_id = global_feature_id_++;
-                feat.obs_times_n = 1;
-                feat.u = feat_new.x;
-                feat.v = feat_new.y;
-                feats_new.push_back(feat);
-                occupied_mat[h][w] = true;
+                CameraObs feature;
+                feature.feat_id = global_feature_id_++;
+                feature.obs_times_n = 1;
+                feature.u = feat_new.x;
+                feature.v = feat_new.y;
+                new_features.push_back(feature);
+                occupied_mat[h][w] = 1;
             }
         }
 
-        // Assign new features to features tracked
-        for (int i = 0; i < cur_feat_to_track.size(); i++)
+        while (!new_features.empty() && cur_feat_to_track.size() < _max_feat_n)
         {
-            if (cur_feat_to_track[i].valid == false && !feats_new.empty())
-            {
-                cur_feat_to_track[i] = feats_new.front();
-                cur_feat_to_track[i].valid = true;
-                feats_new.pop_front();
-            }
+            cur_feat_to_track.push_back(new_features.front());
+            cur_feat_to_track.back().valid = true;
+            new_features.pop_front();
         }
+
         ref_frame = cur_frame;
         ref_feat_to_track_ = cur_feat_to_track;
     }
 
-    // Back-project features
+    // Back project features
     for (auto& obs : cur_feat_to_track)
     {
         obs.ts_sec = ts_sec;
@@ -491,7 +482,6 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::
     }
 
     feature_observes = std::make_pair(ts_sec, cur_feat_to_track);
-
     // Utils::visualize_feature_tracking_results(input_image.second.first.clone(), feature_observes);
     is_first_frame_ = false;
     return true;

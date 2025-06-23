@@ -63,11 +63,15 @@ void CameraModel::back_project(CameraObs& obs)
     obs.v_norm = feat_norm_left.y();
 }
 
-void CameraModel::RectifyStereoImages(const cv::Mat& img_left, const cv::Mat& img_right, cv::Mat& rectified_left, cv::Mat& rectified_right)
+void CameraModel::RectifyStereoImages(const cv::Mat& img_left, const cv::Mat& img_right, cv::Mat* rectified_left_ptr, cv::Mat* rectified_right_ptr)
 {
     // Apply rectification
-    cv::remap(img_left, rectified_left, rectify_map1_left, rectify_map2_left, cv::INTER_LINEAR);
-    cv::remap(img_right, rectified_right, rectify_map1_right, rectify_map2_right, cv::INTER_LINEAR);
+    cv::remap(img_left, *rectified_left_ptr, rectify_map1_left, rectify_map2_left, cv::INTER_LINEAR);
+
+    if (camera_num_ == int(CAM_TYPE::STEREO) && rectified_right_ptr != nullptr)
+    {
+        cv::remap(img_right, *rectified_right_ptr, rectify_map1_right, rectify_map2_right, cv::INTER_LINEAR);
+    }
 
     // // Visualize the origin and rectified images
     // {

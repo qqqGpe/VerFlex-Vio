@@ -262,7 +262,7 @@ void VioManager::ProcessMeasurementOnce()
             {
                 visual_updated = true;
                 last_update_timestamp_ = state->ts_sec();
-                LOG(INFO) << cv::format("VIO update success, current state ts: %f, pos: [%.3f, %.3f, %.3f], vel: [%.3f, %.3f, %.3f], rpy: [%.3f, %.3f, %.3f]",
+                LOG(INFO) << cv::format("VIO updated, current state ts: %f, pos: [%.3f, %.3f, %.3f], vel: [%.3f, %.3f, %.3f], rpy: [%.3f, %.3f, %.3f]",
                                         state->ts_sec(),
                                         state->_imu_state->p()->vec().x(), state->_imu_state->p()->vec().y(), state->_imu_state->p()->vec().z(),
                                         state->_imu_state->v()->vec().x(), state->_imu_state->v()->vec().y(), state->_imu_state->v()->vec().z(),
@@ -362,10 +362,21 @@ void VioManager::ImuCallback(const sensor_msgs::Imu::ConstPtr& msg)
 void VioManager::CameraCallback(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1)
 {
     double ts_sec = msg0->header.stamp.toSec() - _initial_timestamp;
-    cv::Mat image_l, image_l_rectify;
-    cv::Mat image_r, image_r_rectify;
-    Utils::transfer_image(msg0, image_l);
-    Utils::transfer_image(msg1, image_r);
-    _camera_model_0->RectifyStereoImages(image_l, image_r, image_l_rectify, image_r_rectify);
-    _visual_manager->FeedImages({ts_sec, {image_l_rectify, image_r_rectify}});
+
+    if (params_.camera_num == int(CAM_TYPE::MONO) && msg0 != nullptr)
+    {
+        cv::Mat image_l, image_l_rectify;
+        Utils::transfer_image(msg0, image_l);
+        _camera_model_0->RectifyStereoImages(image_l, cv::Mat(), &image_l_rectify, nullptr);
+        _visual_manager->FeedImages(std::make_pair(ts_sec, std::make_pair(image_l_rectify, cv::Mat())));
+    }
+    else if (params_.camera_num == int(CAM_TYPE::STEREO) && msg0 != nullptr && msg1 != nullptr)
+    {
+        cv::Mat image_l, image_l_rectify;
+        cv::Mat image_r, image_r_rectify;
+        Utils::transfer_image(msg0, image_l);
+        Utils::transfer_image(msg1, image_r);
+        _camera_model_0->RectifyStereoImages(image_l, image_r, &image_l_rectify, &image_r_rectify);
+        _visual_manager->FeedImages(std::make_pair(ts_sec, std::make_pair(image_l_rectify, image_r_rectify)));
+    }
 }

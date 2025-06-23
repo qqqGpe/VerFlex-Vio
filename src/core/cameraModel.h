@@ -15,6 +15,12 @@ enum class CameraId
     MAX_CAM_NUM = 2
 };
 
+enum class CAM_TYPE
+{
+    MONO = 1,
+    STEREO = 2
+};
+
 class CameraModel
 {
    public:
@@ -28,20 +34,21 @@ class CameraModel
 
         Ric_0_ = params.Ric[0];
         tic_0_ = params.tic[0];
-        Ric_1_ = params.Ric[1];
-        tic_1_ = params.tic[1];
-
-        Kl_origin_ = params.intrinsics[0];
-        Kr_origin_ = params.intrinsics[1];
         D_l_ = params.distortion[0];
-        D_r_ = params.distortion[1];
-
-        R_rl_ = Ric_0_.transpose() * Ric_1_;
-        p_rl_ = Ric_0_.transpose() * (tic_1_ - tic_0_);
-        baseline_ = p_rl_.norm();
-
+        Kl_origin_ = params.intrinsics[0];
         CalculateUndistortRectifyMap(Kl_origin_, D_l_, Kl_undistort_, rectify_map1_left, rectify_map2_left);
-        CalculateUndistortRectifyMap(Kr_origin_, D_r_, Kr_undistort_, rectify_map1_right, rectify_map2_right);
+
+        if (camera_num_ == 2)
+        {
+            Ric_1_ = params.Ric[1];
+            tic_1_ = params.tic[1];
+            Kr_origin_ = params.intrinsics[1];
+            D_r_ = params.distortion[1];
+            R_rl_ = Ric_0_.transpose() * Ric_1_;
+            p_rl_ = Ric_0_.transpose() * (tic_1_ - tic_0_);
+            baseline_ = p_rl_.norm();
+            CalculateUndistortRectifyMap(Kr_origin_, D_r_, Kr_undistort_, rectify_map1_right, rectify_map2_right);
+        }
     }
 
     void CalculateUndistortRectifyMap(const Eigen::Matrix3d& K, const Eigen::VectorXd& D, Eigen::Matrix3d& K_undistort, cv::Mat& map1, cv::Mat& map2);
@@ -60,7 +67,7 @@ class CameraModel
 
     void back_project(CameraObs& obs);
 
-    void RectifyStereoImages(const cv::Mat& img_left, const cv::Mat& img_right, cv::Mat& rectified_left, cv::Mat& rectified_right);
+    void RectifyStereoImages(const cv::Mat& img_left, const cv::Mat& img_right, cv::Mat* rectified_left_ptr, cv::Mat* rectified_right_ptr);
 
     double baseline() const { return baseline_; }
 

@@ -130,9 +130,10 @@ int main(int argc, char** argv)
             {
                 if (cam_idt == cam_id)
                 {
-                    camid_to_msg_index.insert({cam_id, m});
+                    camid_to_msg_index.insert_or_assign(cam_id, m);
                     continue;
                 }
+
                 int cam_idt_idx = -1;
                 for (int mt = m; mt < (int)msgs.size(); mt++)
                 {
@@ -147,9 +148,10 @@ int main(int argc, char** argv)
                     }
                     break;
                 }
+
                 if (cam_idt_idx != -1)
                 {
-                    camid_to_msg_index.insert({cam_idt, cam_idt_idx});
+                    camid_to_msg_index.insert_or_assign(cam_idt, cam_idt_idx);
                 }
             }
 
@@ -158,20 +160,30 @@ int main(int argc, char** argv)
                 continue;
             }
 
-            auto msg0 = msgs.at(camid_to_msg_index.at(0));
-            auto msg1 = msgs.at(camid_to_msg_index.at(1));
-            vio_manager->CameraCallback(msg0.instantiate<sensor_msgs::Image>(), msg1.instantiate<sensor_msgs::Image>());
+            if (params.camera_num == int(CAM_TYPE::MONO))
+            {
+                auto msg0 = msgs.at(camid_to_msg_index.at(0));
+                vio_manager->CameraCallback(msg0.instantiate<sensor_msgs::Image>(), nullptr);
+            }
+            else if (params.camera_num == int(CAM_TYPE::STEREO))
+            {
+                auto msg0 = msgs.at(camid_to_msg_index.at(0));
+                auto msg1 = msgs.at(camid_to_msg_index.at(1));
+                vio_manager->CameraCallback(msg0.instantiate<sensor_msgs::Image>(), msg1.instantiate<sensor_msgs::Image>());
+            }
+            else
+            {
+                LOG(ERROR) << "Camera type not supported!";
+                return -1;
+            }
 
             vio_manager->ProcessMeasurementOnce();
-
             visualizer.PublishVioState();
-
             loop_rate.sleep();
         }
     }
 
     // waiting for program to exit
-    // ros::spin();
     google::ShutdownGoogleLogging();
     ros::shutdown();
     return 0;

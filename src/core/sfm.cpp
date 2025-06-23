@@ -55,20 +55,17 @@ bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& 
             {
                 keyframe_images_.insert_or_assign(current_feature_observe.first, image->second);
             }
-            // latest_Rwc_ = current_Rwc;
             LOG(INFO) << cv::format("Keyframe added, timestamp: %f, pixel parallex: %f, feature observations: %d", current_feature_observe.first,
                                     pixel_parallex, static_cast<int>(current_feature_observe.second.size()));
             return true;
         }
         else if (abs(current_feature_observe.first - latest_keyframe_observe_.first) > kMaxTimeIntervalBetweenKeyframes)
         {
-            Reset();
             LOG(INFO) << "Platform moves too slow, can not perform dynamic-initialization";
             return false;
         }
         else
         {
-            // LOG(INFO) << cv::format("Current parallex: %f < %f, not enough parallax to add keyframe", pixel_parallex, kMinPixelParallexBetweenKeyframes);
             return false;
         }
     }
