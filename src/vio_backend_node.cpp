@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <memory>
 
+#include "core/camModel.h"
 #include "core/visualizer.h"
 #include "core/parameter.h"
 #include "core/vioManager.h"
@@ -47,6 +48,9 @@ int main(int argc, char** argv)
     time_init += ros::Duration(params.bag_start);
     ros::Time time_finish = (params.bag_durr < 0) ? view_full.getEndTime() : time_init + ros::Duration(params.bag_durr);
     view.addQuery(bag, time_init, time_finish);
+
+    // Initialize camera model
+    CamModel::getInstance().Init(params);
 
     // initialize vio_backend
     std::shared_ptr<VioManager> vio_manager = std::make_shared<VioManager>(params);
@@ -160,12 +164,12 @@ int main(int argc, char** argv)
                 continue;
             }
 
-            if (params.camera_num == int(CAM_TYPE::MONO))
+            if (params.camera_num == CamType::MONO)
             {
                 auto msg0 = msgs.at(camid_to_msg_index.at(0));
                 vio_manager->CameraCallback(msg0.instantiate<sensor_msgs::Image>(), nullptr);
             }
-            else if (params.camera_num == int(CAM_TYPE::STEREO))
+            else if (params.camera_num == CamType::STEREO)
             {
                 auto msg0 = msgs.at(camid_to_msg_index.at(0));
                 auto msg1 = msgs.at(camid_to_msg_index.at(1));

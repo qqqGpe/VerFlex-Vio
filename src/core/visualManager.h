@@ -4,7 +4,7 @@
 #include <map>
 #include <vector>
 #include "Imu_state.h"
-#include "cameraModel.h"
+#include "camModel.h"
 #include "frontend.h"
 #include "parameter.h"
 #include "sensor_data.h"
@@ -32,14 +32,12 @@ class VisualManager
 
     VisualManager(const Param& paramters,
                   std::shared_ptr<State>& state,
-                  std::shared_ptr<CameraModel>& camera_model,
                   std::shared_ptr<MsckfSolverBase> solver = nullptr)
     {
         _state = state;
         param_ = paramters;
-        _camera_model = camera_model;
         _keyframe = std::make_shared<KeyFrameStatus>(KeyFrameStatus::kNone);
-        vio_frontend = std::make_shared<VioFrontend>(paramters, camera_model, _keyframe);
+        vio_frontend = std::make_shared<VioFrontend>(paramters, _keyframe);
         _max_clone_pose = paramters.max_clone_pose;
         _max_feat_n = paramters.max_feat_n;
         solver_ = solver;
@@ -66,15 +64,15 @@ class VisualManager
 
     void FeatureTriangulation(std::vector<Feature*>& feats, std::map<double, CameraPose> camera_pose_buffer);
 
-    bool StereoTriangulation(const std::shared_ptr<CameraModel> camera_model, CameraObs& cam_obs, Eigen::Vector3d& pcf) const;
+    bool StereoTriangulation(CameraObs& cam_obs, Eigen::Vector3d& pcf) const;
 
-    bool PnpRansac(const std::shared_ptr<CameraModel> camera_model,
-                   std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_obs_triangulated,
-                   Eigen::Matrix3d& R_21, Eigen::Vector3d& p_21) const;
+    bool PnpRansac(Eigen::Matrix3d& R_12,
+                   Eigen::Vector3d& p_12,
+                   std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_obs_triangulated) const;
 
     bool least_square_triangulation(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
 
-    bool StereoLeastSqureTriangulation(const std::shared_ptr<CameraModel> camera_model, CameraObs& cam_obs, Eigen::Vector3d& pcf) const;
+    bool StereoLeastSqureTriangulation(CameraObs& cam_obs, Eigen::Vector3d& pcf) const;
 
     bool GaussianNewtonOptimization(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
 
@@ -134,7 +132,6 @@ class VisualManager
    protected:
     Param param_;
     std::shared_ptr<State> _state;
-    std::shared_ptr<CameraModel> _camera_model;
     std::unordered_map<std::shared_ptr<Type>, size_t> _map_hx;
     std::vector<std::shared_ptr<Type>> _Hx_order;
     int _origin_feature_tracked = 0.f;

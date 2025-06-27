@@ -93,9 +93,23 @@ void project_to_camera()
 
 int main()
 {
-    K << intrinsic[0], 0, intrinsic[2],
-        0, intrinsic[1], intrinsic[3],
-        0, 0, 1;
+
+    Param params;
+    params.camera_num = 1;
+    Eigen::Matrix3d K;
+    params.img_width = IMAGE_WIDTH;
+    params.img_height = IMAGE_HEIGHT;
+    params.max_feat_n = POINT_NUM_N;
+    K << intrinsic[0], 0, intrinsic[2], 0, intrinsic[1], intrinsic[3], 0, 0, 1;
+    Eigen::Matrix3d Ric = Eigen::Matrix3d::Identity();
+    Eigen::Vector3d Tic = Eigen::Vector3d::Zero();
+    Eigen::VectorXd D = Eigen::VectorXd::Zero(5); // Assuming no distortion for simplicity
+    params.intrinsics.push_back(K);
+    params.distortion.push_back(D);
+    params.Ric.push_back(Ric);
+    params.tic.push_back(Tic);
+
+    CamModel::getInstance().Init(params);
     srand((unsigned)time(NULL));
     pts_g = MatrixXd::Random(3, POINT_NUM_N).array().abs();
     pts_g.block<2, POINT_NUM_N>(0, 0) *= 1;
@@ -103,11 +117,9 @@ int main()
     std::cout << "generated pwf: \n" << std::endl;
     std::cout << pts_g.transpose() << std::endl;
 
-    Param params;   // empty parameters for debugging
     std::vector<double> distortion;     // empty distortion coeff for debugging
-    std::shared_ptr<CameraModel> camera_model = std::make_shared<CameraModel>(params);
     std::shared_ptr<State> state = make_shared<State>();
-    VisualManager visual_manager(params, state, camera_model, nullptr);
+    VisualManager visual_manager(params, state, nullptr);
 
     generate_camera_pose();
     project_to_camera();

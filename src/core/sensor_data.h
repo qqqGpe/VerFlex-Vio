@@ -3,6 +3,11 @@
 #include <Eigen/Core>
 #include <opencv2/opencv.hpp>
 
+namespace{
+    constexpr uint32_t kLeft = 0;
+    constexpr uint32_t kRight = 1;
+}
+
 enum class KeyFrameStatus
 {
     kNone = 0,
@@ -42,43 +47,35 @@ struct CameraData
 struct CameraObs
 {
     CameraObs() = default;
-    CameraObs(double ts_sec, float u, float v, float ur, float vr) : ts_sec(ts_sec), u(u), v(v), ur(ur), vr(vr) {}
-    CameraObs(float u, float v, float u_norm, float v_norm) : u(u), v(v), u_norm(u_norm), v_norm(v_norm) {}
+    CameraObs(double ts_sec, float u, float v, float ur, float vr) : ts_sec(ts_sec)
+    {
+        uv[kLeft] = Eigen::Vector2d(u, v);
+        uv[kRight] = Eigen::Vector2d(ur, vr);
+    }
 
-    void set_invalid()
+    CameraObs(float u, float v, float u_norm, float v_norm)
+    {
+        uv[kLeft] = Eigen::Vector2d(u, v);
+        uv_norm[kRight] = Eigen::Vector2d(u_norm, v_norm);
+    }
+
+    void setInvalid()
     {
         ts_sec = 0;
         feat_id = -1;
         valid = false;
         obs_times_n = 0;
-
-        u = 0;
-        v = 0;
-        u_norm = 0;
-        v_norm = 0;
-
-        ur = 0;
-        vr = 0;
-        ur_norm = 0;
-        vr_norm = 0;
-        image_left = cv::Mat();
-        image_right = cv::Mat();
+        std::map<int, Eigen::Vector2d>().swap(uv);
+        std::map<int, Eigen::Vector2d>().swap(uv_norm);
     }
 
     double ts_sec = 0;
     int32_t feat_id = -1;
     bool valid = false;
     uint32_t obs_times_n = 0;
-    float u = 0.f;
-    float v = 0.f;
-    float u_norm = 0.f;
-    float v_norm = 0.f;
-    float ur = 0.f;
-    float vr = 0.f;
-    float ur_norm = 0.f;
-    float vr_norm = 0.f;
-    cv::Mat image_left;
-    cv::Mat image_right;
+
+    std::map<int, Eigen::Vector2d> uv;
+    std::map<int, Eigen::Vector2d> uv_norm;
 };
 
 class CamObsHash

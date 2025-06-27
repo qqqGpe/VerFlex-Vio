@@ -1,4 +1,5 @@
 #include "vioManager.h"
+#include "camModel.h"
 #include <glog/logging.h>
 #include <sophus/so3.hpp>
 #include "format.h"
@@ -176,11 +177,11 @@ void VioManager::ProcessMeasurementOnce()
         _visual_manager->_input_image_buffer.pop();
         std::pair<double, std::vector<CameraObs>> feature_observes;
 
-        if (params_.camera_num == 1 && !_visual_manager->vio_frontend->TrackMonocular(new_image, feature_observes))
+        if (params_.camera_num == CamType::MONO && !_visual_manager->vio_frontend->TrackMonocular(new_image, feature_observes))
         {
             continue;
         }
-        else if (params_.camera_num == 2 && !_visual_manager->vio_frontend->TrackStereo(new_image, feature_observes))
+        else if (params_.camera_num == CamType::STEREO && !_visual_manager->vio_frontend->TrackStereo(new_image, feature_observes))
         {
             continue;
         }
@@ -363,20 +364,21 @@ void VioManager::CameraCallback(const sensor_msgs::ImageConstPtr& msg0, const se
 {
     double ts_sec = msg0->header.stamp.toSec() - _initial_timestamp;
 
-    if (params_.camera_num == int(CAM_TYPE::MONO) && msg0 != nullptr)
+    if (params_.camera_num == CamType::MONO && msg0 != nullptr)
     {
         cv::Mat image_l, image_l_rectify;
         Utils::transfer_image(msg0, image_l);
-        _camera_model_0->RectifyStereoImages(image_l, cv::Mat(), &image_l_rectify, nullptr);
+        CamModel::getInstance().RectifyImage(0, image_l, &image_l_rectify);
         _visual_manager->FeedImages(std::make_pair(ts_sec, std::make_pair(image_l_rectify, cv::Mat())));
     }
-    else if (params_.camera_num == int(CAM_TYPE::STEREO) && msg0 != nullptr && msg1 != nullptr)
+    else if (params_.camera_num == CamType::STEREO && msg0 != nullptr && msg1 != nullptr)
     {
         cv::Mat image_l, image_l_rectify;
         cv::Mat image_r, image_r_rectify;
         Utils::transfer_image(msg0, image_l);
         Utils::transfer_image(msg1, image_r);
-        _camera_model_0->RectifyStereoImages(image_l, image_r, &image_l_rectify, &image_r_rectify);
+        CamModel::getInstance().RectifyImage(0, image_l, &image_l_rectify);
+        CamModel::getInstance().RectifyImage(1, image_r, &image_r_rectify);
         _visual_manager->FeedImages(std::make_pair(ts_sec, std::make_pair(image_l_rectify, image_r_rectify)));
     }
 }

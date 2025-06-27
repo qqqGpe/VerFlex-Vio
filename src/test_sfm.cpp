@@ -78,29 +78,27 @@ std::vector<Pose> CreateCameraPoses(const double sector_r)
 
 CameraObs ProjectToCamera(const Pose &camera_pose, Feature &feature)
 {
-    Eigen::Matrix3d K = Eigen::Matrix3d::Identity();
-    K(0, 0) = focal_x;
-    K(1, 1) = focal_y;
-    K(0, 2) = canvas_size_u / 2;
-    K(1, 2) = canvas_size_v / 2;
-
+    Eigen::Matrix3d K = CamModel::getInstance().K(LEFT_CAM);
     Eigen::Vector3d p_finG = feature._pwf;
     Eigen::Vector3d p_CinG = camera_pose.p();
     Eigen::Matrix3d R_CtoG = camera_pose.quat().toRotationMatrix();
     Eigen::Vector3d pcf = R_CtoG.transpose() * (p_finG - p_CinG);
+    std::cout << "Camera Pose: " << camera_pose.R().transpose() << ", Position: " << camera_pose.p().transpose() << std::endl;
 
     CameraObs obs;
+    obs.ts_sec = camera_pose.ts();
     obs.feat_id = feature._id;
-    double u_norm = pcf(0) / pcf(2);
-    double v_norm = pcf(1) / pcf(2);
+    const double u_norm = pcf(0) / pcf(2);
+    const double v_norm = pcf(1) / pcf(2);
     Eigen::Vector3d uv_norm(u_norm, v_norm, 1.0);
     Eigen::Vector3d uv = K * uv_norm;
-    obs.u_norm = u_norm;
-    obs.v_norm = v_norm;
-    obs.u = uv.x();
-    obs.v = uv.y();
-    obs.ts_sec = camera_pose.ts();
-    feature._visual_obs_buffer.insert({obs.ts_sec, obs});
+    std::cout << "Camera Intrinsics: " << K << std::endl;
+    std::cout << "Feature ID: " << feature._id << ", UV: " << uv.transpose() << std::endl;
+
+    obs.uv[LEFT_CAM] << uv.x(), uv.y();
+    obs.uv_norm[LEFT_CAM] << u_norm, v_norm;
+
+    feature._visual_obs_buffer.emplace(obs.ts_sec, obs);
 
     return obs;
 }
@@ -121,7 +119,7 @@ void ShowObservations(const std::vector<CameraObs> &observations)
     cv::Mat image = cv::Mat::zeros(480, 640, CV_8UC3);
     for (const auto& obs : observations)
     {
-        cv::circle(image, cv::Point(obs.u, obs.v), 3, cv::Scalar(0, 255, 0), -1);
+        cv::circle(image, cv::Point(obs.uv.at(LEFT_CAM).x(), obs.uv.at(LEFT_CAM).y()), 3, cv::Scalar(0, 255, 0), -1);
     }
     cv::imshow("Observations", image);
     cv::waitKey(0);
@@ -129,21 +127,32 @@ void ShowObservations(const std::vector<CameraObs> &observations)
 
 TEST(VioTest, Sfm)
 {
-    std::shared_ptr<CameraModel> camera_model_ptr = std::make_shared<CameraModel>();
-    camera_model_ptr->SetCameraIntrinsicMatrix({focal_x, focal_y, canvas_size_u / 2, canvas_size_v / 2});
+    Param params;
+    params.camera_num = 1;
+    Eigen::Matrix3d K;
+    K << focal_x, 0, canvas_size_u / 2, 0, focal_y, canvas_size_v / 2, 0, 0, 1;
+    params.img_width = canvas_size_u;
+    params.img_height = canvas_size_v;
+    Eigen::Matrix3d Ric = Eigen::Matrix3d::Identity();
+    Eigen::Vector3d Tic = Eigen::Vector3d::Zero();
+    Eigen::VectorXd D = Eigen::VectorXd::Zero(5); // Assuming no distortion for simplicity
+    params.intrinsics.push_back(K);
+    params.distortion.push_back(D);
+    params.Ric.push_back(Ric);
+    params.tic.push_back(Tic);
 
     const double center_distance = 10.0f;
+    CamModel::getInstance().Init(params);
     std::vector<Feature> features = CreateFeaturePoints(center_distance);
     std::vector<Pose> camera_poses = CreateCameraPoses(center_distance);
     std::map<double, std::vector<CameraObs>> camera_observations;
-    Sfm sfm_solver(Param(), camera_model_ptr);
+    Sfm sfm_solver(params);
 
     for (const auto& camera_pose : camera_poses)
     {
         std::vector<CameraObs> observations;
         CreateObservations(camera_pose, features, observations);
-        // ShowObservations(observations);
-        camera_observations.insert({camera_pose.ts(), observations});
+        camera_observations.emplace(camera_pose.ts(), observations);
         sfm_solver.MaybeAddSfmKeyframes(std::make_pair(camera_pose.ts(), observations), std::nullopt);
         if (sfm_solver.isReady())
         {

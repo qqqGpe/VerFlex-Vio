@@ -66,11 +66,11 @@ bool VisualManager::VisualUpdate()
         {
             uint32_t feat_id = (*it)->_id;
             double timestamp = it_feat->first;
-            cv::Point2f point(it_feat->second.u, it_feat->second.v);
+            cv::Point2f point(it_feat->second.uv[LEFT_CAM].x(), it_feat->second.uv[LEFT_CAM].y());
 
             CameraPose camera_pose = camera_pose_buffer.at(timestamp);
             Eigen::Vector3d pcf = camera_pose.Rwc.transpose() * ((*it)->_pwf - camera_pose.pwc);
-            Eigen::Vector2d p_uv = _camera_model->project_left(pcf);
+            Eigen::Vector2d uv = CamModel::getInstance().project(0, pcf);
 
             std::ostringstream os;
             os << std::fixed << feat_id;
@@ -78,7 +78,7 @@ bool VisualManager::VisualUpdate()
             cv::putText(clone_image_map.at(timestamp), depth_text, point, cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1);
             cv::Scalar color = cv::Scalar(int(fb * feat_id) % 255, int(fg * feat_id) % 255, int(fr * feat_id) % 255);
             cv::circle(clone_image_map.at(timestamp), point, 4, color, -1);
-            cv::circle(clone_image_map.at(timestamp), cv::Point2f(p_uv.x(), p_uv.y()), 5, color, 1);
+            cv::circle(clone_image_map.at(timestamp), cv::Point2f(uv.x(), uv.y()), 5, color, 1);
         }
     }
 
@@ -163,9 +163,8 @@ KeyFrameStatus VisualManager::CheckKeyframe(std::shared_ptr<State> _state, std::
         assert(sub_last_ts < last_ts);
         CameraObs curr_obs = last_it->second;
         CameraObs prev_obs = sub_last_it->second;
-        double diff_u = curr_obs.u - prev_obs.u;
-        double diff_v = curr_obs.v - prev_obs.v;
-        pixel_parallex = std::sqrt(std::pow(diff_u, 2) + std::pow(diff_v, 2));
+        Eigen::Vector2d uv_distance = curr_obs.uv[LEFT_CAM] - prev_obs.uv[LEFT_CAM];
+        pixel_parallex = uv_distance.norm();
         pixel_parallex_avg += pixel_parallex;
         cnt++;
     }
@@ -250,8 +249,7 @@ void VisualManager::UpdateFeature(std::pair<double, std::vector<CameraObs>> feat
 
     for (auto& feat_obsrv : feature_observes.second)
     {
-        _camera_model->back_project_stereo(feat_obsrv);
-        feature_obsrv_umap.insert({feat_obsrv.feat_id, feat_obsrv});
+        feature_obsrv_umap.emplace(feat_obsrv.feat_id, feat_obsrv);
     }
 
     _feature_lost.clear();
@@ -306,9 +304,8 @@ double VisualManager::calcVisualObsParallex(const std::unordered_map<uint32_t, C
 {
     double average_parallex = 0.0;
     auto PixelDistance = [](CameraObs obs_a, CameraObs obs_b) {
-        double dx = obs_a.u - obs_b.u;
-        double dy = obs_a.v - obs_b.v;
-        return sqrt(dx * dx + dy * dy);
+        Eigen::Vector2d pix_distance = obs_a.uv[LEFT_CAM] - obs_b.uv[LEFT_CAM];
+        return pix_distance.norm();
     };
 
     int count = 0;
@@ -376,23 +373,22 @@ bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clo
     int feat_index = 0;
     for (auto it = feat->_visual_obs_buffer.begin(); it != feat->_visual_obs_buffer.end(); it++)
     {
-        _camera_model->back_project_stereo(it->second);
         for (int cam_id = 0; cam_id < param_.camera_num; cam_id++)
         {
             Eigen::Matrix3d R_CitoG;
             Eigen::Vector3d p_CiinG;
             Eigen::Vector3d b_i;
-            if (cam_id == static_cast<int>(CameraId::LEFT_CAM))
+            if (cam_id == LEFT_CAM)
             {
                 R_CitoG = clone_pose_buffer[it->first].Rwc;
                 p_CiinG = clone_pose_buffer[it->first].pwc;
-                b_i << it->second.u_norm, it->second.v_norm, 1;
+                b_i << it->second.uv_norm[cam_id], 1;
             }
-            else if (cam_id == static_cast<int>(CameraId::RIGHT_CAM))
+            else if (cam_id == RIGHT_CAM)
             {
-                R_CitoG = clone_pose_buffer[it->first].Rwc * _camera_model->R_rl();
-                p_CiinG = clone_pose_buffer[it->first].pwc + clone_pose_buffer[it->first].Rwc * _camera_model->p_rl();
-                b_i << it->second.ur_norm, it->second.vr_norm, 1;
+                R_CitoG = clone_pose_buffer[it->first].Rwc * CamModel::getInstance().R_rl();
+                p_CiinG = clone_pose_buffer[it->first].pwc + clone_pose_buffer[it->first].Rwc * CamModel::getInstance().p_rl();
+                b_i << it->second.uv_norm[cam_id], 1;
             }
 
             Eigen::Matrix3d R_CitoA = R_AtoG.transpose() * R_CitoG;
@@ -440,8 +436,8 @@ bool VisualManager::GaussianNewtonOptimization(std::map<double, CameraPose>& clo
 {
     auto last_obs = feat->_visual_obs_buffer.end();
     last_obs--;
-    Eigen::Matrix3d R_AtoG = clone_pose_buffer[last_obs->first].Rwc;
-    Eigen::Vector3d p_AinG = clone_pose_buffer[last_obs->first].pwc;
+    const Eigen::Matrix3d R_AtoG = clone_pose_buffer[last_obs->first].Rwc;
+    const Eigen::Vector3d p_AinG = clone_pose_buffer[last_obs->first].pwc;
 
     Eigen::Vector3d paf = R_AtoG.transpose() * (feat->_pwf - p_AinG);
     if (abs(paf.z()) < 1e-2)
@@ -459,7 +455,6 @@ bool VisualManager::GaussianNewtonOptimization(std::map<double, CameraPose>& clo
         Eigen::Vector3d ATb = Eigen::Vector3d::Zero();
         for (auto it = feat->_visual_obs_buffer.begin(); it != feat->_visual_obs_buffer.end(); it++)
         {
-            _camera_model->back_project_stereo((*it).second);
             for (int cam_id = 0; cam_id < param_.camera_num; cam_id++)
             {
                 double feature_timestamp = (*it).first;
@@ -467,17 +462,17 @@ bool VisualManager::GaussianNewtonOptimization(std::map<double, CameraPose>& clo
                 Eigen::Vector3d p_CiinG;
                 Eigen::Vector2d z_m;
 
-                if (cam_id == static_cast<int>(CameraId::LEFT_CAM))
+                if (cam_id == LEFT_CAM)
                 {
-                    z_m << (*it).second.u_norm, (*it).second.v_norm;
+                    z_m << (*it).second.uv_norm[cam_id];
                     R_CitoG = clone_pose_buffer[feature_timestamp].Rwc;
                     p_CiinG = clone_pose_buffer[feature_timestamp].pwc;
                 }
-                else if (cam_id == static_cast<int>(CameraId::RIGHT_CAM))
+                else if (cam_id == RIGHT_CAM)
                 {
-                    z_m << (*it).second.ur_norm, (*it).second.vr_norm;
-                    R_CitoG = clone_pose_buffer[feature_timestamp].Rwc * _camera_model->R_rl();
-                    p_CiinG = clone_pose_buffer[feature_timestamp].pwc + clone_pose_buffer[feature_timestamp].Rwc * _camera_model->p_rl();
+                    z_m << (*it).second.uv_norm[cam_id];
+                    R_CitoG = clone_pose_buffer[feature_timestamp].Rwc * CamModel::getInstance().R_rl();
+                    p_CiinG = clone_pose_buffer[feature_timestamp].pwc + clone_pose_buffer[feature_timestamp].Rwc * CamModel::getInstance().p_rl();
                 }
 
                 Eigen::Matrix3d R_AtoCi = R_CitoG.transpose() * R_AtoG;
@@ -545,32 +540,32 @@ bool VisualManager::GaussianNewtonOptimization(std::map<double, CameraPose>& clo
     return true;
 }
 
-bool VisualManager::StereoLeastSqureTriangulation(const std::shared_ptr<CameraModel> camera_model, CameraObs& cam_obs, Eigen::Vector3d& pcf) const
+bool VisualManager::StereoLeastSqureTriangulation(CameraObs& cam_obs, Eigen::Vector3d& pcf) const
 {
-    if (camera_model->camera_num() != 2)
+    const int32_t camera_num = CamModel::getInstance().camera_num();
+    if (camera_num != 2)
     {
         LOG(ERROR) << "Stereo triangulation only support stereo camera model";
         return false;
     }
-    camera_model->back_project_stereo(cam_obs);
     Eigen::Matrix3d ATA = Eigen::Matrix3d::Zero();
     Eigen::Vector3d ATb = Eigen::Vector3d::Zero();
 
-    for (int cam_id = 0; cam_id < static_cast<int>(CameraId::MAX_CAM_NUM); cam_id++)
+    for (int cam_id = 0; cam_id < camera_num; cam_id++)
     {
         Eigen::Matrix3d R_CitoA = Eigen::Matrix3d::Identity();
         Eigen::Vector3d p_CiinA = Eigen::Vector3d::Zero();
         Eigen::Vector3d b_i = Eigen::Vector3d::Zero();
 
-        if (cam_id == static_cast<int>(CameraId::LEFT_CAM))
+        if (cam_id == LEFT_CAM)
         {
-            b_i << cam_obs.u_norm, cam_obs.v_norm, 1;
+            b_i << cam_obs.uv_norm[cam_id], 1;
         }
-        else if (cam_id == static_cast<int>(CameraId::RIGHT_CAM))
+        else if (cam_id == RIGHT_CAM)
         {
-            b_i << cam_obs.ur_norm, cam_obs.vr_norm, 1;
-            R_CitoA = camera_model->R_rl();
-            p_CiinA = camera_model->p_rl();
+            b_i << cam_obs.uv_norm[cam_id], 1;
+            R_CitoA = CamModel::getInstance().R_rl();
+            p_CiinA = CamModel::getInstance().p_rl();
         }
 
         Eigen::Vector3d b_iinA = R_CitoA * b_i;
@@ -628,7 +623,7 @@ bool VisualManager::PnpRansacToRejectOutliers(std::vector<Feature*> feats)
             assert((*it)->_visual_obs_buffer.find(timestamp) != (*it)->_visual_obs_buffer.end());
             list_points3d.emplace_back((*it)->_pwf.x(), (*it)->_pwf.y(), (*it)->_pwf.z());
             CameraObs obs_2d = (*it)->_visual_obs_buffer.at(timestamp);
-            list_points2d.emplace_back(obs_2d.u, obs_2d.v);
+            list_points2d.emplace_back(obs_2d.uv[LEFT_CAM].x(), obs_2d.uv[LEFT_CAM].y());
         }
     }
     if (list_points3d.size() <= 0)
@@ -639,7 +634,8 @@ bool VisualManager::PnpRansacToRejectOutliers(std::vector<Feature*> feats)
     cv::Mat intrinsic;
     cv::Mat distortion;
     cv::Mat inliers;
-    cv::eigen2cv(_camera_model->K_l(), intrinsic);
+    Eigen::Matrix3d K = CamModel::getInstance().K(LEFT_CAM);
+    cv::eigen2cv(K, intrinsic);
     cv::Mat rvec = cv::Mat::zeros(3, 1, CV_64FC1);
     cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64FC1);
     cv::solvePnPRansac(list_points3d, list_points2d, intrinsic, distortion, rvec, tvec, false, 100, kReprijectionErrorThres, 0.8, inliers,
@@ -671,10 +667,9 @@ bool VisualManager::PnpRansacToRejectOutliers(std::vector<Feature*> feats)
     return true;
 }
 
-bool VisualManager::PnpRansac(const std::shared_ptr<CameraModel> camera_model,
-                              std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_obs_triangulated,
-                              Eigen::Matrix3d& R_12,
-                              Eigen::Vector3d& p_12) const
+bool VisualManager::PnpRansac(Eigen::Matrix3d& R_12,
+                              Eigen::Vector3d& p_12,
+                              std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_obs_triangulated) const
 {
     constexpr int kMinFeaturesForPnp = 15;
 
@@ -683,14 +678,15 @@ bool VisualManager::PnpRansac(const std::shared_ptr<CameraModel> camera_model,
     for (auto& [feat_id, obs_pwf] : stereo_obs_triangulated)
     {
         points_3d.push_back(cv::Point3f(obs_pwf.second.x(), obs_pwf.second.y(), obs_pwf.second.z()));
-        points_2d.push_back(cv::Point2f(obs_pwf.first.u, obs_pwf.first.v));
+        points_2d.push_back(cv::Point2f(obs_pwf.first.uv[LEFT_CAM].x(), obs_pwf.first.uv[LEFT_CAM].y()));
     }
 
     cv::Mat rvec, tvec;
     cv::Mat inliers;
     cv::Mat intrinsic;
     cv::Mat distortion;
-    cv::eigen2cv(camera_model->K_l(), intrinsic);
+    Eigen::Matrix3d K = CamModel::getInstance().K(LEFT_CAM);
+    cv::eigen2cv(K, intrinsic);
     cv::solvePnPRansac(points_3d, points_2d, intrinsic, distortion, rvec, tvec, false, 100, 3.0, 0.99, inliers, cv::SOLVEPNP_ITERATIVE);
 
     if (inliers.rows < kMinFeaturesForPnp)
@@ -706,27 +702,24 @@ bool VisualManager::PnpRansac(const std::shared_ptr<CameraModel> camera_model,
     return true;
 }
 
-bool VisualManager::StereoTriangulation(const std::shared_ptr<CameraModel> camera_model, CameraObs& cam_obs, Eigen::Vector3d& pcf) const
+bool VisualManager::StereoTriangulation(CameraObs& cam_obs, Eigen::Vector3d& pcf) const
 {
     constexpr double kMaxStereoEipolarErrorThres = 8.0;
     constexpr double kMinStereoTriangulationParallex = 1.0;
     constexpr double kMaxStereoDepth = 20.0;
 
-    double diff_x = abs(cam_obs.u - cam_obs.ur);
-    double diff_y = abs(cam_obs.v - cam_obs.vr);
-    // if (diff_x < kMinStereoTriangulationParallex || diff_y > kMaxStereoEipolarErrorThres) {
-    //     return false;
-    // }
+    const double diff_x = abs(cam_obs.uv[LEFT_CAM].x() - cam_obs.uv[RIGHT_CAM].x());
+    const double diff_y = abs(cam_obs.uv[LEFT_CAM].y() - cam_obs.uv[RIGHT_CAM].y());
 
     // camera_model->back_project_stereo(cam_obs);
-    const double focal_length = camera_model->K_l()(0, 0);
-    const double z_depth = focal_length * camera_model->baseline() / diff_x;
+    const double focal_length = CamModel::getInstance().K(LEFT_CAM)(0, 0);
+    const double baseline = CamModel::getInstance().getBaseline();
+    const double z_depth = focal_length * baseline / diff_x;
     if (z_depth < 0 || z_depth > kMaxStereoDepth)
     {
-        // LOG(ERROR) << cv::format("FATAL ERROR! Stereo triangulation failed: z_depth < 0 or z_depth > %f, z_depth: %f", kMaxStereoDepth, z_depth);
         return false;
     }
-    Eigen::Vector3d p3d_norm(cam_obs.u_norm, cam_obs.v_norm, 1.0);
+    Eigen::Vector3d p3d_norm = Eigen::Vector3d(cam_obs.uv_norm[0].x(), cam_obs.uv_norm[0].y(), 1.0);
     pcf = z_depth * p3d_norm;
     return true;
 }
@@ -786,12 +779,9 @@ void VisualManager::CalculateFeatureParallex(std::vector<Feature*>& feats)
     for (auto it = feats.begin(); it != feats.end(); it++)
     {
         auto first_obv = (*it)->_visual_obs_buffer.begin();
-        auto last_obv = (*it)->_visual_obs_buffer.end();
-        last_obv--;
-        double dx = first_obv->second.u - last_obv->second.u;
-        double dy = first_obv->second.v - last_obv->second.v;
-
-        double cur_parallex = sqrt(dx * dx + dy * dy);
+        auto last_obv = (*it)->_visual_obs_buffer.rbegin();
+        const Eigen::Vector2d dxy = last_obv->second.uv[LEFT_CAM] - first_obv->second.uv[LEFT_CAM];
+        const double cur_parallex = dxy.norm();
         if (cur_parallex > (*it)->parallex)
         {
             (*it)->parallex = cur_parallex;
@@ -907,19 +897,19 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
             Eigen::Matrix3d R_CtoI;
             Eigen::Vector3d p_CinI;
 
-            if (cam_id == static_cast<int>(CameraId::LEFT_CAM))
+            if (cam_id == LEFT_CAM)
             {
-                zm << obs.second.u, obs.second.v;
-                focal_length = _camera_model->K_l()(0, 0);
+                zm << obs.second.uv[cam_id];
+                focal_length = CamModel::getInstance().K(LEFT_CAM)(0, 0);
                 R_CtoI = _state->_Tic->quat().toRotationMatrix();
                 p_CinI = _state->_Tic->p();
             }
-            else if (cam_id == static_cast<int>(CameraId::RIGHT_CAM))
+            else if (cam_id == RIGHT_CAM)
             {
-                zm << obs.second.ur, obs.second.vr;
-                focal_length = _camera_model->K_r()(0, 0);
-                R_CtoI = _state->_Tic->quat().toRotationMatrix() * _camera_model->R_rl();
-                p_CinI = _state->_Tic->p() + _state->_Tic->quat().toRotationMatrix() * _camera_model->p_rl();
+                zm << obs.second.uv[cam_id];
+                focal_length = CamModel::getInstance().K(RIGHT_CAM)(0, 0);
+                R_CtoI = _state->_Tic->quat().toRotationMatrix() * CamModel::getInstance().R_rl();
+                p_CinI = _state->_Tic->p() + _state->_Tic->quat().toRotationMatrix() * CamModel::getInstance().p_rl();
             }
 
             std::shared_ptr<Pose> obs_pose = _state->_clone_pose.at(obs_ts);
@@ -932,8 +922,7 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
             Eigen::Vector3d p_finCi = R_CitoG.transpose() * (p_finG - p_CiinG);
 
             // compute visual residual
-            Eigen::Vector2d uv;
-            uv = cam_id == static_cast<int>(CameraId::LEFT_CAM) ? _camera_model->project_left(p_finCi) : _camera_model->project_right(p_finCi);
+            Eigen::Vector2d uv = CamModel::getInstance().project(cam_id, p_finCi);
 
             Eigen::Vector2d res = zm - uv;
             Hfx.block<2, 1>(2 * cnt, Hfx.cols() - 1) = res;

@@ -26,16 +26,15 @@ bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& 
     {
         std::unordered_map<uint32_t, CameraObs> latest_keyframe_observe_umap;
         std::unordered_map<uint32_t, CameraObs> current_keyframe_observe_umap;
-        // Eigen::Matrix3d H = camera_model_->K_l() * latest_Rwc_.transpose() * current_Rwc;
         for (auto &obs : latest_keyframe_observe_.second)
         {
             latest_keyframe_observe_umap.insert({obs.feat_id, obs});
         }
         for (auto &obs : current_feature_observe.second)
         {
-            current_keyframe_observe_umap.insert({obs.feat_id, obs});
+            current_keyframe_observe_umap.emplace(obs.feat_id, obs);
             // CameraObs obs_eis = obs;
-            // Eigen::Vector3d uv_norm(obs.u_norm, obs.v_norm, 1.0);
+            // Eigen::Vector3d uv_norm(obs.uv_nrom.at(LEFT_CAM).x(), obs.uv_nrom.at(LEFT_CAM).y(), 1.0);
             // Eigen::Vector3d uv_norm_eis = H * uv_norm;
             // uv_norm_eis /= uv_norm_eis.z();
             // Eigen::Vector3d uv_eis = camera_model_->K_l() * uv_norm_eis;
@@ -43,10 +42,11 @@ bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& 
             // obs_eis.v = uv_eis.y();
             // obs_eis.u_norm = uv_norm_eis.x();
             // obs_eis.v_norm = uv_norm_eis.y();
-            // current_keyframe_observe_umap.insert({obs.feat_id, obs_eis});
+            // current_keyframe_observe_umap.emplace(obs.feat_id, obs_eis);
         }
 
         double pixel_parallex = VisualManager::calcVisualObsParallex(latest_keyframe_observe_umap, current_keyframe_observe_umap);
+        std::cout << pixel_parallex << std::endl;
         if (pixel_parallex >= kMinPixelParallexBetweenKeyframes)
         {
             all_feature_observes_.insert(current_feature_observe);
@@ -105,18 +105,19 @@ bool Sfm::calcRelativePose(const std::vector<CameraObs> &obs_a,
         auto it = obs_b_umap.find(point_id);
         if (it != obs_b_umap.end())
         {
-            corresponding_points_a.push_back(cv::Point2d(obs.u, obs.v));
-            corresponding_points_b.push_back(cv::Point2d(it->second.u, it->second.v));
+            corresponding_points_a.push_back(cv::Point2d(obs.uv.at(LEFT_CAM).x(), obs.uv.at(LEFT_CAM).y()));
+            corresponding_points_b.push_back(cv::Point2d(it->second.uv.at(LEFT_CAM).x(), it->second.uv.at(LEFT_CAM).y()));
         }
     }
 
     cv::Mat R_cv;
     cv::Mat t_cv;
     cv::Mat mask;
-    cv::Mat K;
-    cv::eigen2cv(camera_model_->K_l(), K);
-    cv::Mat E = cv::findEssentialMat(corresponding_points_a, corresponding_points_b, K, cv::RANSAC, 0.999, kMaxPixelErrorForCalcEssentialMat, mask);
-    int inlier_cnt = cv::recoverPose(E, corresponding_points_a, corresponding_points_b, K, R_cv, t_cv, mask); // relative pose is R_AtoB, p_AinB
+    cv::Mat K_cv;
+    Eigen::Matrix3d K = CamModel::getInstance().K(LEFT_CAM);
+    cv::eigen2cv(K, K_cv);
+    cv::Mat E = cv::findEssentialMat(corresponding_points_a, corresponding_points_b, K_cv, cv::RANSAC, 0.999, kMaxPixelErrorForCalcEssentialMat, mask);
+    int inlier_cnt = cv::recoverPose(E, corresponding_points_a, corresponding_points_b, K_cv, R_cv, t_cv, mask); // relative pose is R_AtoB, p_AinB
     if (inlier_cnt < kMinInliersForRelativePose)
     {
         LOG(INFO) << "Not enough inliers to calculate relative pose";
@@ -146,11 +147,11 @@ void Sfm::triangulateFramePoints(const std::vector<CameraObs> &obs_A, const std:
     std::unordered_map<uint32_t, CameraObs> obs_B_umap;
     for (auto &obs : obs_A)
     {
-        obs_A_umap.insert({obs.feat_id, obs});
+        obs_A_umap.emplace(obs.feat_id, obs);
     }
     for (auto &obs : obs_B)
     {
-        obs_B_umap.insert({obs.feat_id, obs});
+        obs_B_umap.emplace(obs.feat_id, obs);
     }
 
     for (auto &[point_id, obs_a] : obs_A_umap)
@@ -174,8 +175,8 @@ void Sfm::triangulateFramePoints(const std::vector<CameraObs> &obs_A, const std:
             }
 
             CameraObs obs_b = obs_B_umap[point_id];
-            Eigen::Vector2d obs_a_norm(obs_a.u_norm, obs_a.v_norm);
-            Eigen::Vector2d obs_b_norm(obs_b.u_norm, obs_b.v_norm);
+            Eigen::Vector2d obs_a_norm(obs_a.uv_norm.at(LEFT_CAM).x(), obs_a.uv_norm.at(LEFT_CAM).y());
+            Eigen::Vector2d obs_b_norm(obs_b.uv_norm.at(LEFT_CAM).x(), obs_b.uv_norm.at(LEFT_CAM).y());
             Eigen::Vector3d point_3d = triangulatePoint(pose_a, pose_b, obs_a_norm, obs_b_norm);
 
             // Add new sfm feature
@@ -183,9 +184,9 @@ void Sfm::triangulateFramePoints(const std::vector<CameraObs> &obs_A, const std:
             feature._id = point_id;
             feature._pwf = point_3d;
             feature._is_triangulated = true;
-            feature._visual_obs_buffer.insert({obs_a.ts_sec, obs_a});
-            feature._visual_obs_buffer.insert({obs_b.ts_sec, obs_b});
-            all_features_.insert({point_id, feature});
+            feature._visual_obs_buffer.emplace(obs_a.ts_sec, obs_a);
+            feature._visual_obs_buffer.emplace(obs_b.ts_sec, obs_b);
+            all_features_.emplace(point_id, feature);
         }
     }
 }
@@ -247,7 +248,7 @@ bool Sfm::solveFrameByPnp(const std::vector<CameraObs> current_obsv, Pose &curre
     std::unordered_map<uint32_t, CameraObs> current_obsv_umap;
     for (auto &obs : current_obsv)
     {
-        current_obsv_umap.insert({obs.feat_id, obs});
+        current_obsv_umap.emplace(obs.feat_id, obs);
     }
 
     std::vector<cv::Point2d> corresponding_points;
@@ -259,10 +260,7 @@ bool Sfm::solveFrameByPnp(const std::vector<CameraObs> current_obsv, Pose &curre
             continue;
         }
         Feature &feature = all_features_[point_id];
-        // std::cout << cv::format("feature_id: %d, pwf: [%f, %f, %f], obv: [%f, %f]", point_id, feature._pwf(0), feature._pwf(1), feature._pwf(2),
-        //                         obs.u, obs.v)
-        //           << std::endl;  // For debug
-        corresponding_points.push_back(cv::Point2d(obs.u, obs.v));
+        corresponding_points.push_back(cv::Point2d(obs.uv.at(LEFT_CAM).x(), obs.uv.at(LEFT_CAM).y()));
         corresponding_points_3d.push_back(cv::Point3d(feature._pwf(0), feature._pwf(1), feature._pwf(2)));
     }
 
@@ -270,13 +268,13 @@ bool Sfm::solveFrameByPnp(const std::vector<CameraObs> current_obsv, Pose &curre
     // std::cout << cv::format("origin obv: %d", current_obsv.size()) << std::endl;
     // std::cout << cv::format("corresponding_point: %d", corresponding_points.size()) << std::endl;
     // std::cout << cv::format("corresponding_points_3d: %d", corresponding_points_3d.size()) << std::endl;
-
+    cv::Mat K_cv;
     cv::Mat rvec, tvec;
-    cv::Mat K;
-    cv::eigen2cv(camera_model_->K_l(), K);
+    Eigen::Matrix3d K = CamModel::getInstance().K(LEFT_CAM);
+    cv::eigen2cv(K, K_cv);
     cv::Mat dist_coeffs = cv::Mat::zeros(4, 1, CV_64F);
     // cv::solvePnP(corresponding_points_3d, corresponding_points, K, dist_coeffs, rvec, tvec); // R_wtoc, p_winc
-    cv::solvePnPRansac(corresponding_points_3d, corresponding_points, K, dist_coeffs, rvec, tvec,
+    cv::solvePnPRansac(corresponding_points_3d, corresponding_points, K_cv, dist_coeffs, rvec, tvec,
                              false, 100, kMaxPixelErrorForPnp, 0.9); // R_wtoc, p_winc
 
     cv::Mat R_GtoC_cv;
@@ -301,7 +299,7 @@ double Sfm::findReferenceKeyframeTimestamp()
     std::unordered_map<uint32_t, CameraObs> oldest_keyframe_observe_umap;
     for (auto &obs : oldest_keyframe_observes)
     {
-        oldest_keyframe_observe_umap.insert({obs.feat_id, obs});
+        oldest_keyframe_observe_umap.emplace(obs.feat_id, obs);
     }
 
     double largest_pixel_parallex = std::numeric_limits<double>::min();
@@ -353,7 +351,7 @@ void Sfm::showKeyframeImages() const
             const uint32_t cb = (obs.feat_id * 13) % 255;
             const uint32_t cg = (obs.feat_id * 23) % 255;
             const uint32_t cr = (obs.feat_id * 33) % 255;
-            cv::circle(resized_image, cv::Point(obs.u / kScale, obs.v / kScale), 3, cv::Scalar(cb, cg, cr), -1);
+            cv::circle(resized_image, cv::Point(obs.uv.at(LEFT_CAM).x() / kScale, obs.uv.at(LEFT_CAM).y() / kScale), 3, cv::Scalar(cb, cg, cr), -1);
         }
         keyframes.push_back(resized_image);
         cv::imshow("Keyframe Image", resized_image);
@@ -451,7 +449,6 @@ bool Sfm::initSfmSolver()
 
         keyframe_poses_.insert({it->first, current_pose});
         triangulateFramePoints(previous_observes, current_observes, previous_pose, current_pose);
-        // triangulateFramePoints(oldest_keyframe_observes, current_observes, oldest_keyframe_pose, current_pose);
         previous_observes = current_observes;
         previous_pose = current_pose;
     }

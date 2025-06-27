@@ -11,7 +11,7 @@
 #include "eskf_solver.h"
 #include "sqrt_eskf_solver.h"
 #include "ImuManager.h"
-#include "cameraModel.h"
+#include "camModel.h"
 #include "frontend.h"
 #include "initializer.h"
 #include "dynamicInitializer.h"
@@ -47,16 +47,14 @@ class VioManager
 
         state = std::make_shared<State>();
 
-        _camera_model_0 = std::make_shared<CameraModel>(params);
-
         _imu_manager = std::make_shared<ImuManager>(params, state, solver);
         _imu_manager->SetImuNoise(params.sigma_na, params.sigma_nw, params.sigma_ba, params.sigma_bg);
 
-        _visual_manager = std::make_shared<VisualManager>(params, state, _camera_model_0, solver);
+        _visual_manager = std::make_shared<VisualManager>(params, state, solver);
 
-        initializer = std::make_shared<Initializer>(params, _visual_manager, _camera_model_0, state);
+        initializer = std::make_shared<Initializer>(params, _visual_manager, state);
 
-        dynamic_initializer = std::make_unique<DynamicInitializer>(params, _visual_manager, _camera_model_0, state);
+        dynamic_initializer = std::make_unique<DynamicInitializer>(params, _visual_manager, state);
 
         vio_logger = std::make_shared<utils::LoggerFull>(params.log_path);
 
@@ -91,7 +89,6 @@ class VioManager
     std::unique_ptr<DynamicInitializer> dynamic_initializer;
     std::shared_ptr<ImuManager> _imu_manager;
     std::shared_ptr<VisualManager> _visual_manager;
-    std::shared_ptr<CameraModel> _camera_model_0;
     std::shared_ptr<utils::LoggerFull> vio_logger;
     std::shared_ptr<utils::LoggerTUM> vio_logger_tum;
     std::shared_ptr<MsckfSolverBase> solver;

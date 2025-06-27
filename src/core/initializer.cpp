@@ -86,7 +86,7 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     std::unordered_map<uint32_t, CameraObs> current_feature_umap;
     for (auto& obs : feature_observes.second)
     {
-        current_feature_umap.insert({obs.feat_id, obs});
+        current_feature_umap.emplace(obs.feat_id, obs);
     }
 
     // Store current feature maps
@@ -146,7 +146,7 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     for (auto& [obs_prev, obs_cur] : stereo_obs_pairs)
     {
         Eigen::Vector3d pcf;
-        if (!visual_manager_->StereoLeastSqureTriangulation(camera_model_, obs_prev, pcf))
+        if (!visual_manager_->StereoLeastSqureTriangulation(obs_prev, pcf))
         {
             continue;
         }
@@ -156,7 +156,7 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     // calculate relative pose using Perspective-n-Point (PnP) algorithm
     Eigen::Matrix3d R_12;  // R_prev_to_curr
     Eigen::Vector3d p_12;  // t_prev_in_curr
-    if (!visual_manager_->PnpRansac(camera_model_, stereo_obs_triangulated, R_12, p_12))
+    if (!visual_manager_->PnpRansac(R_12, p_12, stereo_obs_triangulated))
     {
         return false;
     }

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "visualManager.h"
-#include "cameraModel.h"
+#include "camModel.h"
 #include "parameter.h"
 #include "sensor_data.h"
 #include "mathematical_tools.h"
@@ -18,7 +18,7 @@ class Sfm
 {
 public:
     Sfm() = default;
-    Sfm(const Param &parameters, const std::shared_ptr<CameraModel> camera_model) : params_(parameters), camera_model_(camera_model) {}
+    Sfm(const Param &parameters) : params_(parameters) {}
     virtual ~Sfm() = default;
 
     void Reset()
@@ -82,7 +82,6 @@ public:
 
    private:
     Param params_;
-    std::shared_ptr<CameraModel> camera_model_;
     std::map<double, cv::Mat> keyframe_images_;
     std::map<double, std::vector<CameraObs>> all_feature_observes_;
     std::map<uint32_t, Feature> all_features_;
@@ -107,8 +106,8 @@ public:
         Eigen::Matrix3d R_CtoG = q_CtoG.toRotationMatrix();
         Eigen::Vector3d p_finC = R_CtoG.transpose() * (p_finG - p_CinG);
 
-        residuals[0] = (p_finC(0) / p_finC(2)) - obs_.u_norm;
-        residuals[1] = (p_finC(1) / p_finC(2)) - obs_.v_norm;
+        residuals[0] = (p_finC(0) / p_finC(2)) - obs_.uv_norm.at(LEFT_CAM).x();
+        residuals[1] = (p_finC(1) / p_finC(2)) - obs_.uv_norm.at(LEFT_CAM).y();
 
         Eigen::Matrix<double, 2, 3, Eigen::RowMajor> dz_dpcf;
         dz_dpcf <<

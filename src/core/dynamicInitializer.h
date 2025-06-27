@@ -3,7 +3,7 @@
 #include "imuPreIntegration.h"
 #include "initializer.h"
 #include "Imu_state.h"
-#include "cameraModel.h"
+#include "camModel.h"
 #include "parameter.h"
 #include "sensor_data.h"
 #include "state.h"
@@ -17,14 +17,11 @@ public:
     DynamicInitializer() = default;
     DynamicInitializer(const Param &paramters,
                        const std::shared_ptr<VisualManager> visual_manager,
-                       const std::shared_ptr<CameraModel> &camera_model,
                        std::shared_ptr<State> &state)
-        : Initializer(paramters, visual_manager, camera_model, state)
+        : Initializer(paramters, visual_manager, state)
     {
-        sfm_solver = std::make_unique<Sfm>(paramters, camera_model);
-
+        sfm_solver = std::make_unique<Sfm>(paramters);
         R_CtoI_ = paramters.Ric[0];
-
         p_CinI_ = paramters.tic[0];
     }
 

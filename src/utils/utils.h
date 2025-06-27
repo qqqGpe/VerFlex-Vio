@@ -1,6 +1,7 @@
 #ifndef __UTILS__
 #define __UTILS__
 
+#include "camModel.h"
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
 #include "sensor_data.h"
@@ -42,7 +43,7 @@ class Utils
             {
                 continue;
             }
-            cv::Point2f point(feat.u, feat.v);
+            cv::Point2f point(feat.uv.at(LEFT_CAM).x(), feat.uv.at(LEFT_CAM).y());
             std::ostringstream os;
             os << std::fixed << feat.feat_id;
             std::string depth_text = os.str();
@@ -192,8 +193,8 @@ class Utils
 
         for (const auto& obs : point_obs)
         {
-            cv::Point2f pt_l(obs.first.u, obs.first.v);
-            cv::Point2f pt_r(obs.first.ur, obs.first.vr);
+            cv::Point2f pt_l(obs.first.uv.at(LEFT_CAM).x(), obs.first.uv.at(LEFT_CAM).y());
+            cv::Point2f pt_r(obs.first.uv.at(RIGHT_CAM).x(), obs.first.uv.at(RIGHT_CAM).y());
             std::ostringstream depth;
             depth << std::fixed << std::setprecision(2) << obs.second.z();
             std::string depth_text = depth.str();
