@@ -20,13 +20,15 @@ namespace {
 class VisualManager
 {
    public:
-    VisualManager() = default;
+   static constexpr uint32_t kMaxFeatureForUpdate = 40;
+   static constexpr uint32_t kMinFeatureForUpdate = 10;
 
+    VisualManager() = default;
     ~VisualManager()
     {
-        for (int i = 0; i < _max_feat_n; i++)
+        for (int i = 0; i < max_feat_n_; i++)
         {
-            delete _feature_base[i];
+            delete feature_base_[i];
         }
     }
 
@@ -38,13 +40,13 @@ class VisualManager
         param_ = paramters;
         _keyframe = std::make_shared<KeyFrameStatus>(KeyFrameStatus::kNone);
         vio_frontend = std::make_shared<VioFrontend>(paramters, _keyframe);
-        _max_clone_pose = paramters.max_clone_pose;
-        _max_feat_n = paramters.max_feat_n;
+        max_clone_pose_ = paramters.max_clone_pose;
+        max_feat_n_ = paramters.max_feat_n;
         solver_ = solver;
-        for (int i = 0; i < _max_feat_n; i++)
+        for (int i = 0; i < max_feat_n_; i++)
         {
             Feature* feat = new Feature();
-            _feature_base.push_back(feat);
+            feature_base_.push_back(feat);
         }
     }
 
@@ -100,26 +102,25 @@ class VisualManager
 
     void SetKeyframeState(const KeyFrameStatus state) { *_keyframe = state; }
 
-    std::vector<Feature*> GetFeatureBase() { return _feature_base; }
+    std::vector<Feature*> GetFeatureBase() { return feature_base_; }
 
     void reset();
 
-    uint32_t _max_clone_pose = 6;
-    uint32_t _max_feat_n = 0;
-    uint32_t _feature_mapping_success = 0;
-    uint32_t _feature_mapping_in = 0;
-    uint32_t _max_visual_feat_to_use = 40;
+    uint32_t max_clone_pose_ = 6;
+    uint32_t max_feat_n_ = 0;
+    uint32_t feature_mapping_success_ = 0;
+    uint32_t feature_mapping_in_ = 0;
 
     std::queue<std::pair<double, std::pair<cv::Mat, cv::Mat>>> _input_image_buffer;
     std::queue<std::pair<double, std::vector<CameraObs>>> feature_obs_buffer;
 
     std::map<double, std::pair<cv::Mat, cv::Mat>> stored_images_;
 
-    std::vector<Feature*> _feature_base;
-    std::vector<Feature*> _feature_tracked;
-    std::vector<Feature*> _feature_lost;
-    std::vector<Feature*> _feature_new_base;
-    std::vector<CameraObs> _feature_new;
+    std::vector<Feature*> feature_base_;
+    std::vector<Feature*> feature_tracked_;
+    std::vector<Feature*> feature_lost_;
+    std::vector<CameraObs> feature_new_;
+    std::vector<Feature*> feat_msckf_;
 
     boost::posix_time::ptime visual_rT, visual_rT1, visual_rT2, visual_rT3, visual_rT4;
 

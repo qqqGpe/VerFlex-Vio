@@ -3,10 +3,10 @@ project(vio_backend)
 
 add_compile_options(-std=c++17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_BUILD_TYPE Debug) # Debug Release
-# set(CMAKE_BUILD_TYPE Release) # Debug Release
-# set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -O3  -Wall")
-# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3  -Wall")
+# set(CMAKE_BUILD_TYPE Debug) # Debug Release
+set(CMAKE_BUILD_TYPE Release) # Debug Release
+set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -O3  -Wall")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3  -Wall")
 
 
 find_package(catkin REQUIRED COMPONENTS
@@ -18,7 +18,10 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   sensor_msgs
   std_msgs
-  tf
+  tf2
+  tf2_ros
+  tf2_eigen
+  tf2_geometry_msgs
 )
 
 find_package(Ceres REQUIRED)
@@ -31,7 +34,7 @@ find_package(GTest REQUIRED)
 catkin_package(
  LIBRARIES vio_backend
  INCLUDE_DIRS src/core src/types src/utils
- CATKIN_DEPENDS cv_bridge geometry_msgs nav_msgs image_transport nav_msgs rosbag roscpp sensor_msgs std_msgs tf
+ CATKIN_DEPENDS cv_bridge geometry_msgs nav_msgs image_transport nav_msgs rosbag roscpp sensor_msgs std_msgs
 )
 
 include_directories(

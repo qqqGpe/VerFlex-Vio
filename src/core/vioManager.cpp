@@ -1,11 +1,13 @@
-#include "vioManager.h"
-#include "camModel.h"
 #include <glog/logging.h>
 #include <sophus/so3.hpp>
+
+#include "vioManager.h"
+#include "camModel.h"
 #include "format.h"
 #include "imuPreIntegration.h"
 #include "mathematical_tools.h"
 #include "utils.h"
+#include "visualizer.h"
 
 using namespace Sophus;
 
@@ -248,35 +250,35 @@ void VioManager::ProcessMeasurementOnce()
         //     LOG(INFO) << "ZUPT updated";
         // }
 
-        if (feature_observes.second.size() < kMinVisualFeaturesForUpdate)
+        // Visual update process
+        std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(state->_imu_state->ts(), feature_observes.first);
+        solver->PropagateStateAndCovariance(imu_data, feature_observes.first, state);
+        solver->StochasticClone(state);
+        _visual_manager->UpdateFeature(feature_observes);  // visual update
+        if (_visual_manager->VisualUpdate())
         {
-            LOG(INFO) << cv::format("Not enough features to update, feature size: %d", int(feature_observes.second.size()));
-            continue;
-        }
-        else
-        {
-            std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(state->_imu_state->ts(), feature_observes.first);
-            solver->PropagateStateAndCovariance(imu_data, feature_observes.first, state);
-            solver->StochasticClone(state);
-            _visual_manager->UpdateFeature(feature_observes);  // visual update
-            if (_visual_manager->VisualUpdate())
-            {
-                visual_updated = true;
-                last_update_timestamp_ = state->ts_sec();
-                LOG(INFO) << cv::format("VIO updated, current state ts: %f, pos: [%.3f, %.3f, %.3f], vel: [%.3f, %.3f, %.3f], rpy: [%.3f, %.3f, %.3f]",
-                                        state->ts_sec(),
-                                        state->_imu_state->p()->vec().x(), state->_imu_state->p()->vec().y(), state->_imu_state->p()->vec().z(),
-                                        state->_imu_state->v()->vec().x(), state->_imu_state->v()->vec().y(), state->_imu_state->v()->vec().z(),
-                                        state->_imu_state->q()->rpy().x(), state->_imu_state->q()->rpy().y(), state->_imu_state->q()->rpy().z());
-            }
+            visual_updated = true;
+            last_update_timestamp_ = state->ts_sec();
+            LOG(INFO) << cv::format("VIO updated, current state ts: %f, pos: [%.3f, %.3f, %.3f], vel: [%.3f, %.3f, %.3f], rpy: [%.3f, %.3f, %.3f]",
+                                    state->ts_sec(), state->_imu_state->p()->vec().x(), state->_imu_state->p()->vec().y(),
+                                    state->_imu_state->p()->vec().z(), state->_imu_state->v()->vec().x(), state->_imu_state->v()->vec().y(),
+                                    state->_imu_state->v()->vec().z(), state->_imu_state->q()->rpy().x(), state->_imu_state->q()->rpy().y(),
+                                    state->_imu_state->q()->rpy().z());
         }
 
+        // Reset vio system if the update interval is too large
         if (std::abs(feature_observes.first - last_update_timestamp_) > kMaxAllowedSysUpdateInterval)
         {
             LOG(WARNING) << cv::format("VIO update intervals: %f, is larger than %f, reset vio system",
                                        std::abs(feature_observes.first - last_update_timestamp_), kMaxAllowedSysUpdateInterval);
             ResetSystem();
             continue;
+        }
+
+        Visualizer::getInstance().PublishVioState(state->_imu_state);
+        if (visual_updated)
+        {
+            Visualizer::getInstance().PublishFeatures(state->ts_sec(), _visual_manager->feat_msckf_);
         }
 
         /* Assign full log values */

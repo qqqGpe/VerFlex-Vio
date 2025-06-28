@@ -30,11 +30,11 @@ class VioFrontend
     {
         width_ = parameters.img_width;
         height_ = parameters.img_height;
-        _max_feat_n = parameters.max_feat_n;
+        max_feat_n_ = parameters.max_feat_n;
         grid_w_ = parameters.grid_w;
         grid_h_ = parameters.grid_h;
         _keyframe = keyframe;
-        ref_features_to_track_.resize(_max_feat_n, CameraObs());
+        ref_features_to_track_.resize(max_feat_n_, CameraObs());
     }
 
     bool InBorder(int x, int y);
@@ -61,7 +61,7 @@ class VioFrontend
     uint32_t frame_id = 0;
     uint32_t global_feature_id_ = 0;
     uint32_t width_, height_;
-    uint32_t _max_feat_n;
+    uint32_t max_feat_n_;
     uint32_t grid_w_, grid_h_;
     std::shared_ptr<KeyFrameStatus> _keyframe;
     boost::posix_time::ptime frontend_rT, frontend_rT1, frontend_rT2, frontend_rT3, frontend_rT4;

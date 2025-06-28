@@ -28,13 +28,22 @@ int main(int argc, char** argv)
     std::shared_ptr<ros::NodeHandle> nh = std::make_shared<ros::NodeHandle>("~");
     signal(SIGINT, mySigintHandler);
 
-    // load vio_backend parameters
+    // Load vio_backend parameters
     Param params(nh);
     if (!params.load_params())
     {
         LOG(ERROR) << "Failed to load parameters!";
         return -1;
     }
+
+    // Initialize camera model
+    CamModel::getInstance().Init(params);
+
+    // Initialize ros visualizer
+    Visualizer::getInstance().Init(nh, params);
+
+    // Initialize vio_backend
+    std::shared_ptr<VioManager> vio_manager = std::make_shared<VioManager>(params);
 
     // set log level
     fLI::FLAGS_stderrthreshold = params.log_level;  // 0: info, 1: warning, 2: error, 3: fatal
@@ -49,11 +58,6 @@ int main(int argc, char** argv)
     ros::Time time_finish = (params.bag_durr < 0) ? view_full.getEndTime() : time_init + ros::Duration(params.bag_durr);
     view.addQuery(bag, time_init, time_finish);
 
-    // Initialize camera model
-    CamModel::getInstance().Init(params);
-
-    // initialize vio_backend
-    std::shared_ptr<VioManager> vio_manager = std::make_shared<VioManager>(params);
     if (params.set_init_timestamp_to_zero == true)
     {
         vio_manager->SetInitialTimeStamp(time_init.toSec());
@@ -68,8 +72,6 @@ int main(int argc, char** argv)
     // {
     //     vio_manager.start_visual_system();
     // }
-
-    Visualizer visualizer(nh, vio_manager);
 
     // load data from rosbag
     std::string ground_truth_topic = "/leica/position";
@@ -182,7 +184,6 @@ int main(int argc, char** argv)
             }
 
             vio_manager->ProcessMeasurementOnce();
-            visualizer.PublishVioState();
             loop_rate.sleep();
         }
     }

@@ -29,7 +29,6 @@ public:
         return *instance;
     }
 
-    CamModel() = default;
     CamModel(CamModel const&) = delete;
     CamModel& operator=(CamModel const&) = delete;
 
@@ -112,6 +111,8 @@ public:
     int32_t camera_num() const { return camera_num_; }
 
 private:
+    CamModel() = default;
+
     int32_t camera_num_ = 0;
     cv::Size image_size_;
     std::vector<Eigen::Matrix3d> vRic_;

@@ -17,15 +17,11 @@
     <!-- <arg name="bag"         default="/mnt/d/euroc_mav/MH_01_easy/$(arg dataset).bag" /> -->
     <arg name="bag"         default="/home/gao/dataset/euroc_mav/$(arg dataset).bag" />
 
-    <!-- saving trajectory path and timing information -->
-    <arg name="dosave"      default="false" />
-    <arg name="dotime"      default="false" />
-    <arg name="path_est"    default="/tmp/traj_estimate.txt" />
-    <arg name="path_time"   default="/tmp/traj_timing.txt" />
-
     <!-- if we should viz the groundtruth -->
-    <arg name="dolivetraj"  default="false" />
-    <arg name="visualize"   default="false" />
+    <arg name="use_rviz" default="true"/>
+
+    <node if="$(arg use_rviz)" pkg="rviz" type="rviz" name="rviz"
+          args="-d $(find vio_backend)/rviz/display.rviz"/>
 
     <!-- MASTER NODE! -->
     <node name="vio_backend" pkg="vio_backend" type="vio_backend_node" output="screen" clear_params="true" required="true">

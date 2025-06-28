@@ -52,9 +52,25 @@ class Utils
             cv::circle(image_to_show, point, 3, color, cv::FILLED);
         }
 
+        const uint32_t image_width = image_to_show.cols;
+        const uint32_t image_height = image_to_show.rows;
+        const double grid_w_step = image_width / 15.0;  // 每个格子宽度
+        const double grid_h_step = image_height / 15.0; // 每个格
+        for (int i = 0; i <= 15; ++i)
+        {
+            int x = i * grid_w_step;
+            cv::line(image_to_show, cv::Point(x, 0), cv::Point(x, image_height), cv::Scalar(128, 128, 128), 1);
+        }
+
+        for (int j = 0; j <= 15; ++j)
+        {
+            int y = j * grid_h_step;
+            cv::line(image_to_show, cv::Point(0, y), cv::Point(image_width, y), cv::Scalar(128, 128, 128), 1);
+        }
+
         cv::imshow("feat_to_track", image_to_show);
         // cv::imwrite("/home/gao/ws/catkin_vio_ws/src/vio/figure/feature_to_track.png", image_to_show);
-        cv::waitKey(1);
+        cv::waitKey(0);
     }
 
     static void show_eigen_matrix(const Eigen::MatrixXd matrix, const std::string win_name)
