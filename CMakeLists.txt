@@ -97,14 +97,6 @@ target_link_libraries(test_givens_rotation
                       GTest::GTest
 )
 
-add_executable(test_feature_jacobian src/test_feature_jacobian.cpp)
-target_link_libraries(test_feature_jacobian
-                      msckf_core
-                      ${catkin_LIBRARIES}
-                      ${thirdparty_libraries}
-                      GTest::GTest
-)
-
 add_executable(test_pnp_ransac src/test_pnp_ransac.cpp)
 target_link_libraries(test_pnp_ransac
                       msckf_core

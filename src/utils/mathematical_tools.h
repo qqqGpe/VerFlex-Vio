@@ -1,7 +1,6 @@
 #ifndef __MATH_TOOLS__
 #define __MATH_TOOLS__
 #include <algorithm>
-
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 #include <Eigen/Jacobi>
@@ -163,6 +162,12 @@ class MathUtils
     static Eigen::Matrix<typename Derived::Scalar, 3, 3> Jr(const Eigen::MatrixBase<Derived>& phi)
     {
         return Jl(-phi);
+    }
+
+    template <typename Derived>
+    static Eigen::Matrix<typename Derived::Scalar, 3, 3> Jr_inv(const Eigen::MatrixBase<Derived>& phi)
+    {
+        return Jl_inv(-phi);
     }
 
     template <typename Derived>

@@ -36,7 +36,7 @@
         <!-- bag parameters -->
         <param name="path_bag"                 type="str"    value="$(arg bag)" />
         <param name="bag_start"                type="double" value="0" />
-        <param name="bag_durr"                 type="int"    value="-1" />
+        <param name="bag_duration"                 type="int"    value="-1" />
 
         <param name="img_width"                type="int"    value="752" />
         <param name="img_height"               type="int"    value="480" />

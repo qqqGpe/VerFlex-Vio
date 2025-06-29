@@ -23,18 +23,16 @@ struct CameraPose
 class State
 {
    public:
-    State()
+    State(const bool estimate_ric = true)
     {
         _imu_state = std::make_shared<ImuState>();
-        _Tic = std::make_shared<Pose>();
+        qic_ = std::make_shared<Quat>();
+        tic_ = std::make_shared<Vec>();
+        enable_estimate_ric_ = estimate_ric;
+        // _Tic = std::make_shared<Pose>();
 
         // initialize local id
-        _dim = 0;
-        // _imu_state->set_local_id(_dim);
-        // _variables.push_back(_imu_state);
-        // _dim += _imu_state->size();
         _imu_state->set_local_id(_dim);
-
         _variables.push_back(_imu_state->q());
         _dim += _imu_state->q()->size();
         _variables.push_back(_imu_state->p());
@@ -46,11 +44,14 @@ class State
         _variables.push_back(_imu_state->ba());
         _dim += _imu_state->ba()->size();
 
-        if (_do_calibration_update)
+        if (enable_estimate_ric_)
         {
-            _Tic->set_local_id(_dim);
-            _variables.push_back(_Tic);
-            _dim += _Tic->size();
+            qic_->set_local_id(_dim);
+            _variables.push_back(qic_);
+            _dim += qic_->size();
+            // _Tic->set_local_id(_dim);
+            // _variables.push_back(_Tic);
+            // _dim += _Tic->size();
         }
 
         // initialize state covariance
@@ -63,9 +64,11 @@ class State
 
     void set_extrinsic(Eigen::Quaterniond qic, Eigen::Vector3d tic)
     {
-        Eigen::VectorXd extrin_vector = Eigen::VectorXd::Zero(7);
-        extrin_vector << qic.coeffs(), tic;
-        _Tic->set_value(extrin_vector);
+        qic_->set_value(qic.coeffs());
+        tic_->set_value(tic);
+        // Eigen::VectorXd extrin_vector = Eigen::VectorXd::Zero(7);
+        // extrin_vector << qic.coeffs(), tic;
+        // _Tic->set_value(extrin_vector);
     }
 
     double ts_sec() { return _imu_state->ts(); }
@@ -78,8 +81,10 @@ class State
             CameraPose camera_pose;
             camera_pose.Rwi = it->second->quat().normalized().toRotationMatrix();
             camera_pose.pwi = it->second->p();
-            Eigen::Matrix3d R_CtoI = _Tic->quat().normalized().toRotationMatrix();
-            Eigen::Vector3d p_CinI = _Tic->p();
+            // Eigen::Matrix3d R_CtoI = _Tic->quat().normalized().toRotationMatrix();
+            // Eigen::Vector3d p_CinI = _Tic->p();
+            Eigen::Matrix3d R_CtoI = qic_->q().toRotationMatrix();
+            Eigen::Vector3d p_CinI = tic_->vec();
             camera_pose.Rwc = camera_pose.Rwi * R_CtoI;
             camera_pose.pwc = camera_pose.pwi + camera_pose.Rwi * p_CinI;
             camera_clone_poses.insert(std::make_pair(it->first, camera_pose));
@@ -122,11 +127,13 @@ class State
     int _dim = 0;
     std::shared_ptr<ImuState> _imu_state;
     std::map<double, std::shared_ptr<Pose>> _clone_pose;
-    std::shared_ptr<Pose> _Tic;  // R_CtoI, p_CinI
+    std::shared_ptr<Quat> qic_;
+    std::shared_ptr<Vec> tic_;
+    // std::shared_ptr<Pose> _Tic;  // R_CtoI, p_CinI
     std::vector<std::shared_ptr<Type>> _variables;
     Eigen::MatrixXd _covariance;
     Eigen::MatrixXd sqrt_Pt_;
-    int32_t _do_calibration_update = 0;
+    int32_t enable_estimate_ric_ = 0;
 };
 
 #endif

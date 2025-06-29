@@ -164,7 +164,8 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     std::shared_ptr<ImuState>& imu_state = state_->_imu_state;
     assert(imu_state->ts() == ts_sec);
     Eigen::Matrix3d R_ItoG = imu_state->q()->Rot();
-    Eigen::Matrix3d R_CtoI = state_->_Tic->quat().toRotationMatrix();
+    // Eigen::Matrix3d R_CtoI = state_->_Tic->quat().toRotationMatrix();
+    Eigen::Matrix3d R_CtoI = state_->qic_->q().toRotationMatrix();
     Eigen::Vector3d p_CpinG = -R_ItoG * R_CtoI * p_12;  // t_prev_in_G
     auto& [obs_prev, obs_cur] = stereo_obs_pairs[0];
     double delta_ts = abs(obs_cur.ts_sec - obs_prev.ts_sec);
@@ -189,7 +190,8 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_obs_global;
     for (auto& [feature_id, stereo_obs] : stereo_obs_triangulated)
     {
-        Eigen::Vector3d feature_pwf = R_ItoG * (R_CtoI * stereo_obs.second + state_->_Tic->p());
+        // Eigen::Vector3d feature_pwf = R_ItoG * (R_CtoI * stereo_obs.second + state_->_Tic->p());
+        Eigen::Vector3d feature_pwf = R_ItoG * (R_CtoI * stereo_obs.second + state_->tic_->vec());
         stereo_obs_global.try_emplace(feature_id, std::make_pair(stereo_obs.first, feature_pwf));
     }
     visual_manager_->ResetFeatureBase();

@@ -820,11 +820,14 @@ bool VisualManager::ConstructFeatureJacobianFull(std::vector<Feature*> feats, Ei
     _map_hx.clear();
     _Hx_order.clear();
     int total_hx = 0;
-    if (_state->_do_calibration_update)
+    if (_state->enable_estimate_ric_)
     {
-        _map_hx.insert({_state->_Tic, total_hx});
-        _Hx_order.push_back(_state->_Tic);
-        total_hx += _state->_Tic->size();
+        // _map_hx.insert({_state->_Tic, total_hx});
+        // _Hx_order.push_back(_state->_Tic);
+        // total_hx += _state->_Tic->size();
+        _map_hx.emplace(_state->qic_, total_hx);
+        _Hx_order.push_back(_state->qic_);
+        total_hx += _state->qic_->size();
     }
 
     for (auto x : _state->_clone_pose)
@@ -878,10 +881,12 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
                                           int total_hx,
                                           Eigen::MatrixXd& Hx_single)
 {
-    constexpr uint32_t kPwfDim = 3;
+    constexpr uint32_t kPwfCols = 3;
+    constexpr uint32_t kResidualCols = 1;
+
     assert(feat->_valid);
     int obs_size = 4 * feat->_visual_obs_buffer.size();
-    Eigen::MatrixXd Hfx = Eigen::MatrixXd::Zero(obs_size, total_hx + kPwfDim + 1);  // 3 feature dimension + total_hx + 1 residual
+    Eigen::MatrixXd Hfx = Eigen::MatrixXd::Zero(obs_size, total_hx + kPwfCols + kResidualCols);  // 3 feature dimension + total_hx + 1 residual
     Eigen::Vector3d p_finG = feat->_pwf;
 
     Eigen::Vector2d res_total = Eigen::Vector2d::Zero();
@@ -891,24 +896,21 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
         double obs_ts = obs.first;
         for (int cam_id = 0; cam_id < param_.camera_num; cam_id++)
         {
-            Eigen::Vector2d zm;
             double focal_length;
             Eigen::Matrix3d R_CtoI;
             Eigen::Vector3d p_CinI;
 
             if (cam_id == LEFT_CAM)
             {
-                zm << obs.second.uv[cam_id];
                 focal_length = CamModel::getInstance().K(LEFT_CAM)(0, 0);
-                R_CtoI = _state->_Tic->quat().toRotationMatrix();
-                p_CinI = _state->_Tic->p();
+                R_CtoI = _state->qic_->q().toRotationMatrix();
+                p_CinI = _state->tic_->vec();
             }
             else if (cam_id == RIGHT_CAM)
             {
-                zm << obs.second.uv[cam_id];
                 focal_length = CamModel::getInstance().K(RIGHT_CAM)(0, 0);
-                R_CtoI = _state->_Tic->quat().toRotationMatrix() * CamModel::getInstance().R_rl();
-                p_CinI = _state->_Tic->p() + _state->_Tic->quat().toRotationMatrix() * CamModel::getInstance().p_rl();
+                R_CtoI = _state->qic_->q().toRotationMatrix() * CamModel::getInstance().R_rl();
+                p_CinI = _state->tic_->vec() + _state->qic_->q().toRotationMatrix() * CamModel::getInstance().p_rl();
             }
 
             std::shared_ptr<Pose> obs_pose = _state->_clone_pose.at(obs_ts);
@@ -920,45 +922,52 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
 
             Eigen::Vector3d p_finCi = R_CitoG.transpose() * (p_finG - p_CiinG);
 
-            // compute visual residual
+            // Compute visual observations and residuals
+            Eigen::Vector2d zm = obs.second.uv[cam_id];
             Eigen::Vector2d uv = CamModel::getInstance().project(cam_id, p_finCi);
-
             Eigen::Vector2d res = zm - uv;
-            Hfx.block<2, 1>(2 * cnt, Hfx.cols() - 1) = res;
+            Hfx.block<2, 1>(2 * cnt, Hfx.cols() - kResidualCols) = res;
 
-            // precompute dz_dpcf
+            // Pre-compute dz_dpcf
             Eigen::MatrixXd dz_norm_dpcf = Eigen::MatrixXd::Zero(2, 3);
             dz_norm_dpcf << 1 / p_finCi(2), 0, -p_finCi(0) / (p_finCi(2) * p_finCi(2)), 0, 1 / p_finCi(2), -p_finCi(1) / (p_finCi(2) * p_finCi(2));
             Eigen::MatrixXd dz_uv_dz_norm = Eigen::Matrix2d::Identity() * focal_length;
             Eigen::MatrixXd dz_dpcf = dz_uv_dz_norm * dz_norm_dpcf;
 
-            // get jacobian wrt pwf
+            // Get jacobian wrt pwf
             Eigen::Matrix3d dpcf_dpwf = R_CitoG.transpose();
-            Hfx.block<2, kPwfDim>(2 * cnt, 0) = dz_dpcf * dpcf_dpwf;
+            Hfx.block<2, kPwfCols>(2 * cnt, 0) = dz_dpcf * dpcf_dpwf;
 
-            // get jacobian wrt extrinsic parameters
-            if (_state->_do_calibration_update)
+            // Get jacobian wrt extrinsic parameters
+            if (_state->enable_estimate_ric_)
             {
-                Eigen::MatrixXd dpcf_dcalib = Eigen::MatrixXd::Zero(3, 6);
-                // dpcf_dcalib.block<3, 3>(0, 0) = -R_ItoC * MathUtils::skew(R_IitoG.transpose() * (p_finG - p_IiinG));
-                dpcf_dcalib.block<3, 3>(0, 0) = MathUtils::skew(p_finCi);
-                // dpcf_dcalib.block<3, 3>(0, 3) = Eigen::Matrix3d::Identity();
-                dpcf_dcalib.block<3, 3>(0, 3) = -R_CtoI.transpose();
-                Hfx.block<2, 6>(2 * cnt, kPwfDim + map_hx.at(_state->_Tic)) = dz_dpcf * dpcf_dcalib;
+                Eigen::Matrix3d dpcf_dqic = Eigen::Matrix3d::Zero();
+                if (cam_id == LEFT_CAM)
+                {
+                    dpcf_dqic = MathUtils::skew(p_finCi);
+                }
+                else if (cam_id == RIGHT_CAM)
+                {
+                    // Reference: https://blog.csdn.net/qingcaichongchong/article/details/134850848
+                    Eigen::Vector3d phi = Sophus::SO3d(R_CtoI).log();
+                    Eigen::Matrix3d dRicr_dRicl = MathUtils::Jr_inv(phi) * CamModel::getInstance().R_rl().transpose();
+                    dpcf_dqic = MathUtils::skew(p_finCi) * dRicr_dRicl;
+                }
+                Hfx.block<2, 3>(2 * cnt, kPwfCols + map_hx.at(_state->qic_)) = dz_dpcf * dpcf_dqic;
             }
 
-            // get jacobian wrt clone pose
+            // Get jacobian wrt clone pose
             Eigen::MatrixXd dpcf_dclone = Eigen::MatrixXd::Zero(3, 6);
             dpcf_dclone.block<3, 3>(0, 0) = R_CtoI.transpose() * MathUtils::skew(R_IitoG.transpose() * (p_finG - p_IiinG));
             dpcf_dclone.block<3, 3>(0, 3) = -R_CitoG.transpose();
-            Hfx.block<2, 6>(2 * cnt, kPwfDim + map_hx.at(obs_pose)) = dz_dpcf * dpcf_dclone;
+            Hfx.block<2, 6>(2 * cnt, kPwfCols + map_hx.at(obs_pose)) = dz_dpcf * dpcf_dclone;
 
             res_total += res;
             cnt++;
         }
 
-        // // /*check the correctness of Hx*/
-        // // check pwf
+        // // Debug: Check the correctness of Hx
+        // // Check pwf
         // std::cout << "------------------------\n" << std::endl;
         // Eigen::Vector3d dpwf(0.1, 0.1, 0.1);
         // Eigen::Vector2d Hx_plus_dpwf = Hfx.block<2, 3>(2 * c, 0) * dpwf;
@@ -966,7 +975,7 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
         // Eigen::Vector2d uv_dpwf(pcf_dpwf(0) / pcf_dpwf(2), pcf_dpwf(1) / pcf_dpwf(2));
         // std::cout << "uv_dpwf: " << (uv_dpwf - uv_norm - Hx_plus_dpwf).transpose() << std::endl;
 
-        // // check R_CtoI
+        // // Check R_CtoI
         // Eigen::Vector3d dR_CtoI(0.1, 0.1, 0.1);
         // Eigen::Vector2d Hx_plus_dR_ItoC = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(_state->_Tic)) * dR_CtoI;
         // Eigen::Matrix3d dR_CtoI_mat = Eigen::Matrix3d::Identity() + MathUtils::skew(dR_CtoI.head(3));
@@ -976,7 +985,7 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
         // Eigen::Vector2d uv_dR_ItoC(pcf_dR_ItoC(0) / pcf_dR_ItoC(2), pcf_dR_ItoC(1) / pcf_dR_ItoC(2));
         // std::cout << "uv_dR_ItoC: " << (uv_dR_ItoC - uv_norm - Hx_plus_dR_ItoC).transpose() << std::endl;
 
-        // // check p_IinC
+        // // Check p_IinC
         // Eigen::Vector3d dp_CinI(0.1, 0.1, 0.1);
         // Eigen::Vector2d Hx_plus_dp_IinC = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(_state->_Tic) + 3) * dp_CinI;
         // Eigen::Vector3d p_CiinG_hat = p_IiinG + R_IitoG * (p_CinI + dp_CinI);
@@ -984,7 +993,7 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
         // Eigen::Vector2d uv_dp_ItoC(pcf_dp_ItoC(0) / pcf_dp_ItoC(2), pcf_dp_ItoC(1) / pcf_dp_ItoC(2));
         // std::cout << "uv_dp_ItoC: " << (uv_dp_ItoC - uv_norm - Hx_plus_dp_IinC).transpose() << std::endl;
 
-        // // check clone_R
+        // // Check clone_R
         // Eigen::Vector3d dR_ItoG(0.1, 0.1, 0.1);
         // Eigen::Vector2d Hx_plus_dR_ItoG = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(obs_pose)) * dR_ItoG;
         // Eigen::Matrix3d dR_ItoG_mat = Eigen::Matrix3d::Identity() + MathUtils::skew(dR_ItoG.head(3));
@@ -994,7 +1003,7 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
         // Eigen::Vector2d uv_dR_ItoG(pcf_dR_ItoG(0) / pcf_dR_ItoG(2), pcf_dR_ItoG(1) / pcf_dR_ItoG(2));
         // std::cout << "uv_dR_ItoG: " << (uv_dR_ItoG - uv_norm - Hx_plus_dR_ItoG).transpose() << std::endl;
 
-        // // check clone_p
+        // // Check clone_p
         // Eigen::Vector3d dp_IinG(0.1, 0.1, 0.1);
         // Eigen::Vector2d Hx_plus_dp_IinG = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(obs_pose) + 3) * dp_IinG;
         // p_CiinG_hat = p_IiinG + dp_IinG + R_IitoG * p_CinI;

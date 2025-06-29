@@ -45,7 +45,7 @@ class VioManager
             exit(0);
         }
 
-        state = std::make_shared<State>();
+        state = std::make_shared<State>(params.estimate_ric);
 
         _imu_manager = std::make_shared<ImuManager>(params, state, solver);
         _imu_manager->SetImuNoise(params.sigma_na, params.sigma_nw, params.sigma_ba, params.sigma_bg);
@@ -60,7 +60,7 @@ class VioManager
 
         vio_logger_tum = std::make_shared<utils::LoggerTUM>(params.log_path);
 
-        // set camera extrinsic coeff
+        // Initialize camera extrinsic parameters
         Eigen::Quaterniond qic(params.Ric[0]);
         Eigen::Vector3d tic = params.tic[0];
         state->set_extrinsic(qic.normalized(), tic);

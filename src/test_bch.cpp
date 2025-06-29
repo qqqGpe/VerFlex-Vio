@@ -18,6 +18,16 @@ TEST(VioTest, bch)
     EXPECT_TRUE(Jl_inv_error.norm() < 1e-6) << "Jl_inv and Jl_inv_sophus are not equal within the tolerance.";
     // std::cout << "Jl_inv:\n" << Jl_inv << std::endl;
     // std::cout << "Jl_inv_sophus:\n" << Jl_inv_sophus << std::endl;
+
+    Eigen::Matrix3d Jl_Res = Eigen::Matrix3d::Identity() -  Jl * Jl_inv;
+    EXPECT_TRUE(Jl_Res.norm() < 1e-6);
+
+    Eigen::Matrix3d Jr = MathUtils::Jr(angle_rad);
+    Eigen::Matrix3d Jr_inv = MathUtils::Jr_inv(angle_rad);
+    std::cout << "Jr * Jr_inv: \n" << Jr * Jr_inv << std::endl;
+    Eigen::Matrix3d Jr_Res = Eigen::Matrix3d::Identity() - Jr * Jr_inv;
+    EXPECT_TRUE(Jr_Res.norm() < 1e-6);
+
 }
 
 int main()

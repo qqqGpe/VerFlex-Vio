@@ -259,11 +259,12 @@ void VioManager::ProcessMeasurementOnce()
         {
             visual_updated = true;
             last_update_timestamp_ = state->ts_sec();
-            LOG(INFO) << cv::format("VIO updated, current state ts: %f, pos: [%.3f, %.3f, %.3f], vel: [%.3f, %.3f, %.3f], rpy: [%.3f, %.3f, %.3f]",
+            Eigen::Vector3d ric_rpy = MathUtils::R2rpy(state->qic_->Rot()) * kRad2Deg;
+            LOG(INFO) << cv::format("VIO updated, current state ts: %f, pos: [%.3f, %.3f, %.3f], vel: [%.3f, %.3f, %.3f], rpy: [%.3f, %.3f, %.3f], ric_rpy:[%.3f, %.3f, %.3f]",
                                     state->ts_sec(), state->_imu_state->p()->vec().x(), state->_imu_state->p()->vec().y(),
                                     state->_imu_state->p()->vec().z(), state->_imu_state->v()->vec().x(), state->_imu_state->v()->vec().y(),
                                     state->_imu_state->v()->vec().z(), state->_imu_state->q()->rpy().x(), state->_imu_state->q()->rpy().y(),
-                                    state->_imu_state->q()->rpy().z());
+                                    state->_imu_state->q()->rpy().z(), ric_rpy.x(), ric_rpy.y(), ric_rpy.z());
         }
 
         // Reset vio system if the update interval is too large
@@ -275,6 +276,7 @@ void VioManager::ProcessMeasurementOnce()
             continue;
         }
 
+        // Publish VIO state and features
         Visualizer::getInstance().PublishVioState(state->_imu_state);
         if (visual_updated)
         {

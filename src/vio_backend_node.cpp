@@ -55,7 +55,7 @@ int main(int argc, char** argv)
     view_full.addQuery(bag);
     ros::Time time_init = view_full.getBeginTime();
     time_init += ros::Duration(params.bag_start);
-    ros::Time time_finish = (params.bag_durr < 0) ? view_full.getEndTime() : time_init + ros::Duration(params.bag_durr);
+    ros::Time time_finish = (params.bag_duration < 0) ? view_full.getEndTime() : time_init + ros::Duration(params.bag_duration);
     view.addQuery(bag, time_init, time_finish);
 
     if (params.set_init_timestamp_to_zero == true)
@@ -102,7 +102,7 @@ int main(int argc, char** argv)
         }
     }
 
-    ros::Rate loop_rate(20);
+    ros::Rate loop_rate(params.running_rate);
     for (int m = 0; m < msgs.size(); m++)
     {
         if (!ros::ok())

@@ -16,14 +16,16 @@ public:
     {
         _nh->param<bool>("set_init_timestamp_to_zero", set_init_timestamp_to_zero, false);
         _nh->param<bool>("use_multi_thread", use_multi_thread, false);
+        _nh->param<bool>("estimate_ric", estimate_ric, true);
         _nh->param<int>("log_level", log_level, 2);
         _nh->param<int>("camera_num", camera_num, 1);
+        _nh->param<int>("running_rate", running_rate, 20);
 
         _nh->param<int>("img_width", img_width, 752);
         _nh->param<int>("img_height", img_height, 480);
 
         _nh->param<double>("bag_start", bag_start, 0);
-        _nh->param<double>("bag_durr", bag_durr, -1);
+        _nh->param<double>("bag_durration", bag_duration, -1);
 
         _nh->param<int>("max_feat_n", max_feat_n, 225);
         _nh->param<int>("grid_w", grid_w, 15);
@@ -75,18 +77,28 @@ public:
 
         return CheckParams();
     }
+
     bool set_init_timestamp_to_zero = false;
     bool use_multi_thread = false;
+    bool estimate_ric = true;
+
+    int running_rate; // Hz
     int log_level = 2;
     int camera_num;
-    double bag_start, bag_durr;
     int max_feat_n;
     int grid_h, grid_w;
     int max_clone_pose;
     int img_width, img_height;
+    int solver_type = 0; // 0: ESKF, 1: SqrtESKF
+
+    double sigma_na;
+    double sigma_nw;
+    double sigma_ba;
+    double sigma_bg;
     double gravity_magn;
     double imu_acc_var_static_thres;
     double imu_gyro_static_thres;
+    double bag_start, bag_duration;
 
     std::string log_path;
     std::string path_bag;
@@ -96,15 +108,8 @@ public:
     std::vector<Eigen::Matrix3d> intrinsics;
     std::vector<Eigen::VectorXd> distortion;
 
-    double sigma_na;
-    double sigma_nw;
-    double sigma_ba;
-    double sigma_bg;
-
     std::vector<Eigen::Matrix3d> Ric;
     std::vector<Eigen::Vector3d> tic;
-
-    int solver_type = 0; // 0: ESKF, 1: SqrtESKF
 
 private:
     bool CheckParams()
