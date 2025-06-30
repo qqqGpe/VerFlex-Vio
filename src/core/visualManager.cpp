@@ -948,10 +948,8 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
                 }
                 else if (cam_id == RIGHT_CAM)
                 {
-                    // Reference: https://blog.csdn.net/qingcaichongchong/article/details/134850848
-                    Eigen::Vector3d phi = Sophus::SO3d(R_CtoI).log();
-                    Eigen::Matrix3d dRicr_dRicl = MathUtils::Jr_inv(phi) * CamModel::getInstance().R_rl().transpose();
-                    dpcf_dqic = MathUtils::skew(p_finCi) * dRicr_dRicl;
+                    Eigen::Vector3d p_finCl = CamModel::getInstance().R_rl() * p_finCi + CamModel::getInstance().p_rl();
+                    dpcf_dqic = CamModel::getInstance().R_rl().transpose() * MathUtils::skew(p_finCl);
                 }
                 Hfx.block<2, 3>(2 * cnt, kPwfCols + map_hx.at(_state->qic_)) = dz_dpcf * dpcf_dqic;
             }

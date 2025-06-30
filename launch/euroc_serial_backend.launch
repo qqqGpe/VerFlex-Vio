@@ -7,8 +7,8 @@
 
     <!-- mono or stereo and what ros bag to play -->
     <arg name="bag_start"   default="0" /> <!-- v1-2: 0, mh1: 40, mh2: 35, mh3: 17.5, mh4-5: 15 -->
-    <!-- <arg name="dataset"     default="MH_01_easy" /> -->
-    <arg name="dataset"     default="MH_02_easy" />
+    <arg name="dataset"     default="MH_01_easy" />
+    <!-- <arg name="dataset"     default="MH_02_easy" /> -->
     <!-- <arg name="dataset"     default="MH_03_medium" /> -->
     <!-- <arg name="dataset"     default="MH_04_difficult" /> -->
 
@@ -33,10 +33,10 @@
         <!-- bag parameters -->
         <param name="path_bag"                  type="str"    value="$(arg bag)" />
         <param name="bag_start"                 type="double" value="0" />
-        <param name="bag_duration"                  type="double" value="-1" />
+        <param name="bag_duration"              type="double" value="-1" />
 
         <!-- Camera configuration -->
-        <param name="camera_num"                type="int"    value="2" />
+        <param name="camera_num"                type="int"    value="1" />
         <param name="img_width"                 type="int"    value="752" />
         <param name="img_height"                type="int"    value="480" />
         <rosparam param="intrinsic_cam_0">      [458.654, 457.296, 367.215, 248.375]                    </rosparam>
