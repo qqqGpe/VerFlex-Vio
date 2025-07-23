@@ -1,9 +1,6 @@
 #ifndef __VIO_TYPES__
 #define __VIO_TYPES__
-#include <glog/logging.h>
 #include <Eigen/Eigen>
-#include <Eigen/Geometry>
-#include <memory>
 
 class Type
 {
@@ -44,12 +41,13 @@ class Type
         _fej = new_fej;
     }
 
-    std::string state_name = "no_name";
+    const std::string TypeName() const { return state_name; }
 
    protected:
     double _ts = 0;
     int _size = -1;
     int _id = -1;
+    std::string state_name = "no_name";
     Eigen::MatrixXd _value;
     Eigen::MatrixXd _fej;
 };

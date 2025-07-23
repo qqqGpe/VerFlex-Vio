@@ -17,26 +17,33 @@ class SqrtEskfSolver : public MsckfSolverBase
     SqrtEskfSolver() = default;
     virtual ~SqrtEskfSolver() {}
 
-    virtual void StochasticClone(std::shared_ptr<State> state) override
+    virtual void StochasticClone(std::shared_ptr<State> state, std::vector<ImuData>* imu_data) override
     {
         Eigen::MatrixXd SqrtPt_old = state->Sqrt_Pt();
         std::shared_ptr<Pose> pose_to_clone = state->_imu_state->pose();
-        const int clone_size = pose_to_clone->size();
+        const int clone_pose_size = pose_to_clone->size();
         const int old_rows = SqrtPt_old.rows();
         const int old_cols = SqrtPt_old.cols();
-        const int new_cols = old_cols + clone_size;
+        const int new_cols = old_cols + clone_pose_size;
 
         Eigen::MatrixXd SqrtPt_new = Eigen::MatrixXd::Zero(old_rows, new_cols);
         SqrtPt_new.topLeftCorner(old_rows, old_cols) = SqrtPt_old;
+        SqrtPt_new.rightCols(clone_pose_size) = SqrtPt_new.leftCols(clone_pose_size);
 
-        const uint32_t origin_loc = pose_to_clone->id();
-        SqrtPt_new.topRightCorner(clone_size, clone_size) = SqrtPt_old.block(origin_loc, origin_loc, clone_size, clone_size);
+        std::shared_ptr<Type> clone_pose = pose_to_clone->clone();
+        clone_pose->set_local_id(old_cols);
+        state->_clone_pose.insert(std::make_pair(clone_pose->ts(), std::dynamic_pointer_cast<Pose>(clone_pose)));
+        state->_variables.push_back(clone_pose);
+        state->_dim += clone_pose->size();
 
-        std::shared_ptr<Type> clone = pose_to_clone->clone();
-        clone->set_local_id(old_cols);
-        state->_clone_pose.insert(std::make_pair(clone->ts(), std::dynamic_pointer_cast<Pose>(clone)));
-        state->_variables.push_back(clone);
-        state->_dim += clone->size();
+        if (state->enable_estimate_td_visual_)
+        {
+            Eigen::Vector3d last_w = imu_data->back().wm;
+            Eigen::MatrixXd J_td = Eigen::MatrixXd::Zero(clone_pose_size, 1);
+            J_td << last_w, state->_imu_state->v()->vec();
+            SqrtPt_new.rightCols(clone_pose_size) += SqrtPt_new.block(0, state->td_visual().id(), SqrtPt_new.rows(), state->td_visual().size()) * J_td.transpose();
+        }
+
         state->SetSqrtPt(SqrtPt_new);
     }
 
@@ -146,8 +153,8 @@ class SqrtEskfSolver : public MsckfSolverBase
             {
                 LOG(ERROR) << cv::format("diagonal is negative when update");
                 LOG(ERROR) << "diags: " << diags.transpose();
-                std::cout << "diag size: " << diags.size() << std::endl;
-                std::cout << "variable size: " << state->_variables.size() << std::endl;
+                // std::cout << "diag size: " << diags.size() << std::endl;
+                // std::cout << "variable size: " << state->_variables.size() << std::endl;
                 std::exit(EXIT_FAILURE);
             }
         }
@@ -164,18 +171,19 @@ class SqrtEskfSolver : public MsckfSolverBase
         state->SetCovariance(0.5 * (Cov_full + Cov_full.transpose()));
     }
 
-    virtual bool PropagateStateAndCovariance(const std::vector<ImuData> imu_data, const double ts, std::shared_ptr<State> state) override
+    virtual bool PropagateStateAndCovariance(const std::vector<ImuData> imu_data, const double visual_ts, std::shared_ptr<State> state) override
     {
-        if (ts <= state->_imu_state->ts())
+        if (visual_ts <= state->_imu_state->ts())
         {
-            LOG(WARNING) << cv::format("curent state timestamp: %f, must be later than imu_state ts: %f", ts, state->_imu_state->ts());
+            LOG(WARNING) << cv::format("Propagation failed, curent state timestamp: %f, must be later than imu_state timestamp: %f", visual_ts,
+                                       state->_imu_state->ts());
             return false;
         }
 
-        if (imu_data.empty() || imu_data.back().ts_sec < ts)
+        if (imu_data.empty() || imu_data.back().ts_sec < state->ts_sec())
         {
-            LOG(WARNING) << cv::format("wait for imu data, current state timestamp: %f but latest imu ts: %f", state->ts_sec(),
-                                       imu_data.back().ts_sec);
+            LOG(WARNING) << cv::format("Propagation failed, waiting for imu data, current state timestamp: %f but latest imu timestamp: %f",
+                                       state->ts_sec(), imu_data.back().ts_sec);
             return false;
         }
 
@@ -277,7 +285,7 @@ class SqrtEskfSolver : public MsckfSolverBase
         }
 
         // Update state
-        state->_imu_state->set_ts(ts);
+        state->_imu_state->set_ts(visual_ts);   // Set current state timestamp to visual timestamp
         state->_imu_state->q()->set_value(Eigen::Quaterniond(R_next).normalized().coeffs());
         state->_imu_state->p()->set_value(P_next);
         state->_imu_state->v()->set_value(V_next);

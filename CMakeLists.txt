@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.15)
-project(vio_backend)
+project(vio)
 
 add_compile_options(-std=c++17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-# set(CMAKE_BUILD_TYPE Debug) # Debug Release
-set(CMAKE_BUILD_TYPE Release) # Debug Release
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -O3  -Wall")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3  -Wall")
+set(CMAKE_BUILD_TYPE Debug) # Debug Release
+# set(CMAKE_BUILD_TYPE Release) # Debug Release
+# set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -O3  -Wall")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3  -Wall")
 
 
 find_package(catkin REQUIRED COMPONENTS
@@ -32,7 +32,7 @@ find_package(glog REQUIRED)
 find_package(GTest REQUIRED)
 
 catkin_package(
- LIBRARIES vio_backend
+ LIBRARIES vio
  INCLUDE_DIRS src/core src/types src/utils
  CATKIN_DEPENDS cv_bridge geometry_msgs nav_msgs image_transport nav_msgs rosbag roscpp sensor_msgs std_msgs
 )
@@ -51,13 +51,13 @@ include_directories(
 )
 
 list(APPEND thirdparty_libraries
+        fmt
+        glog::glog
         ${Boost_LIBRARIES}
         ${OpenCV_LIBRARIES}
         ${catkin_LIBRARIES}
         ${Sophus_LIBRARIES}
         ${CERES_LIBRARIES}
-        fmt
-        glog::glog
 )
 
 file(GLOB_RECURSE CORE_FILE_LIST "src/core/*.cpp")
@@ -66,6 +66,7 @@ add_library(
         msckf_core STATIC
         ${CORE_FILE_LIST}
 )
+
 target_include_directories(msckf_core PUBLIC
 src/types/
 src/utils/
@@ -74,8 +75,15 @@ target_link_libraries(msckf_core glog::glog)
 
 add_subdirectory(src/core)
 
-add_executable(${PROJECT_NAME}_node src/vio_backend_node.cpp)
-target_link_libraries(${PROJECT_NAME}_node
+add_executable(${PROJECT_NAME}_serial_node src/vio_serial_node.cpp)
+target_link_libraries(${PROJECT_NAME}_serial_node
+                      msckf_core
+                      ${catkin_LIBRARIES}
+                      ${thirdparty_libraries}
+)
+
+add_executable(${PROJECT_NAME}_subscribe_node src/vio_subscribe_node.cpp)
+target_link_libraries(${PROJECT_NAME}_subscribe_node
                       msckf_core
                       ${catkin_LIBRARIES}
                       ${thirdparty_libraries}

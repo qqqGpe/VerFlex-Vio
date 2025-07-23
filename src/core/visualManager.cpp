@@ -11,7 +11,7 @@
 #include "mathematical_tools.h"
 #include "visualManager.h"
 
-#define SHOW_CLONE_POSES 1
+#define SHOW_CLONE_POSES 0
 
 namespace
 {
@@ -25,9 +25,9 @@ constexpr uint32_t kMinFeatNumToUpdate = 15;
 
 bool VisualManager::VisualUpdate()
 {
-    bool isVisualUpdated = false;
+    bool is_visual_updated = false;
     std::map<double, CameraPose> camera_pose_buffer = _state->AccessClonePoseBuffer();
-    FeatureTriangulation(feature_tracked_, camera_pose_buffer);
+    FeatureTriangulation(camera_pose_buffer, feature_tracked_);
     CalculateFeatureParallex(feature_tracked_);
 
     feat_msckf_ = SelectMsckfFeatures(feature_tracked_);
@@ -41,7 +41,6 @@ bool VisualManager::VisualUpdate()
     // }
 
 #if SHOW_CLONE_POSES
-
     constexpr double fr = 11.333;
     constexpr double fb = 22.333;
     constexpr double fg = 33.333;
@@ -87,7 +86,6 @@ bool VisualManager::VisualUpdate()
         images_to_show.push_back(it->second);
     }
     Utils::ShowGridImages(images_to_show);
-
 #endif
 
     _origin_feature_tracked = feat_msckf_.size();
@@ -101,13 +99,13 @@ bool VisualManager::VisualUpdate()
         if (_state->_clone_pose.size() >= 2)
         {
             solver_->update(_state, Hx_msckf, res, _Hx_order, _map_hx, R);
-            isVisualUpdated = true;
+            is_visual_updated = true;
         }
     }
     else
     {
-        LOG(INFO) << cv::format("Not enough features to update, features_tracked: %d, features_msckf: %d, feature mapping success: %d",
-                                int(feature_tracked_.size()), int(feat_msckf_.size()), feature_mapping_success_);
+        LOG(INFO) << fmt::format("Not enough features to update, features_tracked: {:d}, features_msckf: {:d}, feature mapping success: {:d}",
+                                 static_cast<int>(feature_tracked_.size()), static_cast<int>(feat_msckf_.size()), feature_mapping_success_);
     }
 
     std::shared_ptr<Type> state_to_marginalize = nullptr;
@@ -115,7 +113,7 @@ bool VisualManager::VisualUpdate()
     if (_state->_clone_pose.size() >= max_clone_pose_)
     {
         *_keyframe = KeyFrameStatus::kNone;
-        *_keyframe = CheckKeyframe(_state, feat_msckf_);
+        *_keyframe = MaybeSetKeyframe(_state, feat_msckf_);
         if (*_keyframe == KeyFrameStatus::kNone)
         {
             state_to_marginalize = _state->_clone_pose.rbegin()->second;
@@ -125,18 +123,23 @@ bool VisualManager::VisualUpdate()
         {
             state_to_marginalize = _state->_clone_pose.begin()->second;
             DropFeatureObsrvs(state_to_marginalize->ts());
-            UpdateFeatureBase();
+            UpdateFeatureBase(_state->ts_sec());
         }
+
+        std::cout << "keyframe status: " << static_cast<int>(*_keyframe) << std::endl;
     }
 
-    solver_->MarginalizeState(_state, state_to_marginalize);
+    if (state_to_marginalize != nullptr)
+    {
+        solver_->MarginalizeState(_state, state_to_marginalize);
+    }
 
-    return isVisualUpdated;
+    return is_visual_updated;
 }
 
-KeyFrameStatus VisualManager::CheckKeyframe(std::shared_ptr<State> _state, std::vector<Feature*> feats)
+KeyFrameStatus VisualManager::MaybeSetKeyframe(std::shared_ptr<State> _state, std::vector<Feature*> feats)
 {
-    constexpr double kLargeParallexThres = 15.f;  // 大于5个平均像素视差则视为关键帧
+    constexpr double kLargeParallexThres = 15.f;
 
     if (_state->_clone_pose.size() < max_clone_pose_)
     {
@@ -197,7 +200,7 @@ void VisualManager::DropFeatureObsrvs(const double timestamp_to_drop)
     }
 }
 
-void VisualManager::UpdateFeatureBase()
+void VisualManager::UpdateFeatureBase(const double timestamp)
 {
     for (auto& feat_lost : feature_lost_)
     {
@@ -213,16 +216,16 @@ void VisualManager::UpdateFeatureBase()
         }
     }
 
-    for (auto& feat : feature_new_)
+    for (auto& feature : feature_new_)
     {
         for (int i = 0; i < feature_base_.size(); i++)
         {
             if (!feature_base_[i]->_valid)
             {
                 feature_base_[i]->reset();
-                feature_base_[i]->_id = feat.feat_id;
+                feature_base_[i]->_id = feature.feat_id;
                 feature_base_[i]->_valid = true;
-                feature_base_[i]->_visual_obs_buffer.insert({feat.ts_sec, feat});
+                feature_base_[i]->_visual_obs_buffer.insert_or_assign(timestamp, feature);
                 break;
             }
         }
@@ -238,9 +241,9 @@ void VisualManager::UpdateFeatureBase()
     }
 }
 
-void VisualManager::UpdateFeature(std::pair<double, std::vector<CameraObs>> feature_observes)
+void VisualManager::UpdateFeatureStatistic(const double timestamp, std::pair<double, std::vector<CameraObs>> feature_observes)
 {
-    double ts_sec = feature_observes.first;
+    // double ts_sec = feature_observes.first;
     std::vector<CameraObs> feature_obs = feature_observes.second;
     std::unordered_map<uint32_t, CameraObs> feature_obsrv_umap;
     std::unordered_set<uint32_t> feature_tracked_id_uset;
@@ -262,11 +265,21 @@ void VisualManager::UpdateFeature(std::pair<double, std::vector<CameraObs>> feat
             continue;
         }
 
+        // if (abs(timestamp - 1.6673493385314941) < 1e-2)
+        // {
+        //     std::cout << "feature id: " << feature->_id << ", obs size: " << feature->_visual_obs_buffer.size() << std::endl;
+        // }
+
+        // if (feature->_id == 375)
+        // {
+        //     std::cout << "feature id: " << feature->_id << ", obs size: " << feature->_visual_obs_buffer.size() << std::endl;
+        // }
+
         if (feature_obsrv_umap.find(feature->_id) != feature_obsrv_umap.end())
         {
             feature_tracked_.push_back(feature);
             feature_tracked_id_uset.insert(feature->_id);
-            feature->_visual_obs_buffer.insert_or_assign(ts_sec, feature_obsrv_umap[feature->_id]);
+            feature->_visual_obs_buffer.insert_or_assign(timestamp, feature_obsrv_umap[feature->_id]);
         }
         else
         {
@@ -359,11 +372,11 @@ void VisualManager::InitFeatureBase(std::unordered_map<int32_t, std::pair<Camera
     }
 }
 
-bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat)
+bool VisualManager::least_square_triangulation(const std::map<double, CameraPose>& clone_pose_buffer, Feature* feat)
 {
     auto first_obs = feat->_visual_obs_buffer.begin();
-    Eigen::Matrix3d R_AtoG = clone_pose_buffer[first_obs->first].Rwc;
-    Eigen::Vector3d p_AinG = clone_pose_buffer[first_obs->first].pwc;
+    Eigen::Matrix3d R_AtoG = clone_pose_buffer.at(first_obs->first).Rwc;
+    Eigen::Vector3d p_AinG = clone_pose_buffer.at(first_obs->first).pwc;
 
     Eigen::Matrix3d ATA = Eigen::Matrix3d::Zero();
     Eigen::Vector3d ATb = Eigen::Vector3d::Zero();
@@ -378,14 +391,14 @@ bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clo
             Eigen::Vector3d b_i;
             if (cam_id == LEFT_CAM)
             {
-                R_CitoG = clone_pose_buffer[it->first].Rwc;
-                p_CiinG = clone_pose_buffer[it->first].pwc;
+                R_CitoG = clone_pose_buffer.at(it->first).Rwc;
+                p_CiinG = clone_pose_buffer.at(it->first).pwc;
                 b_i << it->second.uv_norm[cam_id], 1;
             }
             else if (cam_id == RIGHT_CAM)
             {
-                R_CitoG = clone_pose_buffer[it->first].Rwc * CamModel::getInstance().R_rl();
-                p_CiinG = clone_pose_buffer[it->first].pwc + clone_pose_buffer[it->first].Rwc * CamModel::getInstance().p_rl();
+                R_CitoG = clone_pose_buffer.at(it->first).Rwc * CamModel::getInstance().Rlr();
+                p_CiinG = clone_pose_buffer.at(it->first).pwc + clone_pose_buffer.at(it->first).Rwc * CamModel::getInstance().plr();
                 b_i << it->second.uv_norm[cam_id], 1;
             }
 
@@ -430,12 +443,12 @@ bool VisualManager::least_square_triangulation(std::map<double, CameraPose>& clo
     return true;
 }
 
-bool VisualManager::GaussianNewtonOptimization(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat)
+bool VisualManager::GaussianNewtonOptimization(const std::map<double, CameraPose>& clone_pose_buffer, Feature* feat)
 {
     auto last_obs = feat->_visual_obs_buffer.end();
     last_obs--;
-    const Eigen::Matrix3d R_AtoG = clone_pose_buffer[last_obs->first].Rwc;
-    const Eigen::Vector3d p_AinG = clone_pose_buffer[last_obs->first].pwc;
+    const Eigen::Matrix3d R_AtoG = clone_pose_buffer.at(last_obs->first).Rwc;
+    const Eigen::Vector3d p_AinG = clone_pose_buffer.at(last_obs->first).pwc;
 
     Eigen::Vector3d paf = R_AtoG.transpose() * (feat->_pwf - p_AinG);
     if (abs(paf.z()) < 1e-2)
@@ -463,14 +476,14 @@ bool VisualManager::GaussianNewtonOptimization(std::map<double, CameraPose>& clo
                 if (cam_id == LEFT_CAM)
                 {
                     z_m << (*it).second.uv_norm[cam_id];
-                    R_CitoG = clone_pose_buffer[feature_timestamp].Rwc;
-                    p_CiinG = clone_pose_buffer[feature_timestamp].pwc;
+                    R_CitoG = clone_pose_buffer.at(feature_timestamp).Rwc;
+                    p_CiinG = clone_pose_buffer.at(feature_timestamp).pwc;
                 }
                 else if (cam_id == RIGHT_CAM)
                 {
                     z_m << (*it).second.uv_norm[cam_id];
-                    R_CitoG = clone_pose_buffer[feature_timestamp].Rwc * CamModel::getInstance().R_rl();
-                    p_CiinG = clone_pose_buffer[feature_timestamp].pwc + clone_pose_buffer[feature_timestamp].Rwc * CamModel::getInstance().p_rl();
+                    R_CitoG = clone_pose_buffer.at(feature_timestamp).Rwc * CamModel::getInstance().Rlr();
+                    p_CiinG = clone_pose_buffer.at(feature_timestamp).pwc + clone_pose_buffer.at(feature_timestamp).Rwc * CamModel::getInstance().plr();
                 }
 
                 Eigen::Matrix3d R_AtoCi = R_CitoG.transpose() * R_AtoG;
@@ -562,8 +575,8 @@ bool VisualManager::StereoLeastSqureTriangulation(CameraObs& cam_obs, Eigen::Vec
         else if (cam_id == RIGHT_CAM)
         {
             b_i << cam_obs.uv_norm[cam_id], 1;
-            R_CitoA = CamModel::getInstance().R_rl();
-            p_CiinA = CamModel::getInstance().p_rl();
+            R_CitoA = CamModel::getInstance().Rlr();
+            p_CiinA = CamModel::getInstance().plr();
         }
 
         Eigen::Vector3d b_iinA = R_CitoA * b_i;
@@ -722,11 +735,12 @@ bool VisualManager::StereoTriangulation(CameraObs& cam_obs, Eigen::Vector3d& pcf
     return true;
 }
 
-void VisualManager::FeatureTriangulation(std::vector<Feature*>& feats, std::map<double, CameraPose> camera_pose_buffer)
+void VisualManager::FeatureTriangulation(const std::map<double, CameraPose> camera_pose_buffer, std::vector<Feature*>& feats)
 {
     // std::map<double, CameraPose> camera_pose_buffer = _state->AccessClonePoseBuffer();
-    feature_mapping_success_ = 0;
 
+
+    feature_mapping_success_ = 0;
     int origin_feats_size = feats.size();
     int less_obs_delete = 0;
     int triangulate_failed = 0;
@@ -739,6 +753,19 @@ void VisualManager::FeatureTriangulation(std::vector<Feature*>& feats, std::map<
             less_obs_delete++;
             continue;
         }
+
+        // std::cout << "camera_pose_buffer size: " << camera_pose_buffer.size() << std::endl;
+        // for (auto x : camera_pose_buffer)
+        // {
+        //     std::cout << "clone pose timestamp: " << x.first << std::endl;
+        // }
+
+        // std::cout << "-------------------" << std::endl;
+        // std::cout << "feature id: " << (*it)->_id << std::endl;
+        // for (auto obs_it = (*it)->_visual_obs_buffer.begin(); obs_it != (*it)->_visual_obs_buffer.end(); obs_it++)
+        // {
+        //     std::cout << "feature timestamp: " << obs_it->first << std::endl;
+        // }
 
         if ((*it)->_is_triangulated == false)
         {
@@ -767,9 +794,9 @@ void VisualManager::FeatureTriangulation(std::vector<Feature*>& feats, std::map<
 
         it++;
     }
-    // std::cout << "msckf mapping in: " << origin_feats_size << std::endl;
-    // std::cout << "triangulated failed: " << triangulate_failed << std::endl;
-    // std::cout << "gaussian_newton_failed: " << gaussian_newton_failed << std::endl;
+
+    // LOG(INFO) << fmt::format("msckf mapping in: {:d}, mapping_success: {:d}, triangulated failed: {:d}, gaussian_newton_failed: {:d}",
+    //                          feature_mapping_success_, feature_mapping_success_, triangulate_failed, gaussian_newton_failed);
 }
 
 void VisualManager::CalculateFeatureParallex(std::vector<Feature*>& feats)
@@ -822,9 +849,6 @@ bool VisualManager::ConstructFeatureJacobianFull(std::vector<Feature*> feats, Ei
     int total_hx = 0;
     if (_state->enable_estimate_ric_)
     {
-        // _map_hx.insert({_state->_Tic, total_hx});
-        // _Hx_order.push_back(_state->_Tic);
-        // total_hx += _state->_Tic->size();
         _map_hx.emplace(_state->qic_, total_hx);
         _Hx_order.push_back(_state->qic_);
         total_hx += _state->qic_->size();
@@ -909,8 +933,8 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
             else if (cam_id == RIGHT_CAM)
             {
                 focal_length = CamModel::getInstance().K(RIGHT_CAM)(0, 0);
-                R_CtoI = _state->qic_->q().toRotationMatrix() * CamModel::getInstance().R_rl();
-                p_CinI = _state->tic_->vec() + _state->qic_->q().toRotationMatrix() * CamModel::getInstance().p_rl();
+                R_CtoI = _state->qic_->q().toRotationMatrix() * CamModel::getInstance().Rlr();
+                p_CinI = _state->tic_->vec() + _state->qic_->q().toRotationMatrix() * CamModel::getInstance().plr();
             }
 
             std::shared_ptr<Pose> obs_pose = _state->_clone_pose.at(obs_ts);
@@ -922,7 +946,7 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
 
             Eigen::Vector3d p_finCi = R_CitoG.transpose() * (p_finG - p_CiinG);
 
-            // Compute visual observations and residuals
+            // // Compute visual observations and residuals
             Eigen::Vector2d zm = obs.second.uv[cam_id];
             Eigen::Vector2d uv = CamModel::getInstance().project(cam_id, p_finCi);
             Eigen::Vector2d res = zm - uv;
@@ -930,8 +954,17 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
 
             // Pre-compute dz_dpcf
             Eigen::MatrixXd dz_norm_dpcf = Eigen::MatrixXd::Zero(2, 3);
-            dz_norm_dpcf << 1 / p_finCi(2), 0, -p_finCi(0) / (p_finCi(2) * p_finCi(2)), 0, 1 / p_finCi(2), -p_finCi(1) / (p_finCi(2) * p_finCi(2));
-            Eigen::MatrixXd dz_uv_dz_norm = Eigen::Matrix2d::Identity() * focal_length;
+            dz_norm_dpcf << 1 / p_finCi(2), 0, -p_finCi(0) / (p_finCi(2) * p_finCi(2)),
+                            0, 1 / p_finCi(2), -p_finCi(1) / (p_finCi(2) * p_finCi(2));
+            Eigen::MatrixXd dz_uv_dz_norm;
+            if (cam_id == LEFT_CAM)
+            {
+                dz_uv_dz_norm = CamModel::getInstance().K(LEFT_CAM).topLeftCorner<2, 2>();
+            }
+            else if (cam_id == RIGHT_CAM)
+            {
+                dz_uv_dz_norm = CamModel::getInstance().K(RIGHT_CAM).topLeftCorner<2, 2>();
+            }
             Eigen::MatrixXd dz_dpcf = dz_uv_dz_norm * dz_norm_dpcf;
 
             // Get jacobian wrt pwf
@@ -948,8 +981,8 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
                 }
                 else if (cam_id == RIGHT_CAM)
                 {
-                    Eigen::Vector3d p_finCl = CamModel::getInstance().R_rl() * p_finCi + CamModel::getInstance().p_rl();
-                    dpcf_dqic = CamModel::getInstance().R_rl().transpose() * MathUtils::skew(p_finCl);
+                    Eigen::Vector3d p_finCl = CamModel::getInstance().Rlr() * p_finCi + CamModel::getInstance().plr();
+                    dpcf_dqic = CamModel::getInstance().Rlr().transpose() * MathUtils::skew(p_finCl);
                 }
                 Hfx.block<2, 3>(2 * cnt, kPwfCols + map_hx.at(_state->qic_)) = dz_dpcf * dpcf_dqic;
             }
@@ -961,53 +994,71 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
             Hfx.block<2, 6>(2 * cnt, kPwfCols + map_hx.at(obs_pose)) = dz_dpcf * dpcf_dclone;
 
             res_total += res;
+
+
+            // // Debug: Check the correctness of Hx
+            // // @@@@@@@@@@@@@@@@@@@@ Check pwf @@@@@@@@@@@@@@@@@@@@@@@@@
+            // std::cout << "------------------------\n" << std::endl;
+            // Eigen::Vector3d dpwf(0.1, 0.1, 0.1);
+            // Eigen::Vector2d Hx_plus_dpwf = Hfx.block<2, 3>(2 * c, 0) * dpwf;
+            // Eigen::Vector3d pcf_dpwf = R_CitoG.transpose() * (p_finG + dpwf - p_CiinG);
+            // Eigen::Vector2d uv_dpwf(pcf_dpwf(0) / pcf_dpwf(2), pcf_dpwf(1) / pcf_dpwf(2));
+            // std::cout << "uv_dpwf: " << (uv_dpwf - uv_norm - Hx_plus_dpwf).transpose() << std::endl;
+
+            // // @@@@@@@@@@@@@@@@@@@@ Check R_CtoI @@@@@@@@@@@@@@@@@@@@@@@@@
+            // Eigen::Vector3d dtheta_CtoI(0.01, 0.01, 0.01);
+            // Eigen::Vector2d Hx_plus_dR_ItoC = Hfx.block<2, 3>(2 * cnt, kPwfCols + map_hx.at(_state->qic_)) * dtheta_CtoI;
+            // Eigen::Matrix3d delta_R_CtoI = Eigen::Matrix3d::Identity() + MathUtils::skew(dtheta_CtoI);
+            // Eigen::Matrix3d R_CtoI_hat, R_CitoG_hat;
+            // Eigen::Vector3d p_CinI_hat, p_CiinG_hat, p_finCi_hat;
+
+            // if (cam_id == LEFT_CAM)
+            // {
+            //     R_CtoI_hat = _state->qic_->q().toRotationMatrix() * delta_R_CtoI;
+            //     p_CinI_hat = _state->tic_->vec();
+            // }
+            // else if (cam_id == RIGHT_CAM)
+            // {
+            //     R_CtoI_hat = _state->qic_->q().toRotationMatrix() * delta_R_CtoI * CamModel::getInstance().Rlr();
+            //     p_CinI_hat = _state->tic_->vec() + _state->qic_->q().toRotationMatrix() * delta_R_CtoI * CamModel::getInstance().plr();
+            // }
+            // R_CitoG_hat = R_IitoG * R_CtoI_hat;
+            // p_CiinG_hat = p_IiinG + R_IitoG * p_CinI_hat;
+            // p_finCi_hat = R_CitoG_hat.transpose() * (p_finG - p_CiinG_hat);
+            // Eigen::Vector2d uv_hat = CamModel::getInstance().project(cam_id, p_finCi_hat);
+            // Eigen::Vector2d dis = uv_hat - uv - Hx_plus_dR_ItoC;
+            // std::cout << cv::format("cam_id: %d, uv_hat: [%f, %f], uv: [%f, %f], Hx_plus_dR_ItoC: [%f, %f], distance: [%f, %f]",
+            //                          cam_id, uv_hat(0),uv_hat(1), uv(0), uv(1), Hx_plus_dR_ItoC(0), Hx_plus_dR_ItoC(1), dis(0), dis(1))
+            //           << std::endl;
+
+            // // @@@@@@@@@@@@@@@@@@@@ Check p_IinC @@@@@@@@@@@@@@@@@@@@@@@@@
+            // Eigen::Vector3d dp_CinI(0.1, 0.1, 0.1);
+            // Eigen::Vector2d Hx_plus_dp_IinC = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(_state->_Tic) + 3) * dp_CinI;
+            // Eigen::Vector3d p_CiinG_hat = p_IiinG + R_IitoG * (p_CinI + dp_CinI);
+            // Eigen::Vector3d pcf_dp_ItoC = R_CitoG.transpose() * (p_finG - p_CiinG_hat);
+            // Eigen::Vector2d uv_dp_ItoC(pcf_dp_ItoC(0) / pcf_dp_ItoC(2), pcf_dp_ItoC(1) / pcf_dp_ItoC(2));
+            // std::cout << "uv_dp_ItoC: " << (uv_dp_ItoC - uv_norm - Hx_plus_dp_IinC).transpose() << std::endl;
+
+            // // @@@@@@@@@@@@@@@@@@@@ Check clone pose R @@@@@@@@@@@@@@@@@@@@@@@@@
+            // Eigen::Vector3d dR_ItoG(0.1, 0.1, 0.1);
+            // Eigen::Vector2d Hx_plus_dR_ItoG = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(obs_pose)) * dR_ItoG;
+            // Eigen::Matrix3d dR_ItoG_mat = Eigen::Matrix3d::Identity() + MathUtils::skew(dR_ItoG.head(3));
+            // Eigen::Matrix3d R_IitoG_hat = R_IitoG * dR_ItoG_mat;
+            // p_CiinG_hat = p_IiinG + R_IitoG_hat * p_CinI;
+            // Eigen::Vector3d pcf_dR_ItoG = (R_IitoG * dR_ItoG_mat * R_CtoI).transpose() * (p_finG - p_CiinG_hat);
+            // Eigen::Vector2d uv_dR_ItoG(pcf_dR_ItoG(0) / pcf_dR_ItoG(2), pcf_dR_ItoG(1) / pcf_dR_ItoG(2));
+            // std::cout << "uv_dR_ItoG: " << (uv_dR_ItoG - uv_norm - Hx_plus_dR_ItoG).transpose() << std::endl;
+
+            // // @@@@@@@@@@@@@@@@@@@@ Check clone pose p @@@@@@@@@@@@@@@@@@@@@@@@@
+            // Eigen::Vector3d dp_IinG(0.1, 0.1, 0.1);
+            // Eigen::Vector2d Hx_plus_dp_IinG = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(obs_pose) + 3) * dp_IinG;
+            // p_CiinG_hat = p_IiinG + dp_IinG + R_IitoG * p_CinI;
+            // Eigen::Vector3d pcf_dp_IinG = R_CitoG.transpose() * (p_finG - p_CiinG_hat);
+            // Eigen::Vector2d uv_dp_IinG(pcf_dp_IinG(0) / pcf_dp_IinG(2), pcf_dp_IinG(1) / pcf_dp_IinG(2));
+            // std::cout << "uv_dp_IinG: " << (uv_dp_IinG - uv_norm - Hx_plus_dp_IinG).transpose() << std::endl;
+
             cnt++;
         }
-
-        // // Debug: Check the correctness of Hx
-        // // Check pwf
-        // std::cout << "------------------------\n" << std::endl;
-        // Eigen::Vector3d dpwf(0.1, 0.1, 0.1);
-        // Eigen::Vector2d Hx_plus_dpwf = Hfx.block<2, 3>(2 * c, 0) * dpwf;
-        // Eigen::Vector3d pcf_dpwf = R_CitoG.transpose() * (p_finG + dpwf - p_CiinG);
-        // Eigen::Vector2d uv_dpwf(pcf_dpwf(0) / pcf_dpwf(2), pcf_dpwf(1) / pcf_dpwf(2));
-        // std::cout << "uv_dpwf: " << (uv_dpwf - uv_norm - Hx_plus_dpwf).transpose() << std::endl;
-
-        // // Check R_CtoI
-        // Eigen::Vector3d dR_CtoI(0.1, 0.1, 0.1);
-        // Eigen::Vector2d Hx_plus_dR_ItoC = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(_state->_Tic)) * dR_CtoI;
-        // Eigen::Matrix3d dR_CtoI_mat = Eigen::Matrix3d::Identity() + MathUtils::skew(dR_CtoI.head(3));
-        // Eigen::Matrix3d R_CitoG_hat = R_IitoG * dR_CtoI_mat;
-        // // Eigen::Vector3d p_CiinG = p_IiinG - R_IitoG * p_CinI;
-        // Eigen::Vector3d pcf_dR_ItoC = R_CitoG_hat.transpose() * (p_finG - p_CiinG);
-        // Eigen::Vector2d uv_dR_ItoC(pcf_dR_ItoC(0) / pcf_dR_ItoC(2), pcf_dR_ItoC(1) / pcf_dR_ItoC(2));
-        // std::cout << "uv_dR_ItoC: " << (uv_dR_ItoC - uv_norm - Hx_plus_dR_ItoC).transpose() << std::endl;
-
-        // // Check p_IinC
-        // Eigen::Vector3d dp_CinI(0.1, 0.1, 0.1);
-        // Eigen::Vector2d Hx_plus_dp_IinC = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(_state->_Tic) + 3) * dp_CinI;
-        // Eigen::Vector3d p_CiinG_hat = p_IiinG + R_IitoG * (p_CinI + dp_CinI);
-        // Eigen::Vector3d pcf_dp_ItoC = R_CitoG.transpose() * (p_finG - p_CiinG_hat);
-        // Eigen::Vector2d uv_dp_ItoC(pcf_dp_ItoC(0) / pcf_dp_ItoC(2), pcf_dp_ItoC(1) / pcf_dp_ItoC(2));
-        // std::cout << "uv_dp_ItoC: " << (uv_dp_ItoC - uv_norm - Hx_plus_dp_IinC).transpose() << std::endl;
-
-        // // Check clone_R
-        // Eigen::Vector3d dR_ItoG(0.1, 0.1, 0.1);
-        // Eigen::Vector2d Hx_plus_dR_ItoG = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(obs_pose)) * dR_ItoG;
-        // Eigen::Matrix3d dR_ItoG_mat = Eigen::Matrix3d::Identity() + MathUtils::skew(dR_ItoG.head(3));
-        // Eigen::Matrix3d R_IitoG_hat = R_IitoG * dR_ItoG_mat;
-        // p_CiinG_hat = p_IiinG + R_IitoG_hat * p_CinI;
-        // Eigen::Vector3d pcf_dR_ItoG = (R_IitoG * dR_ItoG_mat * R_CtoI).transpose() * (p_finG - p_CiinG_hat);
-        // Eigen::Vector2d uv_dR_ItoG(pcf_dR_ItoG(0) / pcf_dR_ItoG(2), pcf_dR_ItoG(1) / pcf_dR_ItoG(2));
-        // std::cout << "uv_dR_ItoG: " << (uv_dR_ItoG - uv_norm - Hx_plus_dR_ItoG).transpose() << std::endl;
-
-        // // Check clone_p
-        // Eigen::Vector3d dp_IinG(0.1, 0.1, 0.1);
-        // Eigen::Vector2d Hx_plus_dp_IinG = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(obs_pose) + 3) * dp_IinG;
-        // p_CiinG_hat = p_IiinG + dp_IinG + R_IitoG * p_CinI;
-        // Eigen::Vector3d pcf_dp_IinG = R_CitoG.transpose() * (p_finG - p_CiinG_hat);
-        // Eigen::Vector2d uv_dp_IinG(pcf_dp_IinG(0) / pcf_dp_IinG(2), pcf_dp_IinG(1) / pcf_dp_IinG(2));
-        // std::cout << "uv_dp_IinG: " << (uv_dp_IinG - uv_norm - Hx_plus_dp_IinG).transpose() << std::endl;
     }
 
     double threshold = 4.0f;

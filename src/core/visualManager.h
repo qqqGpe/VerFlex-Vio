@@ -50,13 +50,13 @@ class VisualManager
         }
     }
 
-    void UpdateFeature(std::pair<double, std::vector<CameraObs>> feature_observes);
+    void UpdateFeatureStatistic(const double timestamp, std::pair<double, std::vector<CameraObs>> feature_observes);
 
     bool VisualUpdate();
 
-    KeyFrameStatus CheckKeyframe(std::shared_ptr<State> _state, std::vector<Feature*> feats);
+    KeyFrameStatus MaybeSetKeyframe(std::shared_ptr<State> _state, std::vector<Feature*> feats);
 
-    void UpdateFeatureBase();
+    void UpdateFeatureBase(const double timestamp);
 
     void ResetFeatureBase();
 
@@ -64,7 +64,7 @@ class VisualManager
 
     void DropFeatureObsrvs(const double timestamp_to_drop);
 
-    void FeatureTriangulation(std::vector<Feature*>& feats, std::map<double, CameraPose> camera_pose_buffer);
+    void FeatureTriangulation(const std::map<double, CameraPose> camera_pose_buffer, std::vector<Feature*>& feats);
 
     bool StereoTriangulation(CameraObs& cam_obs, Eigen::Vector3d& pcf) const;
 
@@ -72,11 +72,11 @@ class VisualManager
                    Eigen::Vector3d& p_12,
                    std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_obs_triangulated) const;
 
-    bool least_square_triangulation(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
+    bool least_square_triangulation(const std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
 
     bool StereoLeastSqureTriangulation(CameraObs& cam_obs, Eigen::Vector3d& pcf) const;
 
-    bool GaussianNewtonOptimization(std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
+    bool GaussianNewtonOptimization(const std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
 
     bool ConstructFeatureJacobianFull(std::vector<Feature*> feats, Eigen::MatrixXd& Hx_full, Eigen::VectorXd& res);
 

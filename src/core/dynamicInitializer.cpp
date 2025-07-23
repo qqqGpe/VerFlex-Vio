@@ -4,8 +4,8 @@ bool DynamicInitializer::isReadyToInitialize() const
 {
     if (!sfm_solver->isReady())
     {
-        LOG(INFO) << cv::format("SFM solver is not ready(%d/%d), need more movement", static_cast<int>(sfm_solver->getAllFeatureObservations().size()),
-                                Sfm::kRequiredKeyframesForSfm);
+        LOG(INFO) << fmt::format("SFM solver is not ready({:d}/{:d}), need more movement",
+                                 static_cast<int>(sfm_solver->getAllFeatureObservations().size()), Sfm::kRequiredKeyframesForSfm);
         return false;
     }
 
@@ -16,7 +16,7 @@ bool DynamicInitializer::isReadyToInitialize() const
         if (sfm_all_feature_observatioins.find(x.second.start_ts()) == sfm_all_feature_observatioins.end() ||
             sfm_all_feature_observatioins.find(x.second.end_ts()) == sfm_all_feature_observatioins.end())
         {
-            LOG(WARNING) << cv::format("Can not find %f (or %f) feature observations in SFM-solver", x.second.start_ts(), x.second.end_ts());
+            LOG(WARNING) << fmt::format("Can not find {:f} (or {:f}) feature observations in SFM-solver", x.second.start_ts(), x.second.end_ts());
             return false;
         }
     }
@@ -98,7 +98,7 @@ bool DynamicInitializer::solveGyroscopeBias()
     }
 
     Eigen::Vector3d bg = imu_state_map_.begin()->second->bg()->vec();
-    LOG(INFO) << cv::format("Gyroscope bias estimation successful, estimated bg: [%f, %f, %f]", bg.x(), bg.y(), bg.z());
+    LOG(INFO) << fmt::format("Gyroscope bias estimation successful, estimated bg: [{:f}, {:f}, {:f}]", bg.x(), bg.y(), bg.z());
     return true;
 }
 
@@ -173,7 +173,7 @@ bool DynamicInitializer::LinearAlignment(Eigen::VectorXd& x)
 
     const double s = x.tail<1>()(0);                     // Sfm scale
     Eigen::Vector3d gravity = x.segment<3>(H_cols - 4);  // Gravity in C0 frame
-    LOG(INFO) << cv::format("Gravity: [%f, %f, %f], Gravity norm: %f, Scale: %f", gravity.x(), gravity.y(), gravity.z(), gravity.norm(), s);
+    LOG(INFO) << fmt::format("Gravity: [{:f}, {:f}, {:f}], Gravity norm: {:f}, Scale: {:f}", gravity.x(), gravity.y(), gravity.z(), gravity.norm(), s);
     if (fabs(gravity.norm() - kGravityNorm) > kGravityNormTolerance || s < 0)
     {
         LOG(ERROR) << "Linear alignment failed, gravity norm: " << gravity.norm() << ", scale: " << s;
@@ -218,9 +218,9 @@ void DynamicInitializer::assignImuState(const Eigen::VectorXd velocity_gravity_s
         imu_state_i->set_velocity(v_biinG);
 
         Eigen::Vector3d rpy = MathUtils::R2rpy(R_bitoG) * 180.0 / M_PI;  // Convert to degrees
-        LOG(INFO) << cv::format("Dynamic initialized imu state at %f: RPY: [%f, %f, %f], Position: [%f, %f, %f], Velocity: [%f, %f, %f]",
-                                imu_state_i->ts(), rpy.x(), rpy.y(), rpy.z(), p_biinG.x(), p_biinG.y(), p_biinG.z(), v_biinG.x(), v_biinG.y(),
-                                v_biinG.z());
+        LOG(INFO) << fmt::format(
+            "Dynamic initialized imu state at {:f}: RPY: [{:f}, {:f}, {:f}], Position: [{:f}, {:f}, {:f}], Velocity: [{:f}, {:f}, {:f}]",
+            imu_state_i->ts(), rpy.x(), rpy.y(), rpy.z(), p_biinG.x(), p_biinG.y(), p_biinG.z(), v_biinG.x(), v_biinG.y(), v_biinG.z());
     }
 
     // initialize position and velocity
@@ -238,14 +238,26 @@ void DynamicInitializer::assignImuState(const Eigen::VectorXd velocity_gravity_s
     const uint32_t kVId = state_->getImuState().v()->id();
     const uint32_t kBgId = state_->getImuState().bg()->id();
     const uint32_t kBaId = state_->getImuState().ba()->id();
+    const uint32_t kRicId = state_->enable_estimate_ric_ ? state_->qic().id() : -1;
+    const uint32_t kTdVisualId = state_->enable_estimate_td_visual_ ? state_->td_visual().id() : -1;
 
-    Eigen::MatrixXd init_covariance = state_->getImuState().covariance();
+    // Eigen::MatrixXd init_covariance = state_->getImuState().covariance();
+    Eigen::MatrixXd init_covariance = Eigen::MatrixXd::Identity(state_->dim(), state_->dim());
     init_covariance.setIdentity();
     init_covariance.block(kQId, kQId, 3, 3) = std::pow(kInitSigmaRotation, 2) * Eigen::Matrix3d::Identity();     // q
     init_covariance.block(kPId, kPId, 3, 3) = std::pow(kInitSigmaPosition, 2) * Eigen::Matrix3d::Identity();     // p
     init_covariance.block(kVId, kVId, 3, 3) = std::pow(kInitSigmaVelocity, 2) * Eigen::Matrix3d::Identity();     // v
     init_covariance.block(kBgId, kBgId, 3, 3) = std::pow(kInitSigmaGyroBias, 2) * Eigen::Matrix3d::Identity();   // bg
     init_covariance.block(kBaId, kBaId, 3, 3) = std::pow(kInitSigmaAccelBias, 2) * Eigen::Matrix3d::Identity();  // ba
+    if (kRicId != -1)
+    {
+        init_covariance.block(kRicId, kRicId, 3, 3) = std::pow(kInitSigmaRic, 2) * Eigen::Matrix3d::Identity();  // qic
+    }
+    if (kTdVisualId != -1)
+    {
+        init_covariance(kTdVisualId, kTdVisualId) = std::pow(kInitSigmaTdVisual, 2);  // td_visual
+    }
+
     state_->SetCovariance(init_covariance);
 
     Eigen::MatrixXd sqrt_init_covariance = init_covariance.llt().matrixL().transpose();
@@ -362,12 +374,29 @@ bool DynamicInitializer::visualInertialAlignment()
     return true;
 }
 
+bool DynamicInitializer::TryInitialize()
+{
+    if (!isReadyToInitialize())
+    {
+        LOG(INFO) << "Dynamic initializer is not ready, need more movement";
+        return false;
+    }
+
+    if (!InitializeSystem())
+    {
+        LOG(INFO) << "Dynamic initializer failed to initialize the system, reset initializer...";
+        reset();
+        return false;
+    }
+
+    return true;
+}
+
 bool DynamicInitializer::InitializeSystem()
 {
     if (!sfm_solver->Optimization())
     {
         LOG(INFO) << "SFM optimization failed, reset initializer";
-        reset();
         return false;
     }
 
@@ -382,7 +411,6 @@ bool DynamicInitializer::InitializeSystem()
     if (!visualInertialAlignment())
     {
         LOG(INFO) << "Visual initial alignment failed, reset initializer";
-        reset();
         return false;
     }
 

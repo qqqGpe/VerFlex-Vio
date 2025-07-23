@@ -72,6 +72,13 @@ std::vector<ImuData> ImuManager::AccessIntervalImuMeasurements(const double ts_s
         return output;
     }
 
+    if (_data->front().ts_sec > ts_start || _data->back().ts_sec < ts_end)
+    {
+        LOG(WARNING) << "ts_start: " << ts_start << ", ts_end: " << ts_end
+                     << ", but imu data range is [" << _data->front().ts_sec << ", " << _data->back().ts_sec << "]";
+        return output;
+    }
+
     for (int i = 0; i < _data->size(); i++)
     {
         if (_data->at(i).ts_sec >= ts_start && _data->at(i).ts_sec <= ts_end)

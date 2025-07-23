@@ -17,23 +17,34 @@ public:
         _nh->param<bool>("set_init_timestamp_to_zero", set_init_timestamp_to_zero, false);
         _nh->param<bool>("use_multi_thread", use_multi_thread, false);
         _nh->param<bool>("estimate_ric", estimate_ric, true);
+        _nh->param<bool>("estimate_td_visual", estimate_td_visual, true);
         _nh->param<int>("log_level", log_level, 2);
         _nh->param<int>("camera_num", camera_num, 1);
         _nh->param<int>("running_rate", running_rate, 20);
-
+        _nh->param<double>("lazy_time", lazy_time, 0.2);
         _nh->param<int>("img_width", img_width, 752);
         _nh->param<int>("img_height", img_height, 480);
-
         _nh->param<double>("bag_start", bag_start, 0);
         _nh->param<double>("bag_durration", bag_duration, -1);
-
         _nh->param<int>("max_feat_n", max_feat_n, 225);
         _nh->param<int>("grid_w", grid_w, 15);
         _nh->param<int>("grid_h", grid_h, 15);
         _nh->param<int>("max_clone_pose", max_clone_pose, 6);
-
         _nh->param<std::string>("log_path", log_path, "");
-        _nh->param<std::string>("path_bag", path_bag, "");
+        _nh->param<std::string>("bag_path", bag_path, "");
+        camera_topic.resize(camera_num, "");
+        _nh->getParam("camera_topic", camera_topic);
+        _nh->param<std::string>("imu_topic", imu_topic, "");
+        _nh->param<double>("sigma_na", sigma_na, 2.0000e-3);
+        _nh->param<double>("sigma_nw", sigma_nw, 1.6968e-04);
+        _nh->param<double>("sigma_ba", sigma_ba, 3.0000e-3);
+        _nh->param<double>("sigma_bg", sigma_bg, 1.9393e-05);
+        _nh->param<double>("init_td_visual_sigma", init_td_visual_sigma, 1e-4);
+        _nh->param<double>("init_ric_sigma", init_ric_sigma, 1e-3);
+        _nh->param<double>("gravity_magn", gravity_magn, 9.81);
+        _nh->param<double>("imu_acc_var_static_thres", imu_acc_var_static_thres, 0.5);
+        _nh->param<double>("imu_gyro_static_thres", imu_gyro_static_thres, 0.5);
+        _nh->param<int>("solver_type", solver_type, 0);
 
         for (int i = 0; i < camera_num; i++)
         {
@@ -46,25 +57,8 @@ public:
             distortion.push_back(Eigen::Map<Eigen::VectorXd>(distort.data(), distort.size()));
         }
 
-        camera_topic.resize(camera_num, "");
-        _nh->getParam("camera_topic", camera_topic);
-        _nh->param<std::string>("imu_topic", imu_topic, "");
-
-        _nh->param<double>("sigma_na", sigma_na, 2.0000e-3);
-        _nh->param<double>("sigma_nw", sigma_nw, 1.6968e-04);
-        _nh->param<double>("sigma_ba", sigma_ba, 3.0000e-3);
-        _nh->param<double>("sigma_bg", sigma_bg, 1.9393e-05);
-
-        _nh->param<double>("gravity_magn", gravity_magn, 9.81);
-
-        _nh->param<double>("imu_acc_var_static_thres", imu_acc_var_static_thres, 0.5);
-        _nh->param<double>("imu_gyro_static_thres", imu_gyro_static_thres, 0.5);
-
-        _nh->param<int>("solver_type", solver_type, 0);
-
         Ric.resize(camera_num, Eigen::Matrix3d::Identity());
         tic.resize(camera_num, Eigen::Vector3d::Zero());
-
         std::vector<double> Tic;
         _nh->getParam("Tic", Tic);
         for (int cam_id = 0; cam_id < camera_num; cam_id++)
@@ -81,6 +75,7 @@ public:
     bool set_init_timestamp_to_zero = false;
     bool use_multi_thread = false;
     bool estimate_ric = true;
+    bool estimate_td_visual = true;
 
     int running_rate; // Hz
     int log_level = 2;
@@ -95,13 +90,17 @@ public:
     double sigma_nw;
     double sigma_ba;
     double sigma_bg;
+    double init_td_visual_sigma;
+    double init_ric_sigma;
+
+    double lazy_time = 0.2; // In seconds
     double gravity_magn;
     double imu_acc_var_static_thres;
     double imu_gyro_static_thres;
     double bag_start, bag_duration;
 
     std::string log_path;
-    std::string path_bag;
+    std::string bag_path;
     std::string imu_topic;
     std::vector<std::string> camera_topic;
 

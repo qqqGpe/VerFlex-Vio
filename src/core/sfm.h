@@ -59,7 +59,7 @@ public:
 
     bool Optimization();
 
-    bool isReady() const { return all_feature_observes_.size() == kRequiredKeyframesForSfm; }
+    bool isReady() const;
 
     bool calcRelativePose(const std::vector<CameraObs> &obs_a,
                           const std::vector<CameraObs> &obs_b,

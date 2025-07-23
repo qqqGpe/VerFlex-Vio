@@ -105,7 +105,7 @@ int main()
     VisualManager visual_manager;
     generate_camera_pose();
     project_to_camera();
-    visual_manager.FeatureTriangulation(feats, camera_pose_buffer);
+    visual_manager.FeatureTriangulation(camera_pose_buffer, feats);
 
     cout << "triangulated feat pwf:" << endl;
     for (auto& feat : feats) {

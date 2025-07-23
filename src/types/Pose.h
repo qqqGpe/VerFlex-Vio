@@ -36,7 +36,7 @@ class Pose : public Type
     {
         if (ts <= 0)
         {
-            LOG(FATAL) << utils::Format("timestamp should > 0, ts: {0}s", ts);
+            std::cerr << "Timestamp should be greater than 0, received: " << ts << std::endl;
             return;
         }
         _ts = ts;

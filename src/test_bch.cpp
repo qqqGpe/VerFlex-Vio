@@ -28,6 +28,10 @@ TEST(VioTest, bch)
     Eigen::Matrix3d Jr_Res = Eigen::Matrix3d::Identity() - Jr * Jr_inv;
     EXPECT_TRUE(Jr_Res.norm() < 1e-6);
 
+    Eigen::Matrix3d R = MathUtils::Rodrigues(angle_rad.normalized(), angle_rad.norm());
+    Eigen::Matrix3d Jr_inv_sophus = MathUtils::Jr_inv(angle_rad);
+    std::cout << "Jr_inv_sophus:\n" << Jr_inv_sophus << std::endl;
+    std::cout << "R:\n" << R << std::endl;
 }
 
 int main()

@@ -33,20 +33,9 @@ bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& 
         for (auto &obs : current_feature_observe.second)
         {
             current_keyframe_observe_umap.emplace(obs.feat_id, obs);
-            // CameraObs obs_eis = obs;
-            // Eigen::Vector3d uv_norm(obs.uv_nrom.at(LEFT_CAM).x(), obs.uv_nrom.at(LEFT_CAM).y(), 1.0);
-            // Eigen::Vector3d uv_norm_eis = H * uv_norm;
-            // uv_norm_eis /= uv_norm_eis.z();
-            // Eigen::Vector3d uv_eis = camera_model_->K_l() * uv_norm_eis;
-            // obs_eis.u = uv_eis.x();
-            // obs_eis.v = uv_eis.y();
-            // obs_eis.u_norm = uv_norm_eis.x();
-            // obs_eis.v_norm = uv_norm_eis.y();
-            // current_keyframe_observe_umap.emplace(obs.feat_id, obs_eis);
         }
 
         double pixel_parallex = VisualManager::calcVisualObsParallex(latest_keyframe_observe_umap, current_keyframe_observe_umap);
-        std::cout << pixel_parallex << std::endl;
         if (pixel_parallex >= kMinPixelParallexBetweenKeyframes)
         {
             all_feature_observes_.insert(current_feature_observe);
@@ -71,6 +60,20 @@ bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& 
     }
 
     return false;
+}
+
+bool Sfm::isReady() const
+{
+        if (all_feature_observes_.size() > kRequiredKeyframesForSfm)
+        {
+            LOG(ERROR) << fmt::format("Too many keyframes: {:d}, expected: {:d}", all_feature_observes_.size(), kRequiredKeyframesForSfm);
+            std::exit(EXIT_FAILURE);
+        }
+        else if (all_feature_observes_.size() < kRequiredKeyframesForSfm)
+        {
+            return false;
+        }
+        return all_feature_observes_.size() == kRequiredKeyframesForSfm;
 }
 
 bool Sfm::calcRelativePose(const std::vector<CameraObs> &obs_a,
@@ -600,15 +603,15 @@ bool Sfm::Optimization()
     // }
 
     // Update keyframe poses
-    std::cout << "Pose after optimization: " << std::endl;
-    for (auto &[timestamp, pose] : keyframe_poses_)
+    LOG(INFO) << "Pose after optimization: " << std::endl;
+    for (auto& [timestamp, pose] : keyframe_poses_)
     {
         uint32_t pose_idx = indexInMap<double, Pose>(keyframe_poses_, timestamp).value();
-        Eigen::Quaterniond q_updated(qs[pose_idx][3], qs[pose_idx][0], qs[pose_idx][1], qs[pose_idx][2]);   // w, x, y, z
+        Eigen::Quaterniond q_updated(qs[pose_idx][3], qs[pose_idx][0], qs[pose_idx][1], qs[pose_idx][2]);  // w, x, y, z
         Eigen::Vector3d p_updated(ps[pose_idx][0], ps[pose_idx][1], ps[pose_idx][2]);
         Eigen::Vector3d rpy = MathUtils::R2rpy(q_updated.toRotationMatrix()) * RAD2DEG;
-        std::cout << cv::format("timestamp: %f, rpy: [%f, %f, %f], p: [%f, %f, %f]", timestamp, rpy.x(), rpy.y(), rpy.z(), p_updated.x(),
-                                p_updated.y(), p_updated.z())
+        LOG(INFO) << fmt::format("timestamp: {:f}, rpy: [{:f}, {:f}, {:f}], p: [{:f}, {:f}, {:f}]", timestamp, rpy.x(), rpy.y(), rpy.z(),
+                                 p_updated.x(), p_updated.y(), p_updated.z())
                   << std::endl;
         keyframe_poses_[timestamp].set_pose(q_updated.toRotationMatrix(), p_updated);
     }

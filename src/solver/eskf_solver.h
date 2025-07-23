@@ -1,5 +1,6 @@
 #ifndef __ESKF_SOLVER__
 #define __ESKF_SOLVER__
+
 #include "ImuManager.h"
 #include "solver.h"
 #include "utils.h"
@@ -17,11 +18,11 @@ class eskfSolver : public MsckfSolverBase
     eskfSolver() = default;
     virtual ~eskfSolver() {}
 
-    virtual void StochasticClone(std::shared_ptr<State> state) override
+    virtual void StochasticClone(std::shared_ptr<State> state, std::vector<ImuData>* imu_data) override
     {
         Eigen::MatrixXd Cov_old = state->Covariance();
         std::shared_ptr<Pose> pose_to_clone = state->_imu_state->pose();
-        const int clone_size = pose_to_clone->size();
+        const int clone_pose_size = pose_to_clone->size();
         const int old_rows = Cov_old.rows();
         const int old_cols = Cov_old.cols();
         const int new_rows = old_rows + pose_to_clone->size();
@@ -29,17 +30,27 @@ class eskfSolver : public MsckfSolverBase
 
         Eigen::MatrixXd Cov_new = Eigen::MatrixXd::Zero(new_rows, new_cols);
         Cov_new.topLeftCorner(old_rows, old_cols) = Cov_old;
+        Cov_new.bottomRightCorner(clone_pose_size, clone_pose_size) = Cov_old.block(pose_to_clone->id(), pose_to_clone->id(), clone_pose_size, clone_pose_size);
+        Cov_new.topRightCorner(old_rows, clone_pose_size) = Cov_old.block(0, pose_to_clone->id(), old_rows, clone_pose_size);
+        Cov_new.bottomLeftCorner(clone_pose_size, old_cols) = Cov_old.block(pose_to_clone->id(), 0, clone_pose_size, old_cols);
 
-        int old_loc = pose_to_clone->id();
-        Cov_new.block(old_rows, old_cols, clone_size, clone_size) = Cov_old.block(old_loc, old_loc, clone_size, clone_size);
-        Cov_new.block(0, old_cols, old_rows, clone_size) = Cov_old.block(0, old_loc, old_rows, clone_size);
-        Cov_new.block(old_rows, 0, clone_size, old_cols) = Cov_old.block(old_loc, 0, clone_size, old_cols);
+        std::shared_ptr<Type> clone_pose = pose_to_clone->clone();
+        clone_pose->set_local_id(old_cols);
+        state->_clone_pose.insert(std::make_pair(clone_pose->ts(), std::dynamic_pointer_cast<Pose>(clone_pose)));
+        state->_variables.push_back(clone_pose);
+        state->_dim += clone_pose->size();
 
-        std::shared_ptr<Type> clone = pose_to_clone->clone();
-        clone->set_local_id(old_cols);
-        state->_clone_pose.insert(std::make_pair(clone->ts(), std::dynamic_pointer_cast<Pose>(clone)));
-        state->_variables.push_back(clone);
-        state->_dim += clone->size();
+        // Consider the time delay of visual measurement when agument the covariance
+        // TODO: why not converge?
+        if (state->enable_estimate_td_visual_)
+        {
+            Eigen::Vector3d last_w = imu_data->back().wm;
+            Eigen::MatrixXd J_td = Eigen::MatrixXd::Zero(clone_pose_size, 1);
+            J_td << last_w, state->_imu_state->v()->vec();
+            Cov_new.rightCols(clone_pose_size) += Cov_new.block(0, state->td_visual().id(), new_rows, state->td_visual().size()) * J_td.transpose();
+            Cov_new.bottomRows(clone_pose_size) += J_td * Cov_new.block(state->td_visual().id(), 0, state->td_visual().size(), new_cols);
+        }
+
         state->SetCovariance(Cov_new);
     }
 
@@ -47,7 +58,7 @@ class eskfSolver : public MsckfSolverBase
     {
         if (state_to_marginalize == nullptr)
         {
-            LOG(ERROR) << "marginalization failed, state_to_marginalize is nullptr";
+            LOG(ERROR) << "State marginalization failed, state_to_marginalize is nullptr";
             return;
         }
 
@@ -58,7 +69,7 @@ class eskfSolver : public MsckfSolverBase
         auto iter_marginalize = std::find(state->_variables.begin(), state->_variables.end(), state_to_marginalize);
         if (iter_marginalize == state->_variables.end())
         {
-            LOG(ERROR) << "marginalization failed, no such variable in states";
+            LOG(ERROR) << "State marginalization failed, no such variable in states";
             return;
         }
         state->_variables.erase(iter_marginalize);
@@ -171,15 +182,13 @@ class eskfSolver : public MsckfSolverBase
         state->SetCovariance(0.5 * (Cov_update + Cov_update.transpose()));
 
         // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
-        Eigen::VectorXd diags = state->_covariance.diagonal();
+        Eigen::VectorXd diags = state->Covariance().diagonal();
         for (int i = 0; i < diags.rows(); i++)
         {
             if (diags(i) < 0.0)
             {
-                LOG(ERROR) << cv::format("diagonal is negative when update");
+                LOG(ERROR) << fmt::format("diagonal is negative when update, diags");
                 LOG(ERROR) << "diags: " << diags.transpose();
-                std::cout << "diag size: " << diags.size() << std::endl;
-                std::cout << "variable size: " << state->_variables.size() << std::endl;
                 std::exit(EXIT_FAILURE);
             }
         }
@@ -191,18 +200,19 @@ class eskfSolver : public MsckfSolverBase
         }
     }
 
-    virtual bool PropagateStateAndCovariance(const std::vector<ImuData> imu_data, const double ts, std::shared_ptr<State> state) override
+    virtual bool PropagateStateAndCovariance(const std::vector<ImuData> imu_data, const double visual_ts, std::shared_ptr<State> state) override
     {
-        if (ts <= state->_imu_state->ts())
+        if (visual_ts <= state->_imu_state->ts())
         {
-            LOG(WARNING) << cv::format("curent state timestamp: %f, must be later than imu_state ts: %f", ts, state->_imu_state->ts());
+            LOG(WARNING) << fmt::format("Propagation failed, curent state timestamp: %f, must be later than imu_state timestamp: %f", visual_ts,
+                                        state->_imu_state->ts());
             return false;
         }
 
-        if (imu_data.empty() || imu_data.back().ts_sec < ts)
+        if (imu_data.empty() || imu_data.back().ts_sec < visual_ts)
         {
-            LOG(WARNING) << cv::format("wait for imu data, current state timestamp: %f but latest imu ts: %f", state->ts_sec(),
-                                       imu_data.back().ts_sec);
+            LOG(WARNING) << fmt::format("Propagation failed, waiting for imu data, current state timestamp: %f but latest imu timestamp: %f",
+                                        state->ts_sec(), imu_data.back().ts_sec);
             return false;
         }
 
@@ -299,7 +309,7 @@ class eskfSolver : public MsckfSolverBase
             }
             else
             {
-                LOG(WARNING) << utils::Format("Imu delayed for {0}s", dt);
+                LOG(WARNING) << fmt::format("Imu delayed for {}s", dt);
                 exit(0);
             }
         }
@@ -308,7 +318,7 @@ class eskfSolver : public MsckfSolverBase
         state->_imu_state->p()->set_value(P_next);
         state->_imu_state->v()->set_value(V_next);
 
-        state->_imu_state->set_ts(ts);
+        state->_imu_state->set_ts(visual_ts);
         state->_imu_state->set_covariance(Cov_imu_new);
         state->_covariance.block(state->_imu_state->id(), state->_imu_state->id(), state->_imu_state->size(), state->_imu_state->size()) =
             Cov_imu_new;

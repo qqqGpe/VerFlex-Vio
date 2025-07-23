@@ -22,6 +22,14 @@
 #include "state.h"
 #include "visualManager.h"
 
+enum class FrameOptions
+{
+    kStatusOk = 0,
+    kStatusError = 1,
+    kWaitForImu = 2,
+    kSkipFrame = 3
+};
+
 
 class VioManager
 {
@@ -45,20 +53,15 @@ class VioManager
             exit(0);
         }
 
-        state = std::make_shared<State>(params.estimate_ric);
-
+        state = std::make_shared<State>(params.estimate_ric, params.estimate_td_visual);
         _imu_manager = std::make_shared<ImuManager>(params, state, solver);
         _imu_manager->SetImuNoise(params.sigma_na, params.sigma_nw, params.sigma_ba, params.sigma_bg);
-
         _visual_manager = std::make_shared<VisualManager>(params, state, solver);
-
         initializer = std::make_shared<Initializer>(params, _visual_manager, state);
-
         dynamic_initializer = std::make_unique<DynamicInitializer>(params, _visual_manager, state);
-
         vio_logger = std::make_shared<utils::LoggerFull>(params.log_path);
-
         vio_logger_tum = std::make_shared<utils::LoggerTUM>(params.log_path);
+        lazy_time_ = params.lazy_time;
 
         // Initialize camera extrinsic parameters
         Eigen::Quaterniond qic(params.Ric[0]);
@@ -67,7 +70,22 @@ class VioManager
     }
     ~VioManager() {}
 
+    bool FrontendTrack(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& image, std::pair<double, std::vector<CameraObs>>& feature_observes);
+
+    bool TryDynamicInitialization(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& image,
+                                  const std::pair<double, std::vector<CameraObs>>& feature_observes);
+
+    bool TryVisualUpdate(const std::pair<double, std::vector<CameraObs>>& feature_observes);
+
+    bool CheckVioState(const double ts_sec) const;
+
+    void PublishVioMessages(const double ts_sec);
+
+    void ResetLogger();
+
     void SetInitialTimeStamp(double initial_timestamp) { _initial_timestamp = initial_timestamp; }
+
+    FrameOptions CheckMeasurements() const;
 
     void ProcessMeasurementOnce();
 
@@ -84,6 +102,7 @@ class VioManager
     GroundTruth InterpolateGroundTruth(const double ts) const;
 
     double _initial_timestamp = 0.f;
+    double lazy_time_ = 0.2; // In seconds
     std::shared_ptr<State> state;
     std::shared_ptr<Initializer> initializer;
     std::unique_ptr<DynamicInitializer> dynamic_initializer;
@@ -100,6 +119,8 @@ class VioManager
 
    private:
     Param params_;
+    uint8_t visual_updated_this_tick_ = false;
+    uint8_t zupt_updated_this_tick_ = false;
     double last_update_timestamp_ = -1.0;
     std::pair<double, std::vector<CameraObs>> last_feature_observes_;
 };

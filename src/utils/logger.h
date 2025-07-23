@@ -14,8 +14,7 @@ class LogValueTUM
    public:
     void Reset()
     {
-        LogValueTUM temp;
-        std::swap(temp, *this);
+        *this = std::move(LogValueTUM());
     }
 
     std::vector<std::string> value_name{"#timestamp" "px" "py" "pz" "qx" "qy" "qz" "qw"};
@@ -34,8 +33,7 @@ class LogValueFull
    public:
     void Reset()
     {
-        LogValueFull temp;
-        std::swap(temp, *this);
+        *this = std::move(LogValueFull());
     }
 
     std::vector<std::string> value_name = {"#timestamp",
@@ -147,6 +145,12 @@ class LoggerBase
     virtual void SaveValues(const Derived log_value) const = 0;
 
    protected:
+
+    void Reset()
+    {
+        *this = std::move(LoggerBase());
+    }
+
     bool InitLogFile(const std::string dirname, const std::string log_type, const bool use_title)
     {
         char time_str[100];

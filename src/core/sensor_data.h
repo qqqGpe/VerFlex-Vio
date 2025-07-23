@@ -100,9 +100,9 @@ struct Feature
 
     int _id = -1;
     bool _valid = false;
-    Eigen::Vector3d _pwf = Eigen::Vector3d::Zero();
     bool _is_triangulated = false;
     double parallex = 0.f;
+    Eigen::Vector3d _pwf = Eigen::Vector3d::Zero();
     std::map<double, CameraObs> _visual_obs_buffer;  // <ts_sec, obs>
 };
 

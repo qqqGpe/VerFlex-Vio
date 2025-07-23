@@ -5,6 +5,7 @@
 #include <signal.h>
 #include <cstdlib>
 #include <memory>
+#include <fmt/format.h>
 
 #include "core/camModel.h"
 #include "core/visualizer.h"
@@ -16,17 +17,11 @@ namespace
 constexpr double kStereoTimeDeviation = 0.02;
 }
 
-void mySigintHandler(int sig)
-{
-    ros::shutdown();
-}
-
 int main(int argc, char** argv)
 {
     google::InitGoogleLogging(*argv);
     ros::init(argc, argv, "vio_backend");
     std::shared_ptr<ros::NodeHandle> nh = std::make_shared<ros::NodeHandle>("~");
-    signal(SIGINT, mySigintHandler);
 
     // Load vio_backend parameters
     Param params(nh);
@@ -51,7 +46,7 @@ int main(int argc, char** argv)
     // prepare rosbag
     rosbag::Bag bag;
     rosbag::View view, view_full;
-    bag.open(params.path_bag, rosbag::bagmode::Read);
+    bag.open(params.bag_path, rosbag::bagmode::Read);
     view_full.addQuery(bag);
     ros::Time time_init = view_full.getBeginTime();
     time_init += ros::Duration(params.bag_start);

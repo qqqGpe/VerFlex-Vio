@@ -19,7 +19,7 @@ class MathUtils
     }
 
     template<typename Derived>
-    static Eigen::Matrix<typename Derived::Scalar, 3, 3> Rodrigues(const Eigen::MatrixBase<Derived> vec, const double theta)
+    static Eigen::Matrix<typename Derived::Scalar, 3, 3> Rodrigues(const Eigen::MatrixBase<Derived>& vec, const double theta)
     {
         assert(vec.rows() == 3 && vec.cols() == 1);
         typedef typename Derived::Scalar Scalar_t;

@@ -46,7 +46,7 @@ public:
 
     double getBaseline() const
     {
-        return p_rl().norm();
+        return plr().norm();
     }
 
     Eigen::Matrix3d Ric(const uint32_t cam_id) const
@@ -85,11 +85,11 @@ public:
         return vK_[cam_id];
     }
 
-    Eigen::Vector3d p_rl() const
+    Eigen::Vector3d plr() const
     {
         if (camera_num_ < 2)
         {
-            throw std::runtime_error("Not enough cameras to compute R_rl.");
+            throw std::runtime_error("Not enough cameras to compute Rlr.");
         }
         Eigen::Matrix3d Ric_l = vRic_[0];
         Eigen::Vector3d pic_l = vTic_[0];
@@ -97,11 +97,11 @@ public:
         return Ric_l.transpose() * (pic_r - pic_l);
     }
 
-    Eigen::Matrix3d R_rl() const
+    Eigen::Matrix3d Rlr() const
     {
         if (camera_num_ < 2)
         {
-            throw std::runtime_error("Not enough cameras to compute R_rl.");
+            throw std::runtime_error("Not enough cameras to compute Rlr.");
         }
         Eigen::Matrix3d Ric_l = vRic_[0];
         Eigen::Matrix3d Ric_r = vRic_[1];

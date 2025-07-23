@@ -5,6 +5,7 @@
 #include "sensor_data.h"
 #include "mathematical_tools.h"
 
+#include <glog/logging.h>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -36,9 +37,9 @@ class MsckfSolverBase
                         const std::unordered_map<std::shared_ptr<Type>, size_t>& map_hx,
                         const Eigen::MatrixXd& R) = 0;
 
-    virtual bool PropagateStateAndCovariance(const std::vector<ImuData> imu_data, const double ts, std::shared_ptr<State> state) = 0;
+    virtual bool PropagateStateAndCovariance(const std::vector<ImuData> imu_data, const double visual_ts, std::shared_ptr<State> state) = 0;
 
-    virtual void StochasticClone(std::shared_ptr<State> state) = 0;
+    virtual void StochasticClone(std::shared_ptr<State> state, std::vector<ImuData>* imu_data) = 0;
 
     virtual void MarginalizeState(std::shared_ptr<State> state, std::shared_ptr<Type> state_to_marginalize) = 0;
 };
