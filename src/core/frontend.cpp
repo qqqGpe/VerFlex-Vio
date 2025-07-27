@@ -132,18 +132,17 @@ std::vector<uint8_t> VioFrontend::TrackFeatures(const cv::Mat image_left,
     return status;
 }
 
-bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& input_image,
-                              std::pair<double, std::vector<CameraObs>>& feature_observes)
+bool VioFrontend::TrackStereo(const std::pair<double, std::vector<cv::Mat>>& input_image, std::pair<double, std::vector<CameraObs>>& feature_observes)
 {
     static bool is_first_entry = true;
     double ts_sec = input_image.first;
-    static std::pair<double, std::pair<cv::Mat, cv::Mat>> prev_images = {-1, {cv::Mat(), cv::Mat()}};
+    static std::pair<double, std::vector<cv::Mat>> prev_images = {-1, {cv::Mat(), cv::Mat()}};
     static std::pair<double, std::vector<CameraObs>> previous_observations;
 
-    cv::Mat cur_image_left = input_image.second.first;
-    cv::Mat cur_image_right = input_image.second.second;
-    cv::Mat prev_image_left = prev_images.second.first;
-    cv::Mat prev_image_right = prev_images.second.second;
+    cv::Mat cur_image_left = input_image.second[LEFT_CAM];
+    cv::Mat cur_image_right = input_image.second[RIGHT_CAM];
+    cv::Mat prev_image_left = prev_images.second[LEFT_CAM];
+    cv::Mat prev_image_right = prev_images.second[RIGHT_CAM];
 
     const int h_step = height_ / grid_h_;
     const int w_step = width_ / grid_w_;
@@ -339,11 +338,11 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat
     return true;
 }
 
-bool VioFrontend::TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& input_image,
+bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>>& input_image,
                                  std::pair<double, std::vector<CameraObs>>& feature_observes)
 {
     const double ts_sec = input_image.first;
-    cur_frame = std::make_pair(ts_sec, input_image.second.first.clone());
+    cur_frame = std::make_pair(ts_sec, input_image.second[0].clone());
     std::vector<CameraObs> cur_features_to_track = ref_features_to_track_;
 
     const int h_step = height_ / grid_h_;

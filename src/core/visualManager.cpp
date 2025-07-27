@@ -207,14 +207,14 @@ void VisualManager::UpdateFeatureBase(const double timestamp)
         feat_lost->reset();
     }
 
-    int feature_valid_num = 0;
-    for (auto x : feature_base_)
-    {
-        if (x->_valid)
-        {
-            feature_valid_num++;
-        }
-    }
+    // int feature_valid_num = 0;
+    // for (auto x : feature_base_)
+    // {
+    //     if (x->_valid)
+    //     {
+    //         feature_valid_num++;
+    //     }
+    // }
 
     for (auto& feature : feature_new_)
     {
@@ -231,14 +231,14 @@ void VisualManager::UpdateFeatureBase(const double timestamp)
         }
     }
 
-    feature_valid_num = 0;
-    for (auto x : feature_base_)
-    {
-        if (x->_valid)
-        {
-            feature_valid_num++;
-        }
-    }
+    // feature_valid_num = 0;
+    // for (auto x : feature_base_)
+    // {
+    //     if (x->_valid)
+    //     {
+    //         feature_valid_num++;
+    //     }
+    // }
 }
 
 void VisualManager::UpdateFeatureStatistic(const double timestamp, std::pair<double, std::vector<CameraObs>> feature_observes)
@@ -600,18 +600,31 @@ void VisualManager::reset()
     feature_tracked_.clear();
     feature_lost_.clear();
     feature_new_.clear();
-    _input_image_buffer = std::queue<std::pair<double, std::pair<cv::Mat, cv::Mat>>>();
-    feature_obs_buffer = std::queue<std::pair<double, std::vector<CameraObs>>>();
-    stored_images_.clear();
-
-    assert(feature_base_.size() == max_feat_n_);
+    std::queue<std::pair<double, std::vector<cv::Mat>>>().swap(_input_image_buffer);
+    std::queue<std::pair<double, std::vector<CameraObs>>>().swap(feature_obs_buffer);
+    std::map<double, std::vector<cv::Mat>>().swap(stored_images_);
     for (int i = 0; i < max_feat_n_; i++)
     {
         feature_base_[i]->reset();
     }
 }
 
-void VisualManager::FeedImages(const std::pair<double, std::pair<cv::Mat, cv::Mat>> input)
+void VisualManager::ClearExpiredMeasurements(const double timestamp)
+{
+    for (auto it = stored_images_.begin(); it != stored_images_.end();)
+    {
+        if (it->first < timestamp)  // Clear images older than 100ms
+        {
+            it = stored_images_.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
+
+void VisualManager::FeedImages(const std::pair<double, std::vector<cv::Mat>> input)
 {
     while (_input_image_buffer.size() > kMaxImageBufferSize)
     {

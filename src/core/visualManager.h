@@ -90,7 +90,9 @@ class VisualManager
 
     void set_state(std::shared_ptr<State> state) { _state = state; }  // only for debug
 
-    void FeedImages(const std::pair<double, std::pair<cv::Mat, cv::Mat>> input);
+    void FeedImages(const std::pair<double, std::vector<cv::Mat>> input);
+
+    void ClearExpiredMeasurements(const double timestamp);
 
     static double calcVisualObsParallex(const std::unordered_map<uint32_t, CameraObs>& visual_obs_a,
                                         const std::unordered_map<uint32_t, CameraObs>& visual_obs_b);
@@ -111,10 +113,10 @@ class VisualManager
     uint32_t feature_mapping_success_ = 0;
     uint32_t feature_mapping_in_ = 0;
 
-    std::queue<std::pair<double, std::pair<cv::Mat, cv::Mat>>> _input_image_buffer;
+    std::queue<std::pair<double, std::vector<cv::Mat>>> _input_image_buffer;
     std::queue<std::pair<double, std::vector<CameraObs>>> feature_obs_buffer;
 
-    std::map<double, std::pair<cv::Mat, cv::Mat>> stored_images_;
+    std::map<double, std::vector<cv::Mat>> stored_images_;
 
     std::vector<Feature*> feature_base_;
     std::vector<Feature*> feature_tracked_;

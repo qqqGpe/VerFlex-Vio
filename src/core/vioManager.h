@@ -70,14 +70,16 @@ class VioManager
     }
     ~VioManager() {}
 
-    bool FrontendTrack(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& image, std::pair<double, std::vector<CameraObs>>& feature_observes);
+    bool FrontendTrack(const std::pair<double, std::vector<cv::Mat>>& images, std::pair<double, std::vector<CameraObs>>& feature_observes);
 
-    bool TryDynamicInitialization(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& image,
+    bool TryDynamicInitialization(const std::pair<double, std::vector<cv::Mat>>& image,
                                   const std::pair<double, std::vector<CameraObs>>& feature_observes);
 
     bool TryVisualUpdate(const std::pair<double, std::vector<CameraObs>>& feature_observes);
 
     bool CheckVioState(const double ts_sec) const;
+
+    void ClearExpiredMeasurements();
 
     void PublishVioMessages(const double ts_sec);
 

@@ -19,80 +19,80 @@ constexpr double kMaxAllowedSysUpdateInterval = 1.0f;  // 2s
 constexpr uint32_t kMinVisualFeaturesForUpdate = 10;
 }  // namespace
 
-void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager)
-{
-    static uint32_t no_input_cnt = 0;
+// void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager)
+// {
+//     static uint32_t no_input_cnt = 0;
 
-    while (true)
-    {
-        usleep(100);  // sleep for 0.01s -> 100Hz
-        if (visual_manager->_input_image_buffer.empty())
-        {
-            no_input_cnt++;
-            if (no_input_cnt > kNoInputDataCntThres)
-            {
-                LOG(ERROR) << "No Input data for vio frontend, going to exit...";
-                exit(0);
-            }
-            continue;
-        }
-        else
-        {
-            no_input_cnt = 0;
-        }
+//     while (true)
+//     {
+//         usleep(100);  // sleep for 0.01s -> 100Hz
+//         if (visual_manager->_input_image_buffer.empty())
+//         {
+//             no_input_cnt++;
+//             if (no_input_cnt > kNoInputDataCntThres)
+//             {
+//                 LOG(ERROR) << "No Input data for vio frontend, going to exit...";
+//                 exit(0);
+//             }
+//             continue;
+//         }
+//         else
+//         {
+//             no_input_cnt = 0;
+//         }
 
-        std::pair<double, std::pair<cv::Mat, cv::Mat>> data = visual_manager->_input_image_buffer.front();
-        visual_manager->_input_image_buffer.pop();
-        std::pair<double, std::vector<CameraObs>> feature_observes;
-        auto feature_base = visual_manager->GetFeatureBase();
-        bool status = visual_manager->vio_frontend->TrackMonocular(data, feature_observes);
-        if (status == true)
-        {
-            if (*visual_manager->_keyframe != KeyFrameStatus::kNone)
-            {
-                while (!visual_manager->feature_obs_buffer.empty())
-                {
-                    visual_manager->feature_obs_buffer.pop();
-                }
-                *visual_manager->_keyframe = KeyFrameStatus::kNone;
-            }
-            visual_manager->feature_obs_buffer.push(feature_observes);
-        }
-    }
-}
+//         std::pair<double, std::vector> data = visual_manager->_input_image_buffer.front();
+//         visual_manager->_input_image_buffer.pop();
+//         std::pair<double, std::vector<CameraObs>> feature_observes;
+//         auto feature_base = visual_manager->GetFeatureBase();
+//         bool status = visual_manager->vio_frontend->TrackMonocular(data, feature_observes);
+//         if (status == true)
+//         {
+//             if (*visual_manager->_keyframe != KeyFrameStatus::kNone)
+//             {
+//                 while (!visual_manager->feature_obs_buffer.empty())
+//                 {
+//                     visual_manager->feature_obs_buffer.pop();
+//                 }
+//                 *visual_manager->_keyframe = KeyFrameStatus::kNone;
+//             }
+//             visual_manager->feature_obs_buffer.push(feature_observes);
+//         }
+//     }
+// }
 
-void backend_task_entry(VioManager* vio)
-{
-    while (true)
-    {
-        usleep(100);  // sleep for 0.01s -> 100Hz
-        if (!vio->initializer->IsInitialized())
-        {
-            bool status = vio->initializer->StaticInitialize();
-            if (status == false)
-            {
-                continue;
-            }
-        }
-        if (vio->_visual_manager->feature_obs_buffer.empty())
-        {
-            continue;
-        }
-        // std::pair<double, std::vector<CameraObs>> feature_observes = vio->_visual_manager->feature_obs_buffer.front();
-        // vio->_visual_manager->feature_obs_buffer.pop();
-        // vio->_visual_manager->UpdateFeatureStatistic(feature_observes);
-        // vio->PropagateStateAndCovariance(vio->state, feature_observes.first);
-        // vio->_visual_manager->update();
-    }
-}
+// void backend_task_entry(VioManager* vio)
+// {
+//     while (true)
+//     {
+//         usleep(100);  // sleep for 0.01s -> 100Hz
+//         if (!vio->initializer->IsInitialized())
+//         {
+//             bool status = vio->initializer->StaticInitialize();
+//             if (status == false)
+//             {
+//                 continue;
+//             }
+//         }
+//         if (vio->_visual_manager->feature_obs_buffer.empty())
+//         {
+//             continue;
+//         }
+//         // std::pair<double, std::vector<CameraObs>> feature_observes = vio->_visual_manager->feature_obs_buffer.front();
+//         // vio->_visual_manager->feature_obs_buffer.pop();
+//         // vio->_visual_manager->UpdateFeatureStatistic(feature_observes);
+//         // vio->PropagateStateAndCovariance(vio->state, feature_observes.first);
+//         // vio->_visual_manager->update();
+//     }
+// }
 
-void VioManager::start_visual_system()
-{
-    std::thread frontend_thread(frontend_task_entry, _visual_manager);
-    std::thread backend_thread(backend_task_entry, this);
-    frontend_thread.detach();
-    backend_thread.detach();
-}
+// void VioManager::start_visual_system()
+// {
+//     std::thread frontend_thread(frontend_task_entry, _visual_manager);
+//     std::thread backend_thread(backend_task_entry, this);
+//     frontend_thread.detach();
+//     backend_thread.detach();
+// }
 
 void VioManager::ResetSystem()
 {
@@ -138,16 +138,15 @@ GroundTruth VioManager::InterpolateGroundTruth(const double ts) const
     }
 }
 
-bool VioManager::FrontendTrack(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& image,
-                               std::pair<double, std::vector<CameraObs>>& feature_observes)
+bool VioManager::FrontendTrack(const std::pair<double, std::vector<cv::Mat>>& images, std::pair<double, std::vector<CameraObs>>& feature_observes)
 {
     if (params_.camera_num == CamType::MONO)
     {
-        return _visual_manager->vio_frontend->TrackMonocular(image, feature_observes);
+        return _visual_manager->vio_frontend->TrackMonocular(images, feature_observes);
     }
     else if (params_.camera_num == CamType::STEREO)
     {
-        return _visual_manager->vio_frontend->TrackStereo(image, feature_observes);
+        return _visual_manager->vio_frontend->TrackStereo(images, feature_observes);
     }
     else
     {
@@ -157,13 +156,13 @@ bool VioManager::FrontendTrack(const std::pair<double, std::pair<cv::Mat, cv::Ma
     return false;
 }
 
-bool VioManager::TryDynamicInitialization(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& image,
+bool VioManager::TryDynamicInitialization(const std::pair<double, std::vector<cv::Mat>>& image,
                                           const std::pair<double, std::vector<CameraObs>>& feature_observes)
 {
     if (!dynamic_initializer->IsInitialized())
     {
         std::optional<double> lastest_obv_ts = dynamic_initializer->getLastestFeatureMeasurementTimestamp();
-        std::pair<double, cv::Mat> mono_image = std::make_pair(feature_observes.first, image.second.first);
+        std::pair<double, cv::Mat> mono_image = std::make_pair(feature_observes.first, image.second[LEFT_CAM]);
         if (!dynamic_initializer->feedVisualMeasurement(mono_image, feature_observes, *state->_imu_state))
         {
             if (feature_observes.second.size() < Sfm::kMinRequiredFeaturesPerFrame)
@@ -222,8 +221,6 @@ bool VioManager::TryVisualUpdate(const std::pair<double, std::vector<CameraObs>>
     std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(time0, time1);
     if (imu_data.empty())
     {
-        std::cout << "latest imu timestamp: " << _imu_manager->_imu_latest_timestamp
-                  << ", time0: " << time0 << ", time1: " << time1 << std::endl;
         LOG(WARNING) << fmt::format("No IMU data available for visual update at {:f}s, time0: {:f}s, time1: {:f}s", feature_observes.first, time0, time1);
         return false;
     }
@@ -233,11 +230,6 @@ bool VioManager::TryVisualUpdate(const std::pair<double, std::vector<CameraObs>>
     solver->StochasticClone(state, &imu_data);
 
     _visual_manager->UpdateFeatureStatistic(state->ts_sec(), feature_observes);
-
-    // for (auto x : state->_clone_pose)
-    // {
-    //     std::cout << fmt::format("clone pose ts: {:.3f}", x.first) << std::endl;
-    // }
 
     if (_visual_manager->VisualUpdate())
     {
@@ -310,6 +302,18 @@ FrameOptions VioManager::CheckMeasurements() const
     return FrameOptions::kStatusOk;
 }
 
+void VioManager::ClearExpiredMeasurements()
+{
+    constexpr double kClearToTimestampThreshold = 0.5; // In second
+    const double clear_to_timestamp = state->_clone_pose.begin()->first - kClearToTimestampThreshold;
+
+    // Clear expired IMU measurements
+    _imu_manager->ClearExpiredMeasurements(clear_to_timestamp);
+
+    // Clear expired visual measurements
+    _visual_manager->ClearExpiredMeasurements(clear_to_timestamp);
+}
+
 void VioManager::ResetLogger()
 {
     // vio_logger->Reset();
@@ -353,7 +357,7 @@ void VioManager::ProcessMeasurementOnce()
 
         // Feature tracking
         std::pair<double, std::vector<CameraObs>> feature_observes;
-        std::pair<double, std::pair<cv::Mat, cv::Mat>> new_image = _visual_manager->_input_image_buffer.front();
+        std::pair<double, std::vector<cv::Mat>> new_image = _visual_manager->_input_image_buffer.front();
         _visual_manager->_input_image_buffer.pop();
         ts_sec = new_image.first;
 
@@ -405,6 +409,7 @@ void VioManager::ProcessMeasurementOnce()
         {
             visual_updated_this_tick_ = true;
             last_update_timestamp_ = state->ts_sec();
+            ClearExpiredMeasurements();
         }
 
         // Reset vio system if system goes not well
@@ -501,13 +506,15 @@ void VioManager::ImuCallback(const sensor_msgs::Imu::ConstPtr& msg)
 void VioManager::CameraCallback(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1)
 {
     double ts_sec = msg0->header.stamp.toSec() - _initial_timestamp;
+    std::vector<cv::Mat> images;
 
     if (params_.camera_num == CamType::MONO && msg0 != nullptr)
     {
         cv::Mat image_l, image_l_rectify;
         Utils::transfer_image(msg0, image_l);
         CamModel::getInstance().RectifyImage(0, image_l, &image_l_rectify);
-        _visual_manager->FeedImages(std::make_pair(ts_sec, std::make_pair(image_l_rectify, cv::Mat())));
+        images.push_back(image_l_rectify);
+        _visual_manager->FeedImages(std::make_pair(ts_sec, images));
     }
 
     else if (params_.camera_num == CamType::STEREO && msg0 != nullptr && msg1 != nullptr)
@@ -518,6 +525,8 @@ void VioManager::CameraCallback(const sensor_msgs::ImageConstPtr& msg0, const se
         Utils::transfer_image(msg1, image_r);
         CamModel::getInstance().RectifyImage(0, image_l, &image_l_rectify);
         CamModel::getInstance().RectifyImage(1, image_r, &image_r_rectify);
-        _visual_manager->FeedImages(std::make_pair(ts_sec, std::make_pair(image_l_rectify, image_r_rectify)));
+        images.push_back(image_l_rectify);
+        images.push_back(image_r_rectify);
+        _visual_manager->FeedImages(std::make_pair(ts_sec, images));
     }
 }

@@ -183,13 +183,17 @@ void ImuManager::ConstructZuptConstraint(std::shared_ptr<State> state,
     res = weight * res;
 }
 
-void ImuManager::ClearExpiredMeasurements(const double ts)
+void ImuManager::ClearExpiredMeasurements(const double timestamp)
 {
     while (!_data->empty())
     {
-        if (_data->front().ts_sec < ts)
+        if (_data->front().ts_sec < timestamp)
         {
             _data->pop_front();
+        }
+        else
+        {
+            break;
         }
     }
 }

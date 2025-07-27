@@ -39,11 +39,9 @@ class VioFrontend
 
     bool InBorder(int x, int y);
 
-    bool TrackMonocular(const std::pair<double, std::pair<cv::Mat, cv::Mat>>& input_image,
-                        std::pair<double, std::vector<CameraObs>>& feature_observes);
+    bool TrackMonocular(const std::pair<double, std::vector<cv::Mat>>& input_image, std::pair<double, std::vector<CameraObs>>& feature_observes);
 
-    bool TrackStereo(const std::pair<double, std::pair<cv::Mat, cv::Mat>> &input_image,
-                     std::pair<double, std::vector<CameraObs>> &feature_observes);
+    bool TrackStereo(const std::pair<double, std::vector<cv::Mat>>& input_image, std::pair<double, std::vector<CameraObs>>& feature_observes);
 
     std::vector<uint8_t> TrackFeatures(const cv::Mat image_left,
                                        const cv::Mat image_right,
