@@ -62,6 +62,7 @@ class VioManager
         vio_logger = std::make_shared<utils::LoggerFull>(params.log_path);
         vio_logger_tum = std::make_shared<utils::LoggerTUM>(params.log_path);
         lazy_time_ = params.lazy_time;
+        use_zupt_ = params.use_zupt;
 
         // Initialize camera extrinsic parameters
         Eigen::Quaterniond qic(params.Ric[0]);
@@ -76,6 +77,8 @@ class VioManager
                                   const std::pair<double, std::vector<CameraObs>>& feature_observes);
 
     bool TryVisualUpdate(const std::pair<double, std::vector<CameraObs>>& feature_observes);
+
+    bool TryZuptUpdate(const double ts_sec);
 
     bool CheckVioState(const double ts_sec) const;
 
@@ -125,6 +128,7 @@ class VioManager
     uint8_t zupt_updated_this_tick_ = false;
     double last_update_timestamp_ = -1.0;
     std::pair<double, std::vector<CameraObs>> last_feature_observes_;
+    bool use_zupt_ = false;
 };
 
 void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager);

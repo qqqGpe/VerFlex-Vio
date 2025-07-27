@@ -209,6 +209,29 @@ bool VioManager::TryDynamicInitialization(const std::pair<double, std::vector<cv
     }
 }
 
+
+bool VioManager::TryZuptUpdate(const double ts_sec)
+{
+    if (use_zupt_)
+    {
+        if (_imu_manager->IsStaticStatus())
+        {
+            std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(state->_imu_state->ts(), ts_sec);
+            if (imu_data.empty())
+            {
+                LOG(WARNING) << fmt::format("No IMU data available for ZUPT update at {:f}s", ts_sec);
+                return false;
+            }
+
+            solver->PropagateStateAndCovariance(imu_data, ts_sec, state);
+            _imu_manager->ZuptUpdate(state);
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool VioManager::TryVisualUpdate(const std::pair<double, std::vector<CameraObs>>& feature_observes)
 {
     double time0 = state->ts_sec();
@@ -393,16 +416,13 @@ void VioManager::ProcessMeasurementOnce()
         //     continue;
         // }
 
-        // if (_imu_manager->IsStaticStatus())
-        // {
-        //     std::vector<ImuData> imu_data =
-        //         _imu_manager->AccessIntervalImuMeasurements(state->_imu_state->ts(), _imu_manager->_imu_latest_timestamp - 0.1);
-        //     solver->PropagateStateAndCovariance(imu_data, _imu_manager->_imu_latest_timestamp - 0.1, state);
-        //     _imu_manager->ZuptUpdate(state);
-
-        //     last_update_timestamp_ = state->ts_sec();
-        //     zupt_updated = true;
-        // }
+        // Zupt update process
+        if (TryZuptUpdate(ts_sec))
+        {
+            zupt_updated_this_tick_ = true;
+            last_update_timestamp_ = state->ts_sec();
+            ClearExpiredMeasurements();
+        }
 
         // Visual update process
         if (TryVisualUpdate(feature_observes))

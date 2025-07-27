@@ -18,6 +18,7 @@ public:
         _nh->param<bool>("use_multi_thread", use_multi_thread, false);
         _nh->param<bool>("estimate_ric", estimate_ric, true);
         _nh->param<bool>("estimate_td_visual", estimate_td_visual, true);
+        _nh->param<bool>("use_zupt", use_zupt, false);
         _nh->param<int>("log_level", log_level, 2);
         _nh->param<int>("camera_num", camera_num, 1);
         _nh->param<int>("running_rate", running_rate, 20);
@@ -76,6 +77,7 @@ public:
     bool use_multi_thread = false;
     bool estimate_ric = true;
     bool estimate_td_visual = true;
+    bool use_zupt = false;
 
     int running_rate; // Hz
     int log_level = 2;
