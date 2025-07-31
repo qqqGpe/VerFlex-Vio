@@ -86,8 +86,6 @@ class VioManager
 
     void PublishVioMessages(const double ts_sec);
 
-    void ResetLogger();
-
     void SetInitialTimeStamp(double initial_timestamp) { _initial_timestamp = initial_timestamp; }
 
     FrameOptions CheckMeasurements() const;
@@ -123,6 +121,9 @@ class VioManager
     boost::posix_time::ptime pro_rT, pro_rT1, pro_rT2, pro_rT3, pro_rT4;
 
    private:
+
+    void SaveResultsToFile();
+
     Param params_;
     uint8_t visual_updated_this_tick_ = false;
     uint8_t zupt_updated_this_tick_ = false;
