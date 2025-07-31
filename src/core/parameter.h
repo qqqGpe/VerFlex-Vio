@@ -19,6 +19,7 @@ public:
         _nh->param<bool>("estimate_ric", estimate_ric, true);
         _nh->param<bool>("estimate_td_visual", estimate_td_visual, true);
         _nh->param<bool>("use_zupt", use_zupt, false);
+        _nh->param<bool>("frontend_prediction", frontend_prediction, false);
         _nh->param<int>("log_level", log_level, 2);
         _nh->param<int>("camera_num", camera_num, 1);
         _nh->param<int>("running_rate", running_rate, 20);
@@ -78,6 +79,7 @@ public:
     bool estimate_ric = true;
     bool estimate_td_visual = true;
     bool use_zupt = false;
+    bool frontend_prediction = false;
 
     int running_rate; // Hz
     int log_level = 2;

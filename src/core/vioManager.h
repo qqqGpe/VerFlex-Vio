@@ -71,7 +71,7 @@ class VioManager
     }
     ~VioManager() {}
 
-    bool FrontendTrack(const std::pair<double, std::vector<cv::Mat>>& images, std::pair<double, std::vector<CameraObs>>& feature_observes);
+    bool TryFrontendTrack(const std::pair<double, std::vector<cv::Mat>>& images, std::pair<double, std::vector<CameraObs>>& feature_observes);
 
     bool TryDynamicInitialization(const std::pair<double, std::vector<cv::Mat>>& image,
                                   const std::pair<double, std::vector<CameraObs>>& feature_observes);

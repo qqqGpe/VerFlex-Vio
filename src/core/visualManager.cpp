@@ -126,7 +126,7 @@ bool VisualManager::VisualUpdate()
             UpdateFeatureBase(_state->ts_sec());
         }
 
-        std::cout << "keyframe status: " << static_cast<int>(*_keyframe) << std::endl;
+        // std::cout << "keyframe status: " << static_cast<int>(*_keyframe) << std::endl;
     }
 
     if (state_to_marginalize != nullptr)

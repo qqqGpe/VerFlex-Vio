@@ -32,16 +32,16 @@ class VisualManager
         }
     }
 
-    VisualManager(const Param& paramters,
+    VisualManager(const Param& params,
                   std::shared_ptr<State>& state,
                   std::shared_ptr<MsckfSolverBase> solver = nullptr)
     {
         _state = state;
-        param_ = paramters;
+        param_ = params;
         _keyframe = std::make_shared<KeyFrameStatus>(KeyFrameStatus::kNone);
-        vio_frontend = std::make_shared<VioFrontend>(paramters, _keyframe);
-        max_clone_pose_ = paramters.max_clone_pose;
-        max_feat_n_ = paramters.max_feat_n;
+        vio_frontend = std::make_shared<VioFrontend>(params, _keyframe);
+        max_clone_pose_ = params.max_clone_pose;
+        max_feat_n_ = params.max_feat_n;
         solver_ = solver;
         for (int i = 0; i < max_feat_n_; i++)
         {

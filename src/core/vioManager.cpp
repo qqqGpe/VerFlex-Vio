@@ -138,15 +138,33 @@ GroundTruth VioManager::InterpolateGroundTruth(const double ts) const
     }
 }
 
-bool VioManager::FrontendTrack(const std::pair<double, std::vector<cv::Mat>>& images, std::pair<double, std::vector<CameraObs>>& feature_observes)
+bool VioManager::TryFrontendTrack(const std::pair<double, std::vector<cv::Mat>>& images, std::pair<double, std::vector<CameraObs>>& feature_observes)
 {
+    const double td_visual = state->enable_estimate_td_visual_ ? state->td_visual().data() : 0.0;
+    std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(state->ts_sec(), images.first + td_visual);
+    bool do_prediction_flag = params_.frontend_prediction && dynamic_initializer->IsInitialized();
+
+    Eigen::Matrix3d Rwc = Eigen::Matrix3d::Identity();
+    if (!imu_data.empty())
+    {
+        ImuPreintegrator pre_integration;
+        pre_integration.feedImuMeasuremnts(imu_data);
+        pre_integration.Propagate(state->_imu_state->ba()->vec(), state->_imu_state->bg()->vec());
+        Eigen::Matrix3d Rwi = state->_imu_state->q()->Rot() * pre_integration.dR();
+        Rwc = Rwi * CamModel::getInstance().Ric(LEFT_CAM);
+    }
+    else
+    {
+        do_prediction_flag = false;
+    }
+
     if (params_.camera_num == CamType::MONO)
     {
-        return _visual_manager->vio_frontend->TrackMonocular(images, feature_observes);
+        return _visual_manager->vio_frontend->TrackMonocular(images, Rwc, do_prediction_flag, feature_observes);
     }
     else if (params_.camera_num == CamType::STEREO)
     {
-        return _visual_manager->vio_frontend->TrackStereo(images, feature_observes);
+        return _visual_manager->vio_frontend->TrackStereo(images, Rwc, do_prediction_flag, feature_observes);
     }
     else
     {
@@ -308,9 +326,9 @@ FrameOptions VioManager::CheckMeasurements() const
 
     if (_imu_manager->_imu_latest_timestamp - lazy_time_ < _visual_manager->_input_image_buffer.front().first + td_visual)
     {
-        LOG(WARNING) << fmt::format(
-            "IMU latest timestamp: {:f}s, lazy_time: {:f}, (imu_time - lazy_time) is slower than the input image timestamp: {:f}s, waiting for IMU data",
-            _imu_manager->_imu_latest_timestamp, lazy_time_, _visual_manager->_input_image_buffer.front().first + td_visual);
+        // LOG(WARNING) << fmt::format(
+        //     "IMU latest timestamp: {:f}s, lazy_time: {:f}, (imu_time - lazy_time) is slower than the input image timestamp: {:f}s, waiting for IMU data",
+        //     _imu_manager->_imu_latest_timestamp, lazy_time_, _visual_manager->_input_image_buffer.front().first + td_visual);
         return FrameOptions::kWaitForImu;
     }
 
@@ -378,13 +396,14 @@ void VioManager::ProcessMeasurementOnce()
                 return;
         }
 
-        // Feature tracking
+        // Vio frontend process
         std::pair<double, std::vector<CameraObs>> feature_observes;
         std::pair<double, std::vector<cv::Mat>> new_image = _visual_manager->_input_image_buffer.front();
         _visual_manager->_input_image_buffer.pop();
         ts_sec = new_image.first;
 
-        if (!FrontendTrack(new_image, feature_observes))
+        // Tracking
+        if (!TryFrontendTrack(new_image, feature_observes))
         {
             LOG(WARNING) << fmt::format("Failed to track features in image at ts: {:f}", new_image.first);
             continue;

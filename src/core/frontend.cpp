@@ -96,11 +96,18 @@ VioFrontend::status_t VioFrontend::MonoCheckEpipolarLine(const std::vector<Camer
 
 std::vector<uint8_t> VioFrontend::TrackFeatures(const cv::Mat image_left,
                                                 const cv::Mat image_right,
+                                                const Eigen::Matrix3d Rwi,
+                                                const Eigen::Matrix3d Rwj,
+                                                const bool is_stereo_tracking,
+                                                const bool do_prediction_flag,
                                                 const std::vector<cv::Point2f> pts_to_track,
                                                 std::vector<cv::Point2f>& pts_tracked)
 {
+    constexpr double kMaxAllowedRelativePoseAngle = 5;  // In degrees
+
     std::vector<uint8_t> status;
     std::vector<uchar> forward_status, backward_status;
+    std::vector<cv::Point2f> reverse_pts;
     std::vector<float> err;
 
     if (pts_to_track.empty())
@@ -108,18 +115,49 @@ std::vector<uint8_t> VioFrontend::TrackFeatures(const cv::Mat image_left,
         return status;
     }
 
-    // forward tracking
-    cv::calcOpticalFlowPyrLK(image_left, image_right, pts_to_track, pts_tracked, forward_status, err);
+    if (do_prediction_flag && !is_stereo_tracking)
+    {
+        Eigen::Matrix3d Rij = Rwi.transpose() * Rwj;
+        Eigen::AngleAxisd angle_axis(Rij);
+        if (angle_axis.angle() > kMaxAllowedRelativePoseAngle / 180.0 * M_PI)
+        {
+            std::cout << "Warning: Relative pose angle is too large: " << angle_axis.angle() * 180.0 / M_PI << " degrees." << std::endl;
+            Rij.setIdentity();
+        }
 
-    // backward tracking
-    std::vector<cv::Point2f> reverse_pts = pts_tracked;
-    cv::calcOpticalFlowPyrLK(image_right, image_left, pts_tracked, reverse_pts, backward_status, err, cv::Size(21, 21), 4,
-                             cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
+        Eigen::Matrix3d K = CamModel::getInstance().K(LEFT_CAM);
+        Eigen::Matrix3d H_eigen = K * Rij * K.inverse();
+        cv::Mat H_cv;
+        cv::eigen2cv(H_eigen, H_cv);
+        cv::Mat image_right_warped;
+        cv::warpPerspective(image_right, image_right_warped, H_cv, image_right.size(), cv::INTER_LINEAR, cv::BORDER_CONSTANT);
+
+        // forward tracking
+        cv::calcOpticalFlowPyrLK(image_left, image_right_warped, pts_to_track, pts_tracked, forward_status, err, cv::Size(21, 21), 4,
+                                 cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01));
+
+        // backward tracking
+        reverse_pts = pts_tracked;
+        cv::calcOpticalFlowPyrLK(image_right_warped, image_left, pts_tracked, reverse_pts, backward_status, err, cv::Size(21, 21), 4,
+                                 cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
+
+        cv::perspectiveTransform(pts_tracked, pts_tracked, H_cv.inv()); // Remember to devide point.z
+    }
+    else
+    {
+        // forward tracking
+        cv::calcOpticalFlowPyrLK(image_left, image_right, pts_to_track, pts_tracked, forward_status, err);
+
+        // backward tracking
+        reverse_pts = pts_tracked;
+        cv::calcOpticalFlowPyrLK(image_right, image_left, pts_tracked, reverse_pts, backward_status, err, cv::Size(21, 21), 4,
+                                 cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
+    }
 
     // double check if the tracked point is out of range
     for (int i = 0; i < forward_status.size(); i++)
     {
-        if (forward_status[i] && backward_status[i] && (CalcPixelDistance(pts_to_track[i], reverse_pts[i]) < kPixelErrorThreshold) &&
+        if (forward_status[i] && backward_status[i] && CalcPixelDistance(pts_to_track[i], reverse_pts[i]) < kPixelErrorThreshold &&
             InBorder(pts_tracked[i].x, pts_tracked[i].y))
         {
             status.push_back(true);
@@ -132,7 +170,10 @@ std::vector<uint8_t> VioFrontend::TrackFeatures(const cv::Mat image_left,
     return status;
 }
 
-bool VioFrontend::TrackStereo(const std::pair<double, std::vector<cv::Mat>>& input_image, std::pair<double, std::vector<CameraObs>>& feature_observes)
+bool VioFrontend::TrackStereo(const std::pair<double, std::vector<cv::Mat>>& input_image,
+                              const Eigen::Matrix3d Rwc,
+                              const bool do_prediction_flag,
+                              std::pair<double, std::vector<CameraObs>>& feature_observes)
 {
     static bool is_first_entry = true;
     double ts_sec = input_image.first;
@@ -175,7 +216,7 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::vector<cv::Mat>>& inp
         // step1: track previous left-cam visual points to current left-cam visual points
         std::vector<cv::Point2f> prev_l_to_cur_l_tracked;
         std::unordered_map<uint32_t, cv::Point2d> prev_l_to_cur_l_tracked_umap;
-        auto pre_left_to_cur_left_status = TrackFeatures(prev_image_left, cur_image_left, prev_left_pts, prev_l_to_cur_l_tracked);
+        auto pre_left_to_cur_left_status = TrackFeatures(prev_image_left, cur_image_left, R_ref, Rwc, false, do_prediction_flag, prev_left_pts, prev_l_to_cur_l_tracked);
         int idx = 0;
         std::vector<uint32_t>::iterator id_iter = obs_ids.begin();
         for (auto it = prev_l_to_cur_l_tracked.begin(); it != prev_l_to_cur_l_tracked.end(); idx++)
@@ -194,7 +235,9 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::vector<cv::Mat>>& inp
         // step2: track current left-cam visual points to current right-cam visual points
         std::vector<cv::Point2f> cur_l_to_cur_r_tracked;
         std::unordered_map<uint32_t, cv::Point2d> cur_l_to_cur_r_tracked_umap;
-        auto cur_left_to_cur_right_status = TrackFeatures(cur_image_left, cur_image_right, prev_l_to_cur_l_tracked, cur_l_to_cur_r_tracked);
+        Eigen::Matrix3d I3x3 = Eigen::Matrix3d::Identity();
+        auto cur_left_to_cur_right_status =
+            TrackFeatures(cur_image_left, cur_image_right, I3x3, I3x3, true, false, prev_l_to_cur_l_tracked, cur_l_to_cur_r_tracked);
         idx = 0;
         id_iter = obs_ids.begin();
         for (auto it = cur_l_to_cur_r_tracked.begin(); it != cur_l_to_cur_r_tracked.end(); idx++)
@@ -213,7 +256,10 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::vector<cv::Mat>>& inp
         // step3: track current right-cam visual points to previous right-cam visual points
         std::vector<cv::Point2f> cur_r_to_pre_r_pts_tracked;
         std::unordered_map<uint32_t, cv::Point2d> cur_r_to_pre_r_pts_tracked_umap;
-        auto cur_right_to_prev_right_status = TrackFeatures(cur_image_right, prev_image_right, cur_l_to_cur_r_tracked, cur_r_to_pre_r_pts_tracked);
+        Eigen::Matrix3d Rwr_cur = Rwc * CamModel::getInstance().Rlr();
+        Eigen::Matrix3d Rwr_prev = R_ref * CamModel::getInstance().Rlr();
+        auto cur_right_to_prev_right_status =
+            TrackFeatures(cur_image_right, prev_image_right, Rwr_cur, Rwr_prev, false, do_prediction_flag, cur_l_to_cur_r_tracked, cur_r_to_pre_r_pts_tracked);
         idx = 0;
         id_iter = obs_ids.begin();
         for (auto it = cur_r_to_pre_r_pts_tracked.begin(); it != cur_r_to_pre_r_pts_tracked.end(); idx++)
@@ -284,7 +330,8 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::vector<cv::Mat>>& inp
         std::vector<cv::Point2f> harris_new, harris_tracked;
         std::vector<CameraObs> cur_stereo_ok_features;
         cv::goodFeaturesToTrack(cur_image_left, harris_new, max_feat_n_, 0.01, 20);
-        auto status = TrackFeatures(cur_image_left, cur_image_right, harris_new, harris_tracked);
+        Eigen::Matrix3d I3x3 = Eigen::Matrix3d::Identity();
+        auto status = TrackFeatures(cur_image_left, cur_image_right, I3x3, I3x3, true, false, harris_new, harris_tracked);
         for (int i = 0; i < status.size(); i++)
         {
             if (status[i] == true)
@@ -332,6 +379,7 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::vector<cv::Mat>>& inp
         is_first_entry = false;
         prev_images = input_image;
         previous_observations = feature_observes;
+        R_ref = Rwc;
     }
 
     // Utils::visualize_feature_tracking_results(input_image.second.first.clone(), feature_observes);
@@ -339,6 +387,8 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::vector<cv::Mat>>& inp
 }
 
 bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>>& input_image,
+                                 const Eigen::Matrix3d Rwc,
+                                 const bool do_prediction_flag,
                                  std::pair<double, std::vector<CameraObs>>& feature_observes)
 {
     const double ts_sec = input_image.first;
@@ -370,7 +420,7 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>>& 
         }
 
         // Circular track
-        std::vector<uint8_t> status = TrackFeatures(ref_frame.second, cur_frame.second, prev_pts, curr_pts);
+        std::vector<uint8_t> status = TrackFeatures(ref_frame.second, cur_frame.second, R_ref, Rwc, false, do_prediction_flag, prev_pts, curr_pts);
 
         for (int i = 0; i < status.size(); i++)
         {
@@ -469,6 +519,7 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>>& 
 
         ref_frame = cur_frame;
         ref_features_to_track_ = cur_features_to_track;
+        R_ref = Rwc;
     }
 
     // Back project features
@@ -479,7 +530,7 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>>& 
     }
 
     feature_observes = std::make_pair(ts_sec, cur_features_to_track);
-    // Utils::visualize_feature_tracking_results(input_image.second.first.clone(), feature_observes);
+    // Utils::visualize_feature_tracking_results(input_image.second[LEFT_CAM].clone(), feature_observes);
     is_first_frame_ = false;
     return true;
 }
