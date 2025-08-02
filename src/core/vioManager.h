@@ -100,6 +100,10 @@ class VioManager
 
     void CameraCallback(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1);
 
+    void CallbackStereo(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1);
+
+    void CallbackMonocular(const sensor_msgs::ImageConstPtr& msg0);
+
     void ResetSystem();
 
     GroundTruth InterpolateGroundTruth(const double ts) const;

@@ -532,6 +532,7 @@ void VioManager::GroundTruthCallback(const geometry_msgs::PointStamped::ConstPtr
 
 void VioManager::ImuCallback(const sensor_msgs::Imu::ConstPtr& msg)
 {
+    // std::cout << "Received IMU data at timestamp: " << msg->header.stamp.toSec() - _initial_timestamp << std::endl;
     ImuData data;
     data.ts_sec = msg->header.stamp.toSec() - _initial_timestamp;
     data.wm << msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z;
@@ -539,6 +540,40 @@ void VioManager::ImuCallback(const sensor_msgs::Imu::ConstPtr& msg)
 
     initializer->FeedImuMeasurement(data);
     _imu_manager->FeedImuMeasurement(data);
+}
+
+void VioManager::CallbackStereo(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1)
+{
+    double ts_sec = msg0->header.stamp.toSec() - _initial_timestamp;
+    std::vector<cv::Mat> images;
+
+    if (msg0 != nullptr && msg1 != nullptr)
+    {
+        cv::Mat image_l, image_l_rectify;
+        cv::Mat image_r, image_r_rectify;
+        Utils::transfer_image(msg0, image_l);
+        Utils::transfer_image(msg1, image_r);
+        CamModel::getInstance().RectifyImage(0, image_l, &image_l_rectify);
+        CamModel::getInstance().RectifyImage(1, image_r, &image_r_rectify);
+        images.push_back(image_l_rectify);
+        images.push_back(image_r_rectify);
+        _visual_manager->FeedImages(std::make_pair(ts_sec, images));
+    }
+}
+
+void VioManager::CallbackMonocular(const sensor_msgs::ImageConstPtr& msg0)
+{
+    double ts_sec = msg0->header.stamp.toSec() - _initial_timestamp;
+    std::vector<cv::Mat> images;
+
+    if (msg0 != nullptr)
+    {
+        cv::Mat image_l, image_l_rectify;
+        Utils::transfer_image(msg0, image_l);
+        CamModel::getInstance().RectifyImage(0, image_l, &image_l_rectify);
+        images.push_back(image_l_rectify);
+        _visual_manager->FeedImages(std::make_pair(ts_sec, images));
+    }
 }
 
 void VioManager::CameraCallback(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1)

@@ -53,7 +53,6 @@ class State
 
         if (enable_estimate_td_visual_)
         {
-            std::cout << "enable estimate td_visual!!!!!!!!!!!!!!!!" << std::endl;
             td_visual_ = std::make_shared<Scalar>();
             td_visual_->set_local_id(_dim);
             _variables.push_back(td_visual_);
