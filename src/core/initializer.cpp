@@ -164,7 +164,6 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     std::shared_ptr<ImuState>& imu_state = state_->_imu_state;
     assert(imu_state->ts() == ts_sec);
     Eigen::Matrix3d R_ItoG = imu_state->q()->Rot();
-    // Eigen::Matrix3d R_CtoI = state_->_Tic->quat().toRotationMatrix();
     Eigen::Matrix3d R_CtoI = state_->qic_->q().toRotationMatrix();
     Eigen::Vector3d p_CpinG = -R_ItoG * R_CtoI * p_12;  // t_prev_in_G
     auto& [obs_prev, obs_cur] = stereo_obs_pairs[0];
@@ -178,9 +177,27 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     imu_state->v()->set_value(v_CinG);
 
     // initialize stereo initialization imu covariance
-    Eigen::MatrixXd stereo_init_covariance = imu_state->covariance();
-    stereo_init_covariance.block(imu_state->p()->id(), imu_state->p()->id(), 3, 3) = std::pow(0.1, 2) * Eigen::Matrix3d::Identity();  // p
-    stereo_init_covariance.block(imu_state->v()->id(), imu_state->v()->id(), 3, 3) = std::pow(0.1, 2) * Eigen::Matrix3d::Identity();  // v
+    const uint32_t kQId = state_->getImuState().q()->id();
+    const uint32_t kPId = state_->getImuState().p()->id();
+    const uint32_t kVId = state_->getImuState().v()->id();
+    const uint32_t kBgId = state_->getImuState().bg()->id();
+    const uint32_t kBaId = state_->getImuState().ba()->id();
+    const uint32_t kRicId = state_->enable_estimate_ric_ ? state_->qic().id() : -1;
+    const uint32_t kTdVisualId = state_->enable_estimate_td_visual_ ? state_->td_visual().id() : -1;
+
+    Eigen::MatrixXd stereo_init_covariance = Eigen::MatrixXd::Identity(state_->dim(), state_->dim());
+    stereo_init_covariance.topLeftCorner(imu_state->size(), imu_state->size()) = imu_state->covariance();
+    stereo_init_covariance.block(kPId, kPId, 3, 3) = std::pow(kInitSigmaPosition, 2) * Eigen::Matrix3d::Identity();     // p
+    stereo_init_covariance.block(kVId, kVId, 3, 3) = std::pow(kInitSigmaVelocity, 2) * Eigen::Matrix3d::Identity();     // v
+
+    if (kRicId != -1)
+    {
+        stereo_init_covariance.block(kRicId, kRicId, 3, 3) = std::pow(kInitSigmaRic, 2) * Eigen::Matrix3d::Identity();  // qic
+    }
+    if (kTdVisualId != -1)
+    {
+        stereo_init_covariance(kTdVisualId, kTdVisualId) = std::pow(kInitSigmaTdVisual, 2);  // td_visual
+    }
     state_->SetCovariance(stereo_init_covariance);
 
     Eigen::MatrixXd sqrt_stereo_init_covariance = stereo_init_covariance.llt().matrixL().transpose();
@@ -203,7 +220,7 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     return true;
 }
 
-bool Initializer::StaticInitialize()
+bool Initializer::InitializeOrientation()
 {
     LOG(INFO) << "trying to initialize with static states";
     if (is_orientation_initialized && is_bias_initialized)

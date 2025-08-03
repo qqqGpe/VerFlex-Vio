@@ -19,86 +19,12 @@ constexpr double kMaxAllowedSysUpdateInterval = 1.0f;  // 2s
 constexpr uint32_t kMinVisualFeaturesForUpdate = 10;
 }  // namespace
 
-// void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager)
-// {
-//     static uint32_t no_input_cnt = 0;
-
-//     while (true)
-//     {
-//         usleep(100);  // sleep for 0.01s -> 100Hz
-//         if (visual_manager->_input_image_buffer.empty())
-//         {
-//             no_input_cnt++;
-//             if (no_input_cnt > kNoInputDataCntThres)
-//             {
-//                 LOG(ERROR) << "No Input data for vio frontend, going to exit...";
-//                 exit(0);
-//             }
-//             continue;
-//         }
-//         else
-//         {
-//             no_input_cnt = 0;
-//         }
-
-//         std::pair<double, std::vector> data = visual_manager->_input_image_buffer.front();
-//         visual_manager->_input_image_buffer.pop();
-//         std::pair<double, std::vector<CameraObs>> feature_observes;
-//         auto feature_base = visual_manager->GetFeatureBase();
-//         bool status = visual_manager->vio_frontend->TrackMonocular(data, feature_observes);
-//         if (status == true)
-//         {
-//             if (*visual_manager->_keyframe != KeyFrameStatus::kNone)
-//             {
-//                 while (!visual_manager->feature_obs_buffer.empty())
-//                 {
-//                     visual_manager->feature_obs_buffer.pop();
-//                 }
-//                 *visual_manager->_keyframe = KeyFrameStatus::kNone;
-//             }
-//             visual_manager->feature_obs_buffer.push(feature_observes);
-//         }
-//     }
-// }
-
-// void backend_task_entry(VioManager* vio)
-// {
-//     while (true)
-//     {
-//         usleep(100);  // sleep for 0.01s -> 100Hz
-//         if (!vio->initializer->IsInitialized())
-//         {
-//             bool status = vio->initializer->StaticInitialize();
-//             if (status == false)
-//             {
-//                 continue;
-//             }
-//         }
-//         if (vio->_visual_manager->feature_obs_buffer.empty())
-//         {
-//             continue;
-//         }
-//         // std::pair<double, std::vector<CameraObs>> feature_observes = vio->_visual_manager->feature_obs_buffer.front();
-//         // vio->_visual_manager->feature_obs_buffer.pop();
-//         // vio->_visual_manager->UpdateFeatureStatistic(feature_observes);
-//         // vio->PropagateStateAndCovariance(vio->state, feature_observes.first);
-//         // vio->_visual_manager->update();
-//     }
-// }
-
-// void VioManager::start_visual_system()
-// {
-//     std::thread frontend_thread(frontend_task_entry, _visual_manager);
-//     std::thread backend_thread(backend_task_entry, this);
-//     frontend_thread.detach();
-//     backend_thread.detach();
-// }
-
 void VioManager::ResetSystem()
 {
     state->reset();
     _visual_manager->reset();
     initializer->reset();
+    // dynamic_initializer->reset();
     last_update_timestamp_ = -1.0;
     LOG(INFO) << "VIO system reset";
 }
@@ -142,7 +68,7 @@ bool VioManager::TryFrontendTrack(const std::pair<double, std::vector<cv::Mat>>&
 {
     const double td_visual = state->enable_estimate_td_visual_ ? state->td_visual().data() : 0.0;
     std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(state->ts_sec(), images.first + td_visual);
-    bool do_prediction_flag = params_.frontend_prediction && dynamic_initializer->IsInitialized();
+    bool do_prediction_flag = params_.frontend_prediction && initializer->IsInitialized();
 
     Eigen::Matrix3d Rwc = Eigen::Matrix3d::Identity();
     if (!imu_data.empty())
@@ -177,15 +103,17 @@ bool VioManager::TryFrontendTrack(const std::pair<double, std::vector<cv::Mat>>&
 bool VioManager::TryDynamicInitialization(const std::pair<double, std::vector<cv::Mat>>& image,
                                           const std::pair<double, std::vector<CameraObs>>& feature_observes)
 {
-    if (!dynamic_initializer->IsInitialized())
+    if (!initializer->IsInitialized())
     {
+        std::shared_ptr<DynamicInitializer> dynamic_initializer = std::dynamic_pointer_cast<DynamicInitializer>(initializer);
+
         std::optional<double> lastest_obv_ts = dynamic_initializer->getLastestFeatureMeasurementTimestamp();
         std::pair<double, cv::Mat> mono_image = std::make_pair(feature_observes.first, image.second[LEFT_CAM]);
         if (!dynamic_initializer->feedVisualMeasurement(mono_image, feature_observes, *state->_imu_state))
         {
             if (feature_observes.second.size() < Sfm::kMinRequiredFeaturesPerFrame)
             {
-                _visual_manager->SetKeyframeState(KeyFrameStatus::kFeatureLostTooMuch); // Switch keyframe if too few features
+                _visual_manager->SetKeyframeState(KeyFrameStatus::kFeatureLostTooMuch);  // Switch keyframe if too few features
                 LOG(INFO) << fmt::format("Switch visual frontend keyframe for dynamic initialization");
             }
             return false;
@@ -199,7 +127,7 @@ bool VioManager::TryDynamicInitialization(const std::pair<double, std::vector<cv
             if (imu_data.empty())
             {
                 LOG(WARNING) << fmt::format("No IMU data available for dynamic initialization at {:f}s", feature_observes.first);
-                dynamic_initializer->reset();
+                initializer->reset();
                 return false;
             }
 
@@ -216,7 +144,6 @@ bool VioManager::TryDynamicInitialization(const std::pair<double, std::vector<cv
         }
         else
         {
-            // Not ready to initialize yet
             return false;
         }
     }
@@ -227,6 +154,45 @@ bool VioManager::TryDynamicInitialization(const std::pair<double, std::vector<cv
     }
 }
 
+bool VioManager::TryStaticInitialization(const std::pair<double, std::vector<cv::Mat>>& image,
+                                         const std::pair<double, std::vector<CameraObs>>& feature_observes)
+{
+    if (!initializer->IsInitialized())
+    {
+        if (!initializer->is_orientation_initialized || !initializer->is_bias_initialized)
+        {
+            if (!initializer->InitializeOrientation())
+            {
+                LOG(ERROR) << "Failed to initialize orientation and bias";
+                return false;
+            }
+        }
+
+        if (feature_observes.second.size() < Sfm::kMinRequiredFeaturesPerFrame)
+        {
+            _visual_manager->SetKeyframeState(KeyFrameStatus::kFeatureLostTooMuch);  // Switch keyframe if too few features
+            LOG(INFO) << fmt::format("Switch visual frontend keyframe for dynamic initialization");
+        }
+
+        std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(state->_imu_state->ts(), feature_observes.first);
+        solver->PropagateStateAndCovariance(imu_data, feature_observes.first, state);
+        if (initializer->StereoVisualInitialize(feature_observes))
+        {
+            last_update_timestamp_ = state->ts_sec();
+            solver->StochasticClone(state, &imu_data);
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+    else
+    {
+        LOG(INFO) << "Vio system is already initialized.";
+        return true;  // Already initialized
+    }
+}
 
 bool VioManager::TryZuptUpdate(const double ts_sec)
 {
@@ -357,15 +323,6 @@ void VioManager::ClearExpiredMeasurements()
 
 void VioManager::ProcessMeasurementOnce()
 {
-    // if (!initializer->is_orientation_initialized || !initializer->is_bias_initialized)
-    // {
-    //     if (!initializer->StaticInitialize())
-    //     {
-    //         LOG(ERROR) << "failed to initialize orientation and bias";
-    //         return;
-    //     }
-    // }
-
     while (!_visual_manager->_input_image_buffer.empty())
     {
         double ts_sec = 0;
@@ -402,30 +359,24 @@ void VioManager::ProcessMeasurementOnce()
         }
 
         // Dynamic monocular visual initialization
-        if (!dynamic_initializer->IsInitialized())
+        if (!initializer->IsInitialized())
         {
-            if (TryDynamicInitialization(new_image, feature_observes))
+            if (initializer->init_type == InitializerType::kDynamic)
             {
-                LOG(INFO) << fmt::format("Dynamic initialized successfully at {:.3f}s", ts_sec);
+                if (TryDynamicInitialization(new_image, feature_observes))
+                {
+                    LOG(INFO) << fmt::format("Dynamic initialized successfully at {:.3f}s", ts_sec);
+                }
+            }
+            else if (initializer->init_type == InitializerType::kStatic)
+            {
+                if (TryStaticInitialization(new_image, feature_observes))
+                {
+                    LOG(INFO) << fmt::format("Static stereo visual initialized successfully at {:.3f}s", ts_sec);
+                }
             }
             continue;
         }
-
-        // // stereo visual initialization
-        // if (!initializer->IsInitialized())
-        // {
-        //     std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(state->_imu_state->ts(), feature_observes.first);
-        //     solver->PropagateStateAndCovariance(imu_data, feature_observes.first, state);
-        //     if (initializer->StereoVisualInitialize(feature_observes))
-        //     {
-        //         log_value.init_vnorm = state->_imu_state->v()->vec().norm();
-        //         last_update_timestamp_ = state->ts_sec();
-        //         solver->StochasticClone(state);
-        //         GroundTruth gt_pv = InterpolateGroundTruth(feature_observes.first);
-        //         log_value.groundtruth_vnorm = gt_pv.v_.norm();
-        //     }
-        //     continue;
-        // }
 
         // Zupt update process
         if (TryZuptUpdate(ts_sec))

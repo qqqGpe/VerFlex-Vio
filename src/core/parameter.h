@@ -34,8 +34,6 @@ public:
         _nh->param<int>("max_clone_pose", max_clone_pose, 6);
         _nh->param<std::string>("log_path", log_path, "");
         _nh->param<std::string>("bag_path", bag_path, "");
-        camera_topic.resize(camera_num, "");
-        _nh->getParam("camera_topic", camera_topic);
         _nh->param<std::string>("imu_topic", imu_topic, "");
         _nh->param<double>("sigma_na", sigma_na, 2.0000e-3);
         _nh->param<double>("sigma_nw", sigma_nw, 1.6968e-04);
@@ -47,6 +45,10 @@ public:
         _nh->param<double>("imu_acc_var_static_thres", imu_acc_var_static_thres, 0.5);
         _nh->param<double>("imu_gyro_static_thres", imu_gyro_static_thres, 0.5);
         _nh->param<int>("solver_type", solver_type, 0);
+        _nh->param<int>("initial_type", initial_type, 1);
+
+        camera_topic.resize(camera_num, "");
+        _nh->getParam("camera_topic", camera_topic);
 
         for (int i = 0; i < camera_num; i++)
         {
@@ -89,6 +91,7 @@ public:
     int max_clone_pose;
     int img_width, img_height;
     int solver_type = 0; // 0: ESKF, 1: SqrtESKF
+    int initial_type = 0; // 0: static initialization, 1: dynamic initialization
 
     double sigma_na;
     double sigma_nw;
@@ -145,6 +148,16 @@ private:
         if (imu_acc_var_static_thres <= 0 || imu_gyro_static_thres <= 0)
         {
             std::cerr << "Error: imu_acc_var_static_thres and imu_gyro_static_thres must be positive!" << std::endl;
+            return false;
+        }
+        if (solver_type < 0 || solver_type > 1)
+        {
+            std::cerr << "Error: solver_type must be 0 (ESKF) or 1 (SqrtESKF)!" << std::endl;
+            return false;
+        }
+        if (initial_type < 0 || initial_type > 1)
+        {
+            std::cerr << "Error: initial_type must be 0 (static initialization) or 1 (dynamic initialization)!" << std::endl;
             return false;
         }
         return true;

@@ -47,18 +47,23 @@ class VioManager
         {
             solver = std::make_shared<SqrtEskfSolver>();
         }
-        else
-        {
-            LOG(ERROR) << "Solver type not supported!";
-            exit(0);
-        }
 
         state = std::make_shared<State>(params.estimate_ric, params.estimate_td_visual);
         _imu_manager = std::make_shared<ImuManager>(params, state, solver);
         _imu_manager->SetImuNoise(params.sigma_na, params.sigma_nw, params.sigma_ba, params.sigma_bg);
         _visual_manager = std::make_shared<VisualManager>(params, state, solver);
-        initializer = std::make_shared<Initializer>(params, _visual_manager, state);
-        dynamic_initializer = std::make_unique<DynamicInitializer>(params, _visual_manager, state);
+
+        if (params.initial_type == static_cast<int>(InitializerType::kStatic) && params.camera_num == 2)
+        {
+            initializer = std::make_shared<Initializer>(params, _visual_manager, state);
+        }
+        else if (params.initial_type == static_cast<int>(InitializerType::kDynamic))
+        {
+            initializer = std::make_shared<DynamicInitializer>(params, _visual_manager, state);
+        }
+
+        // initializer = std::make_shared<Initializer>(params, _visual_manager, state);
+        // dynamic_initializer = std::make_unique<DynamicInitializer>(params, _visual_manager, state);
         vio_logger = std::make_shared<utils::LoggerFull>(params.log_path);
         vio_logger_tum = std::make_shared<utils::LoggerTUM>(params.log_path);
         lazy_time_ = params.lazy_time;
@@ -75,6 +80,9 @@ class VioManager
 
     bool TryDynamicInitialization(const std::pair<double, std::vector<cv::Mat>>& image,
                                   const std::pair<double, std::vector<CameraObs>>& feature_observes);
+
+    bool TryStaticInitialization(const std::pair<double, std::vector<cv::Mat>>& image,
+                                 const std::pair<double, std::vector<CameraObs>>& feature_observes);
 
     bool TryVisualUpdate(const std::pair<double, std::vector<CameraObs>>& feature_observes);
 
@@ -112,7 +120,7 @@ class VioManager
     double lazy_time_ = 0.2; // In seconds
     std::shared_ptr<State> state;
     std::shared_ptr<Initializer> initializer;
-    std::unique_ptr<DynamicInitializer> dynamic_initializer;
+    // std::unique_ptr<DynamicInitializer> dynamic_initializer;
     std::shared_ptr<ImuManager> _imu_manager;
     std::shared_ptr<VisualManager> _visual_manager;
     std::shared_ptr<utils::LoggerFull> vio_logger;

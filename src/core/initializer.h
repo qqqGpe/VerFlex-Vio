@@ -13,17 +13,30 @@ namespace
 constexpr uint32_t kInitializeImuQueSize = 200;
 }
 
+enum class InitializerType
+{
+    kStatic = 0,
+    kDynamic = 1
+};
+
 class Initializer
 {
    public:
+    static constexpr double kInitSigmaRotation = 1e-2;   // rad
+    static constexpr double kInitSigmaPosition = 1e-1;   // m
+    static constexpr double kInitSigmaVelocity = 1e-1;   // m/s
+    static constexpr double kInitSigmaGyroBias = 1e-3;   // rad
+    static constexpr double kInitSigmaAccelBias = 1e-2;  // m/s
+    static constexpr double kInitSigmaRic = 1e-3;        // rad
+    static constexpr double kInitSigmaTdVisual = 1e-3;   // sec
+
     Initializer() = default;
-    Initializer(const Param& paramters,
-                const std::shared_ptr<VisualManager> visual_manager,
-                std::shared_ptr<State>& state)
+    Initializer(const Param& paramters, const std::shared_ptr<VisualManager> visual_manager, std::shared_ptr<State>& state)
     {
         state_ = state;
         visual_manager_ = visual_manager;
         gravity_mag = paramters.gravity_magn;
+        init_type = static_cast<InitializerType>(paramters.initial_type);
     }
     virtual ~Initializer() {};
 
@@ -33,12 +46,13 @@ class Initializer
 
     void FeedImuMeasurement(const ImuData& data);
 
-    bool StaticInitialize();
+    bool InitializeOrientation();
 
     Eigen::Matrix3d Gram_Schmidt(const Eigen::Vector3d& gravity_body);
 
     bool IsInitialized();
 
+    InitializerType init_type;
     bool is_bias_initialized = false;
     bool is_orientation_initialized = false;
     bool is_position_initialized = false;

@@ -3,10 +3,11 @@ project(vio)
 
 add_compile_options(-std=c++17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_BUILD_TYPE RelWithDebInfo) # Debug Release
 # set(CMAKE_BUILD_TYPE Debug) # Debug Release
-set(CMAKE_BUILD_TYPE Release) # Debug Release
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -O3  -Wall")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3  -Wall")
+# set(CMAKE_BUILD_TYPE Release) # Debug Release
+# set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -O3  -Wall")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3  -Wall")
 
 
 find_package(catkin REQUIRED COMPONENTS

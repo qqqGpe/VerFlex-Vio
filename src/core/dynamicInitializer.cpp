@@ -232,7 +232,7 @@ void DynamicInitializer::assignImuState(const Eigen::VectorXd velocity_gravity_s
     value << last_imu_state->q()->q().coeffs(), last_imu_state->p()->vec(), last_imu_state->v()->vec(), last_imu_state->bg()->vec(), last_imu_state->ba()->vec();
     state_->_imu_state->set_value(value);
 
-    // initialize stereo initialization imu covariance
+    // initialize dynamic initialization imu covariance
     const uint32_t kQId = state_->getImuState().q()->id();
     const uint32_t kPId = state_->getImuState().p()->id();
     const uint32_t kVId = state_->getImuState().v()->id();
@@ -243,7 +243,6 @@ void DynamicInitializer::assignImuState(const Eigen::VectorXd velocity_gravity_s
 
     // Eigen::MatrixXd init_covariance = state_->getImuState().covariance();
     Eigen::MatrixXd init_covariance = Eigen::MatrixXd::Identity(state_->dim(), state_->dim());
-    init_covariance.setIdentity();
     init_covariance.block(kQId, kQId, 3, 3) = std::pow(kInitSigmaRotation, 2) * Eigen::Matrix3d::Identity();     // q
     init_covariance.block(kPId, kPId, 3, 3) = std::pow(kInitSigmaPosition, 2) * Eigen::Matrix3d::Identity();     // p
     init_covariance.block(kVId, kVId, 3, 3) = std::pow(kInitSigmaVelocity, 2) * Eigen::Matrix3d::Identity();     // v

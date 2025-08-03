@@ -25,14 +25,6 @@ public:
         p_CinI_ = paramters.tic[0];
     }
 
-    static constexpr double kInitSigmaRotation = 1e-2;   // rad
-    static constexpr double kInitSigmaPosition = 1e-1;   // m
-    static constexpr double kInitSigmaVelocity = 1e-1;   // m/s
-    static constexpr double kInitSigmaGyroBias = 1e-3;   // rad
-    static constexpr double kInitSigmaAccelBias = 1e-2;  // m/s
-    static constexpr double kInitSigmaRic = 1e-3;        // rad
-    static constexpr double kInitSigmaTdVisual = 1e-3;  // sec
-
     virtual ~DynamicInitializer() {};
 
     virtual void reset() override;

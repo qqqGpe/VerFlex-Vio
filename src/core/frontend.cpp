@@ -73,10 +73,18 @@ VioFrontend::status_t VioFrontend::MonoCheckEpipolarLine(const std::vector<Camer
                                                          const std::vector<CameraObs>& obs_curr,
                                                          std::vector<uint8_t>& inliers)
 {
+    constexpr uint32_t kMinObsSizeForEpipolarCheck = 10;
     if (obs_prev.size() != obs_curr.size())
     {
         LOG(ERROR) << "obs_prev.size() != obs_curr.size()";
         return STATUS_ERROR;
+    }
+
+    if (obs_prev.size() < kMinObsSizeForEpipolarCheck)
+    {
+        LOG(WARNING) << "Not enough observations for epipolar check: " << obs_prev.size();
+        inliers.assign(obs_prev.size(), 0);
+        return STATUS_OK;
     }
 
     std::vector<cv::Point2f> points_prev, points_curr;
@@ -103,7 +111,7 @@ std::vector<uint8_t> VioFrontend::TrackFeatures(const cv::Mat image_left,
                                                 const std::vector<cv::Point2f> pts_to_track,
                                                 std::vector<cv::Point2f>& pts_tracked)
 {
-    constexpr double kMaxAllowedRelativePoseAngle = 5;  // In degrees
+    constexpr double kMaxAllowedRelativePoseAngle = 10;  // In degrees
 
     std::vector<uint8_t> status;
     std::vector<uchar> forward_status, backward_status;
@@ -121,7 +129,7 @@ std::vector<uint8_t> VioFrontend::TrackFeatures(const cv::Mat image_left,
         Eigen::AngleAxisd angle_axis(Rij);
         if (angle_axis.angle() > kMaxAllowedRelativePoseAngle / 180.0 * M_PI)
         {
-            std::cout << "Warning: Relative pose angle is too large: " << angle_axis.angle() * 180.0 / M_PI << " degrees." << std::endl;
+            // std::cout << "Warning: Relative pose angle is too large: " << angle_axis.angle() * 180.0 / M_PI << " degrees." << std::endl;
             Rij.setIdentity();
         }
 
@@ -382,7 +390,7 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::vector<cv::Mat>>& inp
         R_ref = Rwc;
     }
 
-    // Utils::visualize_feature_tracking_results(input_image.second.first.clone(), feature_observes);
+    Utils::visualize_feature_tracking_results(input_image.second[LEFT_CAM].clone(), feature_observes);
     return true;
 }
 
@@ -530,7 +538,7 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>>& 
     }
 
     feature_observes = std::make_pair(ts_sec, cur_features_to_track);
-    // Utils::visualize_feature_tracking_results(input_image.second[LEFT_CAM].clone(), feature_observes);
+    Utils::visualize_feature_tracking_results(input_image.second[LEFT_CAM].clone(), feature_observes);
     is_first_frame_ = false;
     return true;
 }

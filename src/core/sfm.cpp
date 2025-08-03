@@ -241,13 +241,6 @@ bool Sfm::solveFrameByPnp(const std::vector<CameraObs> current_obsv, Pose &curre
     constexpr double kMaxPixelErrorForPnp = 1.0f;
     constexpr uint32_t kMinRequiredFeaturesForPnp = 15;
 
-    double current_timestamp = current_obsv.begin()->ts_sec;
-    if (current_obsv.size() < kMinRequiredFeaturesForPnp)
-    {
-        LOG(INFO) << "Not enough observations to solve frame by PnP";
-        return false;
-    }
-
     std::unordered_map<uint32_t, CameraObs> current_obsv_umap;
     for (auto &obs : current_obsv)
     {
@@ -265,6 +258,12 @@ bool Sfm::solveFrameByPnp(const std::vector<CameraObs> current_obsv, Pose &curre
         Feature &feature = all_features_[point_id];
         corresponding_points.push_back(cv::Point2d(obs.uv.at(LEFT_CAM).x(), obs.uv.at(LEFT_CAM).y()));
         corresponding_points_3d.push_back(cv::Point3d(feature._pwf(0), feature._pwf(1), feature._pwf(2)));
+    }
+
+    if (corresponding_points.size() < kMinRequiredFeaturesForPnp)
+    {
+        LOG(INFO) << "Not enough observations to solve frame by PnP";
+        return false;
     }
 
     // For debug
@@ -291,6 +290,7 @@ bool Sfm::solveFrameByPnp(const std::vector<CameraObs> current_obsv, Pose &curre
     Eigen::Vector3d p_CinG = -R_CtoG * p_GinC;
 
     current_pose = Pose(R_CtoG, p_CinG);
+    double current_timestamp = current_obsv.begin()->ts_sec;
     current_pose.set_ts(current_timestamp);
     return true;
 }
