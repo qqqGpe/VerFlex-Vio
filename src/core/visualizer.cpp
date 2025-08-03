@@ -66,6 +66,13 @@ void Visualizer::PublishVioState(const std::shared_ptr<ImuState>& imu_state)
     transform.transform.translation.z = pose_imu.pose.position.z;
     transform.transform.rotation = pose_imu.pose.orientation;
     tf_broadcaster_.sendTransform(transform);
-
     frame_id_++;
+}
+
+void Visualizer::PublishImageWithFeatures(const double timestamp, const cv::Mat& image_with_features)
+{
+    sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image_with_features).toImageMsg();
+    msg->header.stamp = ros::Time(timestamp);
+    msg->header.frame_id = "global";
+    image_with_features_publisher_.publish(msg);
 }

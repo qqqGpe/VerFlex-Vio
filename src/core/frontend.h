@@ -50,6 +50,11 @@ class VioFrontend
                      const bool do_prediction_flag,
                      std::pair<double, std::vector<CameraObs>>& feature_observes);
 
+    std::pair<double, cv::Mat> getImageWithFeatures() const
+    {
+        return image_with_features_;
+    }
+
     std::vector<uint8_t> TrackFeatures(const cv::Mat image_left,
                                        const cv::Mat image_right,
                                        const Eigen::Matrix3d Rwi,
@@ -75,6 +80,7 @@ class VioFrontend
     uint32_t max_feat_n_;
     uint32_t grid_w_, grid_h_;
     std::shared_ptr<KeyFrameStatus> _keyframe;
+    std::pair<double, cv::Mat> image_with_features_ = {-1, cv::Mat()};  // (ts_sec, image)
     boost::posix_time::ptime frontend_rT, frontend_rT1, frontend_rT2, frontend_rT3, frontend_rT4;
 };
 

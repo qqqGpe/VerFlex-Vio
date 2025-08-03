@@ -53,9 +53,9 @@
                                  -0.019843557956,   0.045368942502,  0.007862124470]
         </rosparam>
 
-        <param name="max_feat_n"                type="int"    value="225" />
-        <param name="grid_w"                    type="int"    value="15" />
-        <param name="grid_h"                    type="int"    value="15" />
+        <param name="max_feat_n"                type="int"    value="384" />
+        <param name="grid_w"                    type="int"    value="24" />
+        <param name="grid_h"                    type="int"    value="16" />
         <param name="max_clone_pose"            type="int"    value="6" />
         <param name="verbosity"                 type="str"    value="$(arg verbosity)" />
         <param name="log_path"                  type="str"    value="$(arg log_path)" />

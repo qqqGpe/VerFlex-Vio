@@ -29,7 +29,10 @@ class Utils
         return true;
     }
 
-    static void visualize_feature_tracking_results(const cv::Mat& image, const std::pair<double, std::vector<CameraObs>>& frame_output, const int wait_key_time_ms = 1)
+    static void visualize_feature_tracking_results(const cv::Mat& image,
+                                                   const std::pair<double, std::vector<CameraObs>>& frame_output,
+                                                   const int wait_key_time_ms = 1,
+                                                   cv::Mat* out_image = nullptr)
     {
         double fr = 11.333;
         double fg = 22.333;
@@ -68,9 +71,14 @@ class Utils
             cv::line(image_to_show, cv::Point(0, y), cv::Point(image_width, y), cv::Scalar(128, 128, 128), 1);
         }
 
-        cv::imshow("feat_to_track", image_to_show);
+        // cv::imshow("feat_to_track", image_to_show);
         // cv::imwrite("/home/gao/ws/catkin_vio_ws/src/vio/figure/feature_to_track.png", image_to_show);
-        cv::waitKey(wait_key_time_ms);
+        // cv::waitKey(wait_key_time_ms);
+
+        if (out_image != nullptr)
+        {
+            *out_image = image_to_show.clone();
+        }
     }
 
     static void show_eigen_matrix(const Eigen::MatrixXd matrix, const std::string win_name)

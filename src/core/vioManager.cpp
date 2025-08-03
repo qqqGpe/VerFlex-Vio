@@ -277,6 +277,12 @@ void VioManager::PublishVioMessages(const double ts_sec)
     {
         Visualizer::getInstance().PublishFeatures(state->ts_sec(), _visual_manager->feat_msckf_);
     }
+
+    std::pair<double, cv::Mat> image_with_features = _visual_manager->vio_frontend->getImageWithFeatures();
+    if (abs(image_with_features.first - ts_sec) < 0.01 && !image_with_features.second.empty())
+    {
+        Visualizer::getInstance().PublishImageWithFeatures(image_with_features.first, image_with_features.second);
+    }
 }
 
 FrameOptions VioManager::CheckMeasurements() const

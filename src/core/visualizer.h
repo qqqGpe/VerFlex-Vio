@@ -38,6 +38,7 @@ public:
         path_publisher_ = nh_->advertise<nav_msgs::Path>("/vio/path", 10, true);
         pose_publisher_ = nh_->advertise<geometry_msgs::PoseStamped>("/vio/pose", 10);
         feature_publisher_ = nh_->advertise<sensor_msgs::PointCloud>("/vio/msckf_points", 1000, true);
+        image_with_features_publisher_ = nh_->advertise<sensor_msgs::Image>("/vio/image_with_features", 10, true);
 
         Eigen::Quaterniond qic(params.Ric[LEFT_CAM]);
         Eigen::Vector3d tic(params.tic[LEFT_CAM]);
@@ -47,6 +48,8 @@ public:
     void PublishVioState(const std::shared_ptr<ImuState>& imu_state);
 
     void PublishFeatures(const double timestamp, const std::vector<Feature*>& features);
+
+    void PublishImageWithFeatures(const double timestamp, const cv::Mat& image_with_features);
 
 private:
     Visualizer() = default;
@@ -72,6 +75,7 @@ private:
     ros::Publisher pose_publisher_;
     ros::Publisher path_publisher_;
     ros::Publisher feature_publisher_;
+    ros::Publisher image_with_features_publisher_;
     nav_msgs::Path path_output;
     tf2_ros::TransformBroadcaster tf_broadcaster_;
     tf2_ros::StaticTransformBroadcaster static_tf_broadcaster_;
