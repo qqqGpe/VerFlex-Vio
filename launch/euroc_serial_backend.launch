@@ -1,24 +1,24 @@
 <launch>
 
     <!-- what config we are going to run (should match folder name) -->
-    <arg name="verbosity"   default="INFO" /> <!-- ALL, DEBUG, INFO, WARNING, ERROR, SILENT -->
-    <arg name="config"      default="euroc_mav" /> <!-- euroc_mav, tum_vi, rpng_aruco, kaist -->
-    <arg name="log_path"    default="$(find vio)/log" />
+    <arg name="verbosity"       default="INFO" /> <!-- ALL, DEBUG, INFO, WARNING, ERROR, SILENT -->
+    <arg name="config"          default="euroc_mav" /> <!-- euroc_mav, tum_vi, rpng_aruco, kaist -->
+    <arg name="log_path"        default="$(find vio)/log" />
 
     <!-- mono or stereo and what ros bag to play -->
-    <arg name="bag_start"   default="0" /> <!-- v1-2: 0, mh1: 40, mh2: 35, mh3: 17.5, mh4-5: 15 -->
-    <arg name="dataset"     default="MH_01_easy" />
+    <arg name="bag_start"       default="0" />
+    <arg name="dataset"         default="MH_01_easy" />
     <!-- <arg name="dataset"     default="MH_02_easy" /> -->
     <!-- <arg name="dataset"     default="MH_03_medium" /> -->
     <!-- <arg name="dataset"     default="MH_04_difficult" /> -->
 
     <!-- <arg name="bag"         default="/media/gao/samsung/dataset/euroc_mav/$(arg dataset).bag" /> -->
     <!-- <arg name="bag"         default="/mnt/d/euroc_mav/MH_01_easy/$(arg dataset).bag" /> -->
-    <arg name="bag_path"         default="/home/gao/dataset/euroc_mav/$(arg dataset).bag" />
+    <arg name="bag_path"        default="/home/gao/dataset/euroc_mav/$(arg dataset).bag" />
 
     <!-- if show rviz -->
-    <arg name="use_rviz"    default="true"/>
-    <node if="$(arg use_rviz)" pkg="rviz" type="rviz" name="rviz" args="-d $(find vio)/rviz/display.rviz"/>
+    <arg name="use_rviz"        default="true"/>
+    <node if="$(arg use_rviz)"  pkg="rviz" type="rviz" name="rviz" args="-d $(find vio)/rviz/display.rviz"/>
 
     <!-- MASTER NODE -->
     <node name="vio" pkg="vio" type="vio_serial_node" output="screen" clear_params="true" required="true">
@@ -36,6 +36,7 @@
         <param name="lazy_time"                 type="double"   value="0.2" />
 
         <!-- bag parameters -->
+        <param name="bag_name"                   type="str"     value="$(arg dataset)" />
         <param name="bag_path"                  type="str"      value="$(arg bag_path)" />
         <param name="bag_start"                 type="double"   value="0" />
         <param name="bag_duration"              type="double"   value="-1" />
@@ -60,26 +61,26 @@
                                  -0.019843557956,   0.045368942502,  0.007862124470]
         </rosparam>
 
-        <param name="max_feat_n"                type="int"    value="225" />
-        <param name="grid_w"                    type="int"    value="15" />
-        <param name="grid_h"                    type="int"    value="15" />
-        <param name="max_clone_pose"            type="int"    value="6" />
-        <param name="verbosity"                 type="str"    value="$(arg verbosity)" />
-        <param name="log_path"                  type="str"    value="$(arg log_path)" />
+        <param name="max_feat_n"                type="int"      value="225" />
+        <param name="grid_w"                    type="int"      value="15" />
+        <param name="grid_h"                    type="int"      value="15" />
+        <param name="max_clone_pose"            type="int"      value="6" />
+        <param name="verbosity"                 type="str"      value="$(arg verbosity)" />
+        <param name="log_path"                  type="str"      value="$(arg log_path)" />
 
         <param name="imu_acc_var_static_thres"  type="double"   value="0.5" />
         <param name="imu_gyro_static_thres"     type="double"   value="0.5" />
         <param name="gravity_magn"              type="double"   value="9.81" />
 
-        <param name="sigma_na"                  type="double" value="2.0000e-2" />
-        <param name="sigma_nw"                  type="double" value="1.6968e-03" />
-        <param name="sigma_ba"                  type="double" value="3.0000e-3" />
-        <param name="sigma_bg"                  type="double" value="1.9393e-03" />
-        <param name="init_td_visual_sigma"      type="double" value="1e-4" />
-        <param name="init_ric_sigma"            type="double" value="1e-3" />
+        <param name="sigma_na"                  type="double"   value="2.0000e-2" />
+        <param name="sigma_nw"                  type="double"   value="1.6968e-03" />
+        <param name="sigma_ba"                  type="double"   value="3.0000e-3" />
+        <param name="sigma_bg"                  type="double"   value="1.9393e-03" />
+        <param name="init_td_visual_sigma"      type="double"   value="1e-4" />
+        <param name="init_ric_sigma"            type="double"   value="1e-3" />
 
         <rosparam param="camera_topic">   ["/cam0/image_raw", "/cam1/image_raw"]   </rosparam>
-        <param name="imu_topic"         type="str"    value="/imu0" />
+        <param name="imu_topic"                 type="str"      value="/imu0" />
 
     </node>
 

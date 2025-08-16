@@ -133,9 +133,9 @@ template <typename Derived>
 class LoggerBase
 {
    public:
-    LoggerBase(const std::string& dirname, const std::string log_type = "default", const bool use_title = true)
+    LoggerBase(const std::string& dirname, const std::string bag_name, const std::string log_type = "default", const bool use_title = true)
     {
-        if (!InitLogFile(dirname, log_type, use_title))
+        if (!InitLogFile(dirname, bag_name, log_type, use_title))
         {
             LOG(ERROR) << "Failed to make logging file";
             std::exit(1);
@@ -151,12 +151,12 @@ class LoggerBase
         *this = std::move(LoggerBase());
     }
 
-    bool InitLogFile(const std::string dirname, const std::string log_type, const bool use_title)
+    bool InitLogFile(const std::string dirname, const std::string bag_name, const std::string log_type, const bool use_title)
     {
         char time_str[100];
         std::time_t now = std::time(nullptr);
         std::strftime(time_str, sizeof(time_str), "%Y-%m-%d_%H-%M-%S", std::localtime(&now));
-        filename_ = dirname + "/" + std::string(time_str) + "_" + log_type + ".csv";
+        filename_ = dirname + "/" + bag_name + "_" + std::string(time_str) + "_" + log_type + ".csv";
 
         Derived value_temp;
         std::string log_title = value_temp.value_name[0];
@@ -189,7 +189,7 @@ class LoggerBase
 class LoggerTUM : public LoggerBase<LogValueTUM>
 {
    public:
-    LoggerTUM(const std::string& dirname) : LoggerBase<LogValueTUM>(dirname, "tum", false) {}
+    LoggerTUM(const std::string& dirname, const std::string& bag_name) : LoggerBase<LogValueTUM>(dirname, bag_name, "tum", false) {}
 
     virtual void SaveValues(const LogValueTUM log_value) const override
     {
@@ -197,14 +197,8 @@ class LoggerTUM : public LoggerBase<LogValueTUM>
         file << std::scientific << std::setprecision(10);
         if (file.is_open())
         {
-            file << log_value.timestamp << " "
-                 << log_value.px << " "
-                 << log_value.py << " "
-                 << log_value.pz << " "
-                 << log_value.qx << " "
-                 << log_value.qy << " "
-                 << log_value.qz << " "
-                 << log_value.qw << "\n";
+            file << log_value.timestamp << " " << log_value.px << " " << log_value.py << " " << log_value.pz << " " << log_value.qx << " "
+                 << log_value.qy << " " << log_value.qz << " " << log_value.qw << "\n";
         }
         else
         {
@@ -218,7 +212,7 @@ class LoggerTUM : public LoggerBase<LogValueTUM>
 class LoggerFull : public LoggerBase<LogValueFull>
 {
    public:
-    LoggerFull(const std::string& dirname) : LoggerBase<LogValueFull>(dirname, "full", true) {}
+    LoggerFull(const std::string& dirname, const std::string& bag_name) : LoggerBase<LogValueFull>(dirname, bag_name, "full", true) {}
 
     virtual void SaveValues(const LogValueFull log_value) const override
     {
@@ -226,45 +220,16 @@ class LoggerFull : public LoggerBase<LogValueFull>
         file << std::scientific << std::setprecision(10);
         if (file.is_open())
         {
-            file << log_value.timestamp << " "
-                 << log_value.px << " "
-                 << log_value.py << " "
-                 << log_value.pz << " "
-                 << log_value.vx << " "
-                 << log_value.vy << " "
-                 << log_value.vz << " "
-                 << log_value.roll << " "
-                 << log_value.pitch << " "
-                 << log_value.yaw << " "
-                 << log_value.bias_acc_x << " "
-                 << log_value.bias_acc_y << " "
-                 << log_value.bias_acc_z << " "
-                 << log_value.bias_gyro_x << " "
-                 << log_value.bias_gyro_y << " "
-                 << log_value.bias_gyro_z << " "
-                 << log_value.sigma_px << " "
-                 << log_value.sigma_py << " "
-                 << log_value.sigma_pz << " "
-                 << log_value.sigma_vx << " "
-                 << log_value.sigma_vy << " "
-                 << log_value.sigma_vz << " "
-                 << log_value.sigma_roll << " "
-                 << log_value.sigma_pitch << " "
-                 << log_value.sigma_yaw << " "
-                 << log_value.sigma_bias_acc_x << " "
-                 << log_value.sigma_bias_acc_y << " "
-                 << log_value.sigma_bias_acc_z << " "
-                 << log_value.sigma_bias_gyro_x << " "
-                 << log_value.sigma_bias_gyro_y << " "
-                 << log_value.sigma_bias_gyro_z << " "
-                 << log_value.visual_updated << " "
-                 << log_value.ZuptUpdated << " "
-                 << log_value.keyframe << " "
-                 << log_value.diff_px << " "
-                 << log_value.diff_py << " "
-                 << log_value.diff_pz << " "
-                 << log_value.init_vnorm << " "
-                 << log_value.groundtruth_vnorm << std::endl;
+            file << log_value.timestamp << " " << log_value.px << " " << log_value.py << " " << log_value.pz << " " << log_value.vx << " "
+                 << log_value.vy << " " << log_value.vz << " " << log_value.roll << " " << log_value.pitch << " " << log_value.yaw << " "
+                 << log_value.bias_acc_x << " " << log_value.bias_acc_y << " " << log_value.bias_acc_z << " " << log_value.bias_gyro_x << " "
+                 << log_value.bias_gyro_y << " " << log_value.bias_gyro_z << " " << log_value.sigma_px << " " << log_value.sigma_py << " "
+                 << log_value.sigma_pz << " " << log_value.sigma_vx << " " << log_value.sigma_vy << " " << log_value.sigma_vz << " "
+                 << log_value.sigma_roll << " " << log_value.sigma_pitch << " " << log_value.sigma_yaw << " " << log_value.sigma_bias_acc_x << " "
+                 << log_value.sigma_bias_acc_y << " " << log_value.sigma_bias_acc_z << " " << log_value.sigma_bias_gyro_x << " "
+                 << log_value.sigma_bias_gyro_y << " " << log_value.sigma_bias_gyro_z << " " << log_value.visual_updated << " "
+                 << log_value.ZuptUpdated << " " << log_value.keyframe << " " << log_value.diff_px << " " << log_value.diff_py << " "
+                 << log_value.diff_pz << " " << log_value.init_vnorm << " " << log_value.groundtruth_vnorm << std::endl;
             // last_log_value = log_value;  // backup current log value
         }
         else

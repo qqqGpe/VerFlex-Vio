@@ -32,6 +32,7 @@ public:
         _nh->param<int>("grid_w", grid_w, 15);
         _nh->param<int>("grid_h", grid_h, 15);
         _nh->param<int>("max_clone_pose", max_clone_pose, 6);
+        _nh->param<std::string>("bag_name", bag_name, "");
         _nh->param<std::string>("log_path", log_path, "");
         _nh->param<std::string>("bag_path", bag_path, "");
         _nh->param<std::string>("imu_topic", imu_topic, "");
@@ -109,6 +110,7 @@ public:
     std::string log_path;
     std::string bag_path;
     std::string imu_topic;
+    std::string bag_name;
     std::vector<std::string> camera_topic;
 
     std::vector<Eigen::Matrix3d> intrinsics;
