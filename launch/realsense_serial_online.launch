@@ -3,6 +3,8 @@
     <!-- what config we are going to run (should match folder name) -->
     <arg name="verbosity"   default="INFO" /> <!-- ALL, DEBUG, INFO, WARNING, ERROR, SILENT -->
     <arg name="log_path"    default="$(find vio)/log" />
+    <arg name="save_full_log"   default="true" />
+    <arg name="save_tum_log"    default="true" />
 
     <!-- if show rviz -->
     <arg name="use_rviz"    default="true"/>
@@ -15,6 +17,8 @@
         <param name="set_init_timestamp_to_zero" type="bool"    value="true" />
         <param name="use_multi_thread"          type="bool"     value="false" />
         <param name="log_level"                 type="int"      value="0" /> <!-- 0: info, 1: warning, 2: error, 3: fatal -->
+        <param name="save_full_log"             type="bool"     value="$(arg save_full_log)" />
+        <param name="save_tum_log"              type="bool"     value="$(arg save_tum_log)" />
         <param name="solver_type"               type="int"      value="1" /> <!-- 0: eskf_solver, 1: sqrt_root_eskf_solver -->
         <param name="initial_type"              type="int"      value="1" /> <!-- 0: static initialization, 1: dynamic initialization -->
         <param name="estimate_ric"              type="bool"     value="true" />

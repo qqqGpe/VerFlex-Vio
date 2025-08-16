@@ -30,7 +30,6 @@ enum class FrameOptions
     kSkipFrame = 3
 };
 
-
 class VioManager
 {
    public:
@@ -62,10 +61,16 @@ class VioManager
             initializer = std::make_shared<DynamicInitializer>(params, _visual_manager, state);
         }
 
-        // initializer = std::make_shared<Initializer>(params, _visual_manager, state);
-        // dynamic_initializer = std::make_unique<DynamicInitializer>(params, _visual_manager, state);
-        vio_logger = std::make_shared<utils::LoggerFull>(params.log_path, params.bag_name);
-        vio_logger_tum = std::make_shared<utils::LoggerTUM>(params.log_path, params.bag_name);
+        if (params.save_full_log)
+        {
+            vio_logger = std::make_shared<utils::LoggerFull>(params.log_path, params.bag_name);
+        }
+
+        if (params.save_tum_log)
+        {
+            vio_logger_tum = std::make_shared<utils::LoggerTUM>(params.log_path, params.bag_name);
+        }
+
         lazy_time_ = params.lazy_time;
         use_zupt_ = params.use_zupt;
 

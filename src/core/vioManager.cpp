@@ -417,61 +417,66 @@ void VioManager::ProcessMeasurementOnce()
 
 void VioManager::SaveResultsToFile()
 {
-    utils::LogValueFull log_value;
-    utils::LogValueTUM log_value_tum;
+    if (params_.save_full_log)
+    {
+        utils::LogValueFull log_value;
+        log_value.timestamp = state->_imu_state->ts();
+        log_value.px = state->_imu_state->p()->vec().x();
+        log_value.py = state->_imu_state->p()->vec().y();
+        log_value.pz = state->_imu_state->p()->vec().z();
+        log_value.vx = state->_imu_state->v()->vec().x();
+        log_value.vy = state->_imu_state->v()->vec().y();
+        log_value.vz = state->_imu_state->v()->vec().z();
 
-    log_value.timestamp = state->_imu_state->ts();
-    log_value.px = state->_imu_state->p()->vec().x();
-    log_value.py = state->_imu_state->p()->vec().y();
-    log_value.pz = state->_imu_state->p()->vec().z();
-    log_value.vx = state->_imu_state->v()->vec().x();
-    log_value.vy = state->_imu_state->v()->vec().y();
-    log_value.vz = state->_imu_state->v()->vec().z();
+        Eigen::Vector3d euler_angle = MathUtils::R2rpy(state->_imu_state->q()->Rot()) * RAD2DEG;
+        log_value.roll = euler_angle.x();
+        log_value.pitch = euler_angle.y();
+        log_value.yaw = euler_angle.z();
 
-    Eigen::Vector3d euler_angle = MathUtils::R2rpy(state->_imu_state->q()->Rot()) * RAD2DEG;
-    log_value.roll = euler_angle.x();
-    log_value.pitch = euler_angle.y();
-    log_value.yaw = euler_angle.z();
+        log_value.bias_gyro_x = state->_imu_state->bg()->vec().x();
+        log_value.bias_gyro_y = state->_imu_state->bg()->vec().y();
+        log_value.bias_gyro_z = state->_imu_state->bg()->vec().z();
 
-    log_value.bias_gyro_x = state->_imu_state->bg()->vec().x();
-    log_value.bias_gyro_y = state->_imu_state->bg()->vec().y();
-    log_value.bias_gyro_z = state->_imu_state->bg()->vec().z();
+        log_value.bias_acc_x = state->_imu_state->ba()->vec().x();
+        log_value.bias_acc_y = state->_imu_state->ba()->vec().y();
+        log_value.bias_acc_z = state->_imu_state->ba()->vec().z();
 
-    log_value.bias_acc_x = state->_imu_state->ba()->vec().x();
-    log_value.bias_acc_y = state->_imu_state->ba()->vec().y();
-    log_value.bias_acc_z = state->_imu_state->ba()->vec().z();
+        log_value.sigma_px = std::sqrt(state->Covariance()(state->_imu_state->p()->id(), state->_imu_state->p()->id()));
+        log_value.sigma_py = std::sqrt(state->Covariance()(state->_imu_state->p()->id() + 1, state->_imu_state->p()->id() + 1));
+        log_value.sigma_pz = std::sqrt(state->Covariance()(state->_imu_state->p()->id() + 2, state->_imu_state->p()->id() + 2));
 
-    log_value.sigma_px = std::sqrt(state->Covariance()(state->_imu_state->p()->id(), state->_imu_state->p()->id()));
-    log_value.sigma_py = std::sqrt(state->Covariance()(state->_imu_state->p()->id() + 1, state->_imu_state->p()->id() + 1));
-    log_value.sigma_pz = std::sqrt(state->Covariance()(state->_imu_state->p()->id() + 2, state->_imu_state->p()->id() + 2));
+        log_value.sigma_vx = std::sqrt(state->Covariance()(state->_imu_state->v()->id(), state->_imu_state->v()->id()));
+        log_value.sigma_vy = std::sqrt(state->Covariance()(state->_imu_state->v()->id() + 1, state->_imu_state->v()->id() + 1));
+        log_value.sigma_vz = std::sqrt(state->Covariance()(state->_imu_state->v()->id() + 2, state->_imu_state->v()->id() + 2));
 
-    log_value.sigma_vx = std::sqrt(state->Covariance()(state->_imu_state->v()->id(), state->_imu_state->v()->id()));
-    log_value.sigma_vy = std::sqrt(state->Covariance()(state->_imu_state->v()->id() + 1, state->_imu_state->v()->id() + 1));
-    log_value.sigma_vz = std::sqrt(state->Covariance()(state->_imu_state->v()->id() + 2, state->_imu_state->v()->id() + 2));
+        log_value.sigma_bias_acc_x = std::sqrt(state->Covariance()(state->_imu_state->ba()->id(), state->_imu_state->ba()->id()));
+        log_value.sigma_bias_acc_y = std::sqrt(state->Covariance()(state->_imu_state->ba()->id() + 1, state->_imu_state->ba()->id() + 1));
+        log_value.sigma_bias_acc_z = std::sqrt(state->Covariance()(state->_imu_state->ba()->id() + 2, state->_imu_state->ba()->id() + 2));
 
-    log_value.sigma_bias_acc_x = std::sqrt(state->Covariance()(state->_imu_state->ba()->id(), state->_imu_state->ba()->id()));
-    log_value.sigma_bias_acc_y = std::sqrt(state->Covariance()(state->_imu_state->ba()->id() + 1, state->_imu_state->ba()->id() + 1));
-    log_value.sigma_bias_acc_z = std::sqrt(state->Covariance()(state->_imu_state->ba()->id() + 2, state->_imu_state->ba()->id() + 2));
+        log_value.sigma_bias_gyro_x = std::sqrt(state->Covariance()(state->_imu_state->bg()->id(), state->_imu_state->bg()->id()));
+        log_value.sigma_bias_gyro_y = std::sqrt(state->Covariance()(state->_imu_state->bg()->id() + 1, state->_imu_state->bg()->id() + 1));
+        log_value.sigma_bias_gyro_z = std::sqrt(state->Covariance()(state->_imu_state->bg()->id() + 2, state->_imu_state->bg()->id() + 2));
 
-    log_value.sigma_bias_gyro_x = std::sqrt(state->Covariance()(state->_imu_state->bg()->id(), state->_imu_state->bg()->id()));
-    log_value.sigma_bias_gyro_y = std::sqrt(state->Covariance()(state->_imu_state->bg()->id() + 1, state->_imu_state->bg()->id() + 1));
-    log_value.sigma_bias_gyro_z = std::sqrt(state->Covariance()(state->_imu_state->bg()->id() + 2, state->_imu_state->bg()->id() + 2));
-
-    log_value.visual_updated = visual_updated_this_tick_;
-    log_value.ZuptUpdated = zupt_updated_this_tick_;
-    log_value.keyframe = int(_visual_manager->GetKeyframeState());
-    vio_logger->SaveValues(log_value);
+        log_value.visual_updated = visual_updated_this_tick_;
+        log_value.ZuptUpdated = zupt_updated_this_tick_;
+        log_value.keyframe = int(_visual_manager->GetKeyframeState());
+        vio_logger->SaveValues(log_value);
+    }
 
     /* Assign extracted log values in TUM format */
-    log_value_tum.timestamp = state->_imu_state->ts();
-    log_value_tum.px = state->_imu_state->p()->vec().x();
-    log_value_tum.py = state->_imu_state->p()->vec().y();
-    log_value_tum.pz = state->_imu_state->p()->vec().z();
-    log_value_tum.qw = state->_imu_state->q()->q().w();
-    log_value_tum.qx = state->_imu_state->q()->q().x();
-    log_value_tum.qy = state->_imu_state->q()->q().y();
-    log_value_tum.qz = state->_imu_state->q()->q().z();
-    vio_logger_tum->SaveValues(log_value_tum);
+    if (params_.save_tum_log)
+    {
+        utils::LogValueTUM log_value_tum;
+        log_value_tum.timestamp = state->_imu_state->ts();
+        log_value_tum.px = state->_imu_state->p()->vec().x();
+        log_value_tum.py = state->_imu_state->p()->vec().y();
+        log_value_tum.pz = state->_imu_state->p()->vec().z();
+        log_value_tum.qw = state->_imu_state->q()->q().w();
+        log_value_tum.qx = state->_imu_state->q()->q().x();
+        log_value_tum.qy = state->_imu_state->q()->q().y();
+        log_value_tum.qz = state->_imu_state->q()->q().z();
+        vio_logger_tum->SaveValues(log_value_tum);
+    }
 }
 
 void VioManager::GroundTruthCallback(const geometry_msgs::PointStamped::ConstPtr& msg)
