@@ -31,6 +31,7 @@
         <param name="camera_num"                type="int"      value="1" />
         <param name="img_width"                 type="int"      value="848" />
         <param name="img_height"                type="int"      value="480" />
+        <param name="use_census_transform"      type="bool"     value="true" />
         <rosparam param="intrinsic_cam_0">      [423.59347, 423.91452, 422.03551, 240.26751]                    </rosparam>
         <rosparam param="distortion_cam_0">     [-0.005363, 0.002265, 0.000558, 0.001094]                       </rosparam>
         <rosparam param="intrinsic_cam_1">      [421.2098, 421.01239, 424.5559, 240.56092]                      </rosparam>

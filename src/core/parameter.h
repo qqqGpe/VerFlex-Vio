@@ -33,6 +33,7 @@ public:
         _nh->param<int>("max_feat_n", max_feat_n, 225);
         _nh->param<int>("grid_w", grid_w, 15);
         _nh->param<int>("grid_h", grid_h, 15);
+        _nh->param<bool>("use_census_transform", use_census_transform, true);
         _nh->param<int>("max_clone_pose", max_clone_pose, 6);
         _nh->param<std::string>("bag_name", bag_name, "");
         _nh->param<std::string>("log_path", log_path, "");
@@ -87,6 +88,7 @@ public:
     bool frontend_prediction = false;
     bool save_full_log = true;
     bool save_tum_log = true;
+    bool use_census_transform = true;
 
     int running_rate; // Hz
     int log_level = 2;

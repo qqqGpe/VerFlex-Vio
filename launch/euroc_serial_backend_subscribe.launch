@@ -12,6 +12,7 @@
     <!-- <arg name="dataset"     default="MH_02_easy" /> -->
     <!-- <arg name="dataset"     default="MH_03_medium" /> -->
     <!-- <arg name="dataset"     default="MH_04_difficult" /> -->
+    <!-- <arg name="dataset"     default="MH_05_difficult" /> -->
 
     <arg name="bag_path"    default="/home/gao/dataset/euroc_mav/$(arg dataset).bag" />
     <arg name="bag_start"   default="0" /> <!-- v1-2: 0, mh1: 40, mh2: 35, mh3: 17.5, mh4-5: 15 -->
@@ -42,6 +43,7 @@
         <param name="camera_num"                type="int"      value="2" />
         <param name="img_width"                 type="int"      value="752" />
         <param name="img_height"                type="int"      value="480" />
+        <param name="use_census_transform"      type="bool"     value="true" />
         <rosparam param="intrinsic_cam_0">      [458.654, 457.296, 367.215, 248.375]                    </rosparam>
         <rosparam param="distortion_cam_0">     [-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05]   </rosparam>
         <rosparam param="intrinsic_cam_1">      [457.587, 456.134, 379.999, 255.238]                    </rosparam>

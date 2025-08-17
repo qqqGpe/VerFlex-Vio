@@ -69,6 +69,61 @@ void EpipolarRansac(const std::vector<cv::Point2f> points_prev,
     }
 }
 
+uint8_t VioFrontend::ComputeCensusByte(const cv::Mat& image, int x, int y)
+{
+    uint8_t census = 0;
+    const int center = image.at<uint8_t>(y, x);
+
+    // Compare center pixel with its 8 neighbors in a 3x3 window
+    int bit = 0;
+    for (int dy = -1; dy <= 1; dy++)
+    {
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            if (dx == 0 && dy == 0)
+            {
+                continue;  // Skip center pixel
+            }
+
+            int nx = x + dx;
+            int ny = y + dy;
+
+            // Check if neighbor is within image bounds
+            if (nx >= 0 && nx < image.cols && ny >= 0 && ny < image.rows)
+            {
+                // Set bit to 1 if neighbor pixel is darker than center
+                if (image.at<uint8_t>(ny, nx) < center)
+                {
+                    census |= (1 << bit);
+                }
+            }
+            bit++;
+        }
+    }
+    return census;
+}
+
+cv::Mat VioFrontend::ComputeCensusTransform(const cv::Mat& input)
+{
+    // Ensure input is grayscale
+    CV_Assert(input.type() == CV_8UC1);
+
+    // Initialize output census image
+    cv::Mat census = cv::Mat::zeros(input.size(), CV_8UC1);
+
+    // Process all pixels except border
+    // Since we need 3x3 window, skip first and last row/column
+    for (int y = 1; y < input.rows - 1; y++)
+    {
+        for (int x = 1; x < input.cols - 1; x++)
+        {
+            census.at<uint8_t>(y, x) = ComputeCensusByte(input, x, y);
+        }
+    }
+
+    return census;
+}
+
 VioFrontend::status_t VioFrontend::MonoCheckEpipolarLine(const std::vector<CameraObs>& obs_prev,
                                                          const std::vector<CameraObs>& obs_curr,
                                                          std::vector<uint8_t>& inliers)
@@ -108,6 +163,7 @@ std::vector<uint8_t> VioFrontend::TrackFeatures(const cv::Mat image_left,
                                                 const Eigen::Matrix3d Rwj,
                                                 const bool is_stereo_tracking,
                                                 const bool do_prediction_flag,
+                                                const bool use_census_transform,
                                                 const std::vector<cv::Point2f> pts_to_track,
                                                 std::vector<cv::Point2f>& pts_tracked)
 {
@@ -117,6 +173,18 @@ std::vector<uint8_t> VioFrontend::TrackFeatures(const cv::Mat image_left,
     std::vector<uchar> forward_status, backward_status;
     std::vector<cv::Point2f> reverse_pts;
     std::vector<float> err;
+
+    cv::Mat image_left_gray, image_right_gray;
+    if (use_census_transform)
+    {
+        image_left_gray = ComputeCensusTransform(image_left);
+        image_right_gray = ComputeCensusTransform(image_right);
+    }
+    else
+    {
+        image_left_gray = image_left.clone();
+        image_left_gray = image_right.clone();
+    }
 
     if (pts_to_track.empty())
     {
@@ -138,15 +206,15 @@ std::vector<uint8_t> VioFrontend::TrackFeatures(const cv::Mat image_left,
         cv::Mat H_cv;
         cv::eigen2cv(H_eigen, H_cv);
         cv::Mat image_right_warped;
-        cv::warpPerspective(image_right, image_right_warped, H_cv, image_right.size(), cv::INTER_LINEAR, cv::BORDER_CONSTANT);
+        cv::warpPerspective(image_right_gray, image_right_warped, H_cv, image_right_gray.size(), cv::INTER_LINEAR, cv::BORDER_CONSTANT);
 
         // forward tracking
-        cv::calcOpticalFlowPyrLK(image_left, image_right_warped, pts_to_track, pts_tracked, forward_status, err, cv::Size(21, 21), 4,
+        cv::calcOpticalFlowPyrLK(image_left_gray, image_right_warped, pts_to_track, pts_tracked, forward_status, err, cv::Size(21, 21), 4,
                                  cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01));
 
         // backward tracking
         reverse_pts = pts_tracked;
-        cv::calcOpticalFlowPyrLK(image_right_warped, image_left, pts_tracked, reverse_pts, backward_status, err, cv::Size(21, 21), 4,
+        cv::calcOpticalFlowPyrLK(image_right_warped, image_left_gray, pts_tracked, reverse_pts, backward_status, err, cv::Size(21, 21), 4,
                                  cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
 
         cv::perspectiveTransform(pts_tracked, pts_tracked, H_cv.inv()); // Remember to devide point.z
@@ -154,11 +222,11 @@ std::vector<uint8_t> VioFrontend::TrackFeatures(const cv::Mat image_left,
     else
     {
         // forward tracking
-        cv::calcOpticalFlowPyrLK(image_left, image_right, pts_to_track, pts_tracked, forward_status, err);
+        cv::calcOpticalFlowPyrLK(image_left_gray, image_right_gray, pts_to_track, pts_tracked, forward_status, err);
 
         // backward tracking
         reverse_pts = pts_tracked;
-        cv::calcOpticalFlowPyrLK(image_right, image_left, pts_tracked, reverse_pts, backward_status, err, cv::Size(21, 21), 4,
+        cv::calcOpticalFlowPyrLK(image_right_gray, image_left_gray, pts_tracked, reverse_pts, backward_status, err, cv::Size(21, 21), 4,
                                  cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
     }
 
@@ -224,7 +292,8 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::vector<cv::Mat>>& inp
         // step1: track previous left-cam visual points to current left-cam visual points
         std::vector<cv::Point2f> prev_l_to_cur_l_tracked;
         std::unordered_map<uint32_t, cv::Point2d> prev_l_to_cur_l_tracked_umap;
-        auto pre_left_to_cur_left_status = TrackFeatures(prev_image_left, cur_image_left, R_ref, Rwc, false, do_prediction_flag, prev_left_pts, prev_l_to_cur_l_tracked);
+        auto pre_left_to_cur_left_status = TrackFeatures(prev_image_left, cur_image_left, R_ref, Rwc, false, do_prediction_flag,
+                                                         use_census_transform_, prev_left_pts, prev_l_to_cur_l_tracked);
         int idx = 0;
         std::vector<uint32_t>::iterator id_iter = obs_ids.begin();
         for (auto it = prev_l_to_cur_l_tracked.begin(); it != prev_l_to_cur_l_tracked.end(); idx++)
@@ -244,8 +313,8 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::vector<cv::Mat>>& inp
         std::vector<cv::Point2f> cur_l_to_cur_r_tracked;
         std::unordered_map<uint32_t, cv::Point2d> cur_l_to_cur_r_tracked_umap;
         Eigen::Matrix3d I3x3 = Eigen::Matrix3d::Identity();
-        auto cur_left_to_cur_right_status =
-            TrackFeatures(cur_image_left, cur_image_right, I3x3, I3x3, true, false, prev_l_to_cur_l_tracked, cur_l_to_cur_r_tracked);
+        auto cur_left_to_cur_right_status = TrackFeatures(cur_image_left, cur_image_right, I3x3, I3x3, true, false, use_census_transform_,
+                                                          prev_l_to_cur_l_tracked, cur_l_to_cur_r_tracked);
         idx = 0;
         id_iter = obs_ids.begin();
         for (auto it = cur_l_to_cur_r_tracked.begin(); it != cur_l_to_cur_r_tracked.end(); idx++)
@@ -266,8 +335,8 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::vector<cv::Mat>>& inp
         std::unordered_map<uint32_t, cv::Point2d> cur_r_to_pre_r_pts_tracked_umap;
         Eigen::Matrix3d Rwr_cur = Rwc * CamModel::getInstance().Rlr();
         Eigen::Matrix3d Rwr_prev = R_ref * CamModel::getInstance().Rlr();
-        auto cur_right_to_prev_right_status =
-            TrackFeatures(cur_image_right, prev_image_right, Rwr_cur, Rwr_prev, false, do_prediction_flag, cur_l_to_cur_r_tracked, cur_r_to_pre_r_pts_tracked);
+        auto cur_right_to_prev_right_status = TrackFeatures(cur_image_right, prev_image_right, Rwr_cur, Rwr_prev, false, do_prediction_flag,
+                                                            use_census_transform_, cur_l_to_cur_r_tracked, cur_r_to_pre_r_pts_tracked);
         idx = 0;
         id_iter = obs_ids.begin();
         for (auto it = cur_r_to_pre_r_pts_tracked.begin(); it != cur_r_to_pre_r_pts_tracked.end(); idx++)
@@ -339,7 +408,7 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::vector<cv::Mat>>& inp
         std::vector<CameraObs> cur_stereo_ok_features;
         cv::goodFeaturesToTrack(cur_image_left, harris_new, max_feat_n_, 0.01, 20);
         Eigen::Matrix3d I3x3 = Eigen::Matrix3d::Identity();
-        auto status = TrackFeatures(cur_image_left, cur_image_right, I3x3, I3x3, true, false, harris_new, harris_tracked);
+        auto status = TrackFeatures(cur_image_left, cur_image_right, I3x3, I3x3, true, false, use_census_transform_, harris_new, harris_tracked);
         for (int i = 0; i < status.size(); i++)
         {
             if (status[i] == true)
@@ -429,7 +498,8 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>>& 
         }
 
         // Circular track
-        std::vector<uint8_t> status = TrackFeatures(ref_frame.second, cur_frame.second, R_ref, Rwc, false, do_prediction_flag, prev_pts, curr_pts);
+        std::vector<uint8_t> status =
+            TrackFeatures(ref_frame.second, cur_frame.second, R_ref, Rwc, false, do_prediction_flag, use_census_transform_, prev_pts, curr_pts);
 
         for (int i = 0; i < status.size(); i++)
         {

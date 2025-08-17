@@ -34,6 +34,7 @@ class VioFrontend
         grid_w_ = params.grid_w;
         grid_h_ = params.grid_h;
         _keyframe = keyframe;
+        use_census_transform_ = params.use_census_transform;
         do_prediction_ = params.frontend_prediction;
         ref_features_to_track_.resize(max_feat_n_, CameraObs());
     }
@@ -50,10 +51,9 @@ class VioFrontend
                      const bool do_prediction_flag,
                      std::pair<double, std::vector<CameraObs>>& feature_observes);
 
-    std::pair<double, cv::Mat> getImageWithFeatures() const
-    {
-        return image_with_features_;
-    }
+    static cv::Mat ComputeCensusTransform(const cv::Mat& input);
+
+    std::pair<double, cv::Mat> getImageWithFeatures() const { return image_with_features_; }
 
     std::vector<uint8_t> TrackFeatures(const cv::Mat image_left,
                                        const cv::Mat image_right,
@@ -61,6 +61,7 @@ class VioFrontend
                                        const Eigen::Matrix3d Rwj,
                                        const bool is_stereo_tracking,
                                        const bool do_prediction_flag,
+                                       const bool use_census_transform,
                                        const std::vector<cv::Point2f> pts_to_track,
                                        std::vector<cv::Point2f>& pts_tracked);
 
@@ -72,6 +73,10 @@ class VioFrontend
     Eigen::Matrix3d R_ref = Eigen::Matrix3d::Identity();  // Rotation of the reference frame
 
    private:
+
+    static uint8_t ComputeCensusByte(const cv::Mat& image, int x, int y);
+
+    bool use_census_transform_ = true;
     bool is_first_frame_ = true;
     bool do_prediction_ = false;
     uint32_t frame_id = 0;

@@ -9,10 +9,11 @@
 
     <!-- mono or stereo and what ros bag to play -->
     <arg name="bag_start"       default="0" />
-    <arg name="dataset"         default="MH_01_easy" />
+    <!-- <arg name="dataset"         default="MH_01_easy" /> -->
     <!-- <arg name="dataset"     default="MH_02_easy" /> -->
     <!-- <arg name="dataset"     default="MH_03_medium" /> -->
     <!-- <arg name="dataset"     default="MH_04_difficult" /> -->
+    <arg name="dataset"     default="MH_05_difficult" />
 
     <!-- <arg name="bag"         default="/media/gao/samsung/dataset/euroc_mav/$(arg dataset).bag" /> -->
     <!-- <arg name="bag"         default="/mnt/d/euroc_mav/MH_01_easy/$(arg dataset).bag" /> -->
@@ -46,9 +47,10 @@
         <param name="bag_duration"              type="double"   value="-1" />
 
         <!-- Camera configuration -->
-        <param name="camera_num"                type="int"      value="2" />
+        <param name="camera_num"                type="int"      value="1" />
         <param name="img_width"                 type="int"      value="752" />
         <param name="img_height"                type="int"      value="480" />
+        <param name="use_census_transform"      type="bool"     value="true" />
         <rosparam param="intrinsic_cam_0">      [458.654, 457.296, 367.215, 248.375]                    </rosparam>
         <rosparam param="distortion_cam_0">     [-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05]   </rosparam>
         <rosparam param="intrinsic_cam_1">      [457.587, 456.134, 379.999, 255.238]                    </rosparam>

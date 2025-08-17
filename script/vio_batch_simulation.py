@@ -88,11 +88,11 @@ if __name__ == "__main__":
     source_cmd = "source " + os.path.join(vio_dir, "devel/setup.zsh")
     subprocess.run(source_cmd, shell=True, executable="/bin/zsh")
 
-    # # 依次处理每个rosbag
+    # 依次处理每个rosbag
     for rosbag_file in rosbags:
         print(f"\n=== Processing rosbag: {rosbag_file} ===")
         run_slam_and_rosbag(rosbag_file, ros_node_name, roslaunch_name, log_dir)
         print(f"=== Finished processing {rosbag_file} ===\n")
 
-        #     # 短暂暂停，确保系统完全清理
+        # 短暂暂停，确保系统完全清理
         time.sleep(2)
