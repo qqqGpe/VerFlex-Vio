@@ -267,17 +267,17 @@ bool Sfm::solveFrameByPnp(const std::vector<CameraObs> current_obsv, Pose &curre
     }
 
     // For debug
-    // std::cout << cv::format("origin obv: %d", current_obsv.size()) << std::endl;
-    // std::cout << cv::format("corresponding_point: %d", corresponding_points.size()) << std::endl;
-    // std::cout << cv::format("corresponding_points_3d: %d", corresponding_points_3d.size()) << std::endl;
+    // std::cout << cv::format("origin obv: %zu", current_obsv.size()) << std::endl;
+    std::cout << fmt::format("corresponding_point: {}", corresponding_points.size()) << std::endl;
+    std::cout << fmt::format("corresponding_points_3d: {}", corresponding_points_3d.size()) << std::endl;
     cv::Mat K_cv;
     cv::Mat rvec, tvec;
     Eigen::Matrix3d K = CamModel::getInstance().K(LEFT_CAM);
     cv::eigen2cv(K, K_cv);
     cv::Mat dist_coeffs = cv::Mat::zeros(4, 1, CV_64F);
     // cv::solvePnP(corresponding_points_3d, corresponding_points, K, dist_coeffs, rvec, tvec); // R_wtoc, p_winc
-    cv::solvePnPRansac(corresponding_points_3d, corresponding_points, K_cv, dist_coeffs, rvec, tvec,
-                             false, 100, kMaxPixelErrorForPnp, 0.9); // R_wtoc, p_winc
+    cv::solvePnPRansac(corresponding_points_3d, corresponding_points, K_cv, dist_coeffs, rvec, tvec, false, 100, kMaxPixelErrorForPnp,
+                       0.9);  // R_wtoc, p_winc
 
     cv::Mat R_GtoC_cv;
     cv::Rodrigues(rvec, R_GtoC_cv);

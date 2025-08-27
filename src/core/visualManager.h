@@ -21,7 +21,7 @@ class VisualManager
 {
    public:
    static constexpr uint32_t kMaxFeatureForUpdate = 40;
-   static constexpr uint32_t kMinFeatureForUpdate = 10;
+   static constexpr uint32_t kMinFeatureForUpdate = 5;
 
     VisualManager() = default;
     ~VisualManager()

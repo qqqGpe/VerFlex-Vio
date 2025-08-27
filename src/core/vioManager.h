@@ -125,7 +125,6 @@ class VioManager
     double lazy_time_ = 0.2; // In seconds
     std::shared_ptr<State> state;
     std::shared_ptr<Initializer> initializer;
-    // std::unique_ptr<DynamicInitializer> dynamic_initializer;
     std::shared_ptr<ImuManager> _imu_manager;
     std::shared_ptr<VisualManager> _visual_manager;
     std::shared_ptr<utils::LoggerFull> vio_logger;

@@ -32,13 +32,12 @@ bool VisualManager::VisualUpdate()
 
     feat_msckf_ = SelectMsckfFeatures(feature_tracked_);
 
-    // if (feat_msckf.size() > kMinFeatToUpdate)
-    // {
-    //     int msckf_feature_num_before_pnp = feat_msckf.size();
-    //     PnpRansacToRejectOutliers(feat_msckf);
-    //     int msckf_feature_num_after_pnp = feat_msckf.size();
-    //     std::cout << "pnp reject outliers: " << msckf_feature_num_before_pnp - msckf_feature_num_after_pnp << std::endl;
-    // }
+    if (param_.use_pnp_ransac && feat_msckf_.size() > kMinFeatureForUpdate)
+    {
+        int msckf_feature_num_before_pnp = feat_msckf_.size();
+        PnpRansacToRejectOutliers(feat_msckf_);
+        int msckf_feature_num_after_pnp = feat_msckf_.size();
+    }
 
 #if SHOW_CLONE_POSES
     constexpr double fr = 11.333;
@@ -424,18 +423,18 @@ bool VisualManager::least_square_triangulation(const std::map<double, CameraPose
     if (std::abs(condA) > kMaxConditionNum || paf(2, 0) < kMinTriangDist || paf(2, 0) > kMaxTriangDist || std::isnan(paf.norm()))
     {
         triang_failed_num++;
-        // if (std::abs(condA) > kMaxConditionNum)
-        // {
-        //     std::cout << cv::format("condition num [%f] > [%f]", condA, kMaxConditionNum) << std::endl;
-        // }
-        // else if (paf(2, 0) < kMinTriangDist || paf(2, 0) > kMaxTriangDist)
-        // {
-        //     std::cout << "paf is out of range" <<  paf.transpose() << std::endl;
-        // }
-        // else if (std::isnan(paf.norm()))
-        // {
-        //     std::cout << "paf is nan" << std::endl;
-        // }
+        if (std::abs(condA) > kMaxConditionNum)
+        {
+            // std::cout << cv::format("condition num [%f] > [%f]", condA, kMaxConditionNum) << std::endl;
+        }
+        else if (paf(2, 0) < kMinTriangDist || paf(2, 0) > kMaxTriangDist)
+        {
+            std::cout << "paf is out of range" <<  paf.transpose() << std::endl;
+        }
+        else if (std::isnan(paf.norm()))
+        {
+            std::cout << "paf is nan" << std::endl;
+        }
         return false;
     }
 
@@ -535,11 +534,15 @@ bool VisualManager::GaussianNewtonOptimization(const std::map<double, CameraPose
     paf_opt << alpha / rho, beta / rho, 1 / rho;
     feat->_pwf = p_AinG + R_AtoG * paf_opt;
 
-    if (paf_opt.norm() > 30 || iter_time == kMaxIterationTimes)
+    if (paf_opt.norm() > 30 || paf_opt.z() < 0 ||iter_time == kMaxIterationTimes)
     {
         if (paf_opt.norm() > 30)
         {
             std::cout << "paf_opt is too large, paf norm: " << paf_opt.norm() << std::endl;
+        }
+        else if (paf_opt.z() < 0)
+        {
+            std::cout << "paf_opt z is negative, paf z: " << paf_opt.z() << std::endl;
         }
         else if (iter_time == kMaxIterationTimes)
         {

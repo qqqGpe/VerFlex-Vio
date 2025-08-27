@@ -23,6 +23,7 @@ public:
         _nh->param<int>("log_level", log_level, 2);
         _nh->param<bool>("save_full_log", save_full_log, true);
         _nh->param<bool>("save_tum_log", save_tum_log, true);
+        _nh->param<bool>("use_pnp_ransac", use_pnp_ransac, true);
         _nh->param<int>("camera_num", camera_num, 1);
         _nh->param<int>("running_rate", running_rate, 20);
         _nh->param<double>("lazy_time", lazy_time, 0.2);
@@ -89,6 +90,7 @@ public:
     bool save_full_log = true;
     bool save_tum_log = true;
     bool use_census_transform = true;
+    bool use_pnp_ransac = true;
 
     int running_rate; // Hz
     int log_level = 2;

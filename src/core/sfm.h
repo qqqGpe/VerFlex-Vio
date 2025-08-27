@@ -34,7 +34,7 @@ public:
     }
 
     static constexpr uint32_t kMinRequiredObservTimesPerFeature = 3;
-    static constexpr uint32_t kMinRequiredFeaturesPerFrame = 40;
+    static constexpr uint32_t kMinRequiredFeaturesPerFrame = 30;
     static constexpr double kMaxTimeIntervalBetweenKeyframes = 2.0f;  // seconds
     static constexpr double kMinPixelParallexBetweenKeyframes = 7.f; // pixels
     static constexpr uint32_t kMinRequiredFeaturesForSfm = 30;

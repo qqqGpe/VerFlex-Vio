@@ -153,17 +153,16 @@ class LoggerBase
 
     bool InitLogFile(const std::string dirname, const std::string bag_name, const std::string log_type, const bool use_title)
     {
-        char time_str[100];
-        std::time_t now = std::time(nullptr);
-        std::strftime(time_str, sizeof(time_str), "%Y-%m-%d_%H-%M-%S", std::localtime(&now));
-        filename_ = dirname + "/" + bag_name + "_" + std::string(time_str) + "_" + log_type + ".csv";
+      char time_str[100];
+      std::time_t now = std::time(nullptr);
+      std::strftime(time_str, sizeof(time_str), "%Y-%m-%d_%H-%M-%S", std::localtime(&now));
+      filename_ = dirname + "/" + bag_name + "_" + std::string(time_str) + "_" + log_type + ".csv";
 
-        Derived value_temp;
-        std::string log_title = value_temp.value_name[0];
-        for (int i = 1; i < value_temp.value_name.size(); i++)
-        {
-            log_title = log_title + " " + value_temp.value_name[i];
-        }
+      Derived value_temp;
+      std::string log_title = value_temp.value_name[0];
+      for (int i = 1; i < value_temp.value_name.size(); i++) {
+        log_title = log_title + " " + value_temp.value_name[i];
+      }
 
         std::ofstream file(filename_);
         if (file.is_open())
@@ -194,7 +193,8 @@ class LoggerTUM : public LoggerBase<LogValueTUM>
     virtual void SaveValues(const LogValueTUM log_value) const override
     {
         std::ofstream file(filename_, std::ios::app);
-        file << std::scientific << std::setprecision(10);
+        file.setf(std::ios::scientific);
+        file.precision(10);
         if (file.is_open())
         {
             file << log_value.timestamp << " " << log_value.px << " " << log_value.py << " " << log_value.pz << " " << log_value.qx << " "
@@ -217,7 +217,8 @@ class LoggerFull : public LoggerBase<LogValueFull>
     virtual void SaveValues(const LogValueFull log_value) const override
     {
         std::ofstream file(filename_, std::ios::app);
-        file << std::scientific << std::setprecision(10);
+        file.setf(std::ios::scientific);
+        file.precision(10);
         if (file.is_open())
         {
             file << log_value.timestamp << " " << log_value.px << " " << log_value.py << " " << log_value.pz << " " << log_value.vx << " "

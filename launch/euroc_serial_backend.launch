@@ -38,6 +38,7 @@
         <param name="estimate_td_visual"        type="bool"     value="true" />
         <param name="frontend_prediction"       type="bool"     value="true" />
         <param name="use_zupt"                  type="bool"     value="false" />
+        <param name="use_pnp_ransac"            type="bool"     value="true" />
         <param name="lazy_time"                 type="double"   value="0.2" />
 
         <!-- bag parameters -->
@@ -47,7 +48,7 @@
         <param name="bag_duration"              type="double"   value="-1" />
 
         <!-- Camera configuration -->
-        <param name="camera_num"                type="int"      value="1" />
+        <param name="camera_num"                type="int"      value="2" />
         <param name="img_width"                 type="int"      value="752" />
         <param name="img_height"                type="int"      value="480" />
         <param name="use_census_transform"      type="bool"     value="true" />

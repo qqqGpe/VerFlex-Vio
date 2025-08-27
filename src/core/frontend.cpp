@@ -43,10 +43,17 @@ void EpipolarRansac(const std::vector<cv::Point2f> points_prev,
                     std::vector<uchar>* inliers)
 {
     constexpr double kEssentialMatrixProb = 0.95;
+    constexpr uint32_t kMinRequiredPointsForEpipolarRansac = 8;
     constexpr double kEssentialThres = 1.0; // 1 pixel threshold for essential matrix
 
     assert(points_prev.size() == points_curr.size());
     *inliers = std::vector<uchar>(points_prev.size(), 0);
+
+    if (points_prev.size() < kMinRequiredPointsForEpipolarRansac || points_curr.size() < kMinRequiredPointsForEpipolarRansac)
+    {
+        LOG(ERROR) << "Not enough points for epipolar RANSAC";
+        return;
+    }
 
     Eigen::Matrix3d K = CamModel::getInstance().K(LEFT_CAM);
     cv::Mat K_mat;

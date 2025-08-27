@@ -23,8 +23,8 @@ public:
     ~Visualizer() = default;
     Visualizer(const Visualizer&) = delete;
     Visualizer& operator=(const Visualizer&) = delete;
-    Visualizer(Visualizer&&) = delete;
-    Visualizer& operator=(Visualizer&&) = delete;
+    Visualizer(Visualizer&&) noexcept = delete;
+    Visualizer& operator=(Visualizer&&) noexcept = delete;
 
     static Visualizer& getInstance()
     {
@@ -32,29 +32,19 @@ public:
         return *instance;
     }
 
-    void Init(std::shared_ptr<ros::NodeHandle> &nh, const Param &params)
-    {
-        nh_ = nh;
-        path_publisher_ = nh_->advertise<nav_msgs::Path>("/vio/path", 10, true);
-        pose_publisher_ = nh_->advertise<geometry_msgs::PoseStamped>("/vio/pose", 10);
-        feature_publisher_ = nh_->advertise<sensor_msgs::PointCloud>("/vio/msckf_points", 1000, true);
-        image_with_features_publisher_ = nh_->advertise<sensor_msgs::Image>("/vio/image_with_features", 10, true);
+    void Init(std::shared_ptr<ros::NodeHandle> &nh, const Param &params);
 
-        Eigen::Quaterniond qic(params.Ric[LEFT_CAM]);
-        Eigen::Vector3d tic(params.tic[LEFT_CAM]);
-        publishStaticCameraTransform(qic, tic);
-    }
+    void PublishVioState(const std::shared_ptr<ImuState> &imu_state);
 
-    void PublishVioState(const std::shared_ptr<ImuState>& imu_state);
+    void PublishFeatures(const double timestamp, const std::vector<Feature *> &features);
 
-    void PublishFeatures(const double timestamp, const std::vector<Feature*>& features);
+    void PublishImageWithFeatures(const double timestamp, const cv::Mat &image_with_features);
 
-    void PublishImageWithFeatures(const double timestamp, const cv::Mat& image_with_features);
-
-private:
+  private:
     Visualizer() = default;
 
-    void publishStaticCameraTransform(Eigen::Quaterniond qic, Eigen::Vector3d tic) {
+    void publishStaticCameraTransform(Eigen::Quaterniond qic, Eigen::Vector3d tic)
+    {
         geometry_msgs::TransformStamped static_transform;
         static_transform.header.stamp = ros::Time(0);
         static_transform.header.frame_id = "imu";

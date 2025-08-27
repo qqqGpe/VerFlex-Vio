@@ -1,5 +1,18 @@
 #include "visualizer.h"
 
+void Visualizer::Init(std::shared_ptr<ros::NodeHandle> &nh, const Param &params)
+{
+    nh_ = nh;
+    path_publisher_ = nh_->advertise<nav_msgs::Path>("/vio/path", 10, true);
+    pose_publisher_ = nh_->advertise<geometry_msgs::PoseStamped>("/vio/pose", 10);
+    feature_publisher_ = nh_->advertise<sensor_msgs::PointCloud>("/vio/msckf_points", 1000, true);
+    image_with_features_publisher_ = nh_->advertise<sensor_msgs::Image>("/vio/image_with_features", 10, true);
+
+    Eigen::Quaterniond qic(params.Ric[LEFT_CAM]);
+    Eigen::Vector3d tic(params.tic[LEFT_CAM]);
+    publishStaticCameraTransform(qic, tic);
+}
+
 void Visualizer::PublishFeatures(const double timestamp, const std::vector<Feature*>& features)
 {
     sensor_msgs::PointCloud current_feature_cloud;
@@ -9,17 +22,17 @@ void Visualizer::PublishFeatures(const double timestamp, const std::vector<Featu
     current_feature_cloud.header.stamp = ros::Time(timestamp);
     for (const auto& feature : features)
     {
-        if (feature->_valid && feature->_is_triangulated)
-        {
-            geometry_msgs::Point32 point;
-            point.x = feature->_pwf.x();
-            point.y = feature->_pwf.y();
-            point.z = feature->_pwf.z();
-            current_feature_cloud.points.push_back(point);
+      if (feature->_valid && feature->_is_triangulated)
+      {
+        geometry_msgs::Point32 point;
+        point.x = feature->_pwf.x();
+        point.y = feature->_pwf.y();
+        point.z = feature->_pwf.z();
+        current_feature_cloud.points.push_back(point);
 
-            // Add features to all features map
-            all_features_.insert_or_assign(feature->_id, point);
-        }
+        // Add features to all features map
+        all_features_.insert_or_assign(feature->_id, point);
+      }
     }
     feature_publisher_.publish(current_feature_cloud);
 
