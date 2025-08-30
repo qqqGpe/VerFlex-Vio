@@ -13,18 +13,6 @@ A high-performance Visual Inertial Odometry (VIO) system implemented in C++ with
 - **Performance Optimized**: GPU-accelerated neural feature extraction with SuperPoint
 - **Comprehensive Testing**: Unit tests and performance benchmarks
 
-## 📋 Table of Contents
-
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Architecture](#architecture)
-- [Configuration](#configuration)
-- [Usage](#usage)
-- [Performance](#performance)
-- [API Documentation](#api-documentation)
-- [Contributing](#contributing)
-- [License](#license)
-
 ## 🛠️ Installation
 
 ### Prerequisites
