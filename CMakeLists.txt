@@ -33,10 +33,17 @@ find_package(OpenCV 4 REQUIRED)
 find_package(glog REQUIRED)
 find_package(GTest REQUIRED)
 
+add_service_files(FILES nnFeatures.srv)
+generate_messages(DEPENDENCIES sensor_msgs)
+
 catkin_package(
  LIBRARIES vio
  INCLUDE_DIRS src/core src/types src/utils
- CATKIN_DEPENDS cv_bridge geometry_msgs nav_msgs image_transport nav_msgs rosbag roscpp sensor_msgs std_msgs
+ CATKIN_DEPENDS cv_bridge geometry_msgs nav_msgs image_transport nav_msgs rosbag roscpp sensor_msgs std_msgs message_runtime
+)
+
+catkin_install_python(PROGRAMS script/nnMatcherSrv.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 include_directories(

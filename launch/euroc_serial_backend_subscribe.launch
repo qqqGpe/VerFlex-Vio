@@ -21,6 +21,18 @@
     <arg name="use_rviz"    default="true"/>
     <node if="$(arg use_rviz)" pkg="rviz" type="rviz" name="rviz" args="-d $(find vio)/rviz/display.rviz"/>
 
+    <!-- nn feature parameters -->
+    <arg name="use_nn_feature"          default="false"/>
+    <arg name="max_keypoints"           default="384" />
+    <arg name="use_gpu"                 default="true" />
+    <arg name="confidence_threshold"    default="0.015" />
+    <!-- Launch SuperPoint server -->
+    <node if="$(arg use_nn_feature)"    name="superpoint_server" pkg="vio" type="superpoint_mather.py" output="screen">
+        <param name="max_keypoints"     value="$(arg max_keypoints)" />
+        <param name="use_gpu"           value="$(arg use_gpu)" />
+        <param name="confidence_threshold" value="$(arg confidence_threshold)" />
+    </node>
+
     <!-- MASTER NODE -->
     <node name="vio" pkg="vio" type="vio_subscribe_node" output="screen" clear_params="true" required="true">
 
@@ -38,6 +50,7 @@
         <param name="frontend_prediction"       type="bool"     value="true" />
         <param name="use_zupt"                  type="bool"     value="false" />
         <param name="use_pnp_ransac"            type="bool"     value="true" />
+        <param name="use_nn_feature"            type="bool"     value="$(arg use_nn_feature)" />
         <param name="lazy_time"                 type="double"   value="0.2" />
 
         <!-- Camera configuration -->
@@ -61,7 +74,7 @@
                                  -0.019843557956,   0.045368942502,  0.007862124470]
         </rosparam>
 
-        <param name="max_feat_n"                type="int"      value="384" />
+        <param name="max_feat_n"                type="int"      value="$(arg max_keypoints)" />
         <param name="grid_w"                    type="int"      value="24" />
         <param name="grid_h"                    type="int"      value="16" />
         <param name="max_clone_pose"            type="int"      value="6" />

@@ -19,6 +19,7 @@ public:
         _nh->param<bool>("estimate_ric", estimate_ric, true);
         _nh->param<bool>("estimate_td_visual", estimate_td_visual, true);
         _nh->param<bool>("use_zupt", use_zupt, false);
+        _nh->param<bool>("use_nn_feature", use_nn_feature, false);
         _nh->param<bool>("frontend_prediction", frontend_prediction, false);
         _nh->param<int>("log_level", log_level, 2);
         _nh->param<bool>("save_full_log", save_full_log, true);
@@ -86,6 +87,7 @@ public:
     bool estimate_ric = true;
     bool estimate_td_visual = true;
     bool use_zupt = false;
+    bool use_nn_feature = false;
     bool frontend_prediction = false;
     bool save_full_log = true;
     bool save_tum_log = true;

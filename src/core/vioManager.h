@@ -12,7 +12,7 @@
 #include "sqrt_eskf_solver.h"
 #include "ImuManager.h"
 #include "camModel.h"
-#include "frontend.h"
+#include "vioFrontend.h"
 #include "initializer.h"
 #include "dynamicInitializer.h"
 #include "logger.h"
@@ -34,8 +34,9 @@ class VioManager
 {
    public:
     VioManager() = default;
-    VioManager(const Param& params)
+    VioManager(std::shared_ptr<ros::NodeHandle> &nh, const Param& params)
     {
+        nh_ = nh;
         params_ = params;
 
         if (params.solver_type == static_cast<int>(SolverType::ESKF))
@@ -50,7 +51,7 @@ class VioManager
         state = std::make_shared<State>(params.estimate_ric, params.estimate_td_visual);
         _imu_manager = std::make_shared<ImuManager>(params, state, solver);
         _imu_manager->SetImuNoise(params.sigma_na, params.sigma_nw, params.sigma_ba, params.sigma_bg);
-        _visual_manager = std::make_shared<VisualManager>(params, state, solver);
+        _visual_manager = std::make_shared<VisualManager>(nh, params, state, solver);
 
         if (params.initial_type == static_cast<int>(InitializerType::kStatic) && params.camera_num == 2)
         {
@@ -140,6 +141,7 @@ class VioManager
 
     void SaveResultsToFile();
 
+    std::shared_ptr<ros::NodeHandle> nh_;
     Param params_;
     uint8_t visual_updated_this_tick_ = false;
     uint8_t zupt_updated_this_tick_ = false;

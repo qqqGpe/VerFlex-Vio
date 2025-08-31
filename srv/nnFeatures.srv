@@ -1,0 +1,7 @@
+sensor_msgs/Image image      # Input image
+---
+float32[] keypoints         # Nx2 array of keypoint coordinates
+float32[] descriptors       # NxD array of descriptors
+float32[] scores            # N array of keypoint scores
+int32     num_keypoints     # Number of keypoints detected
+float32   computation_time  # Time taken for feature extraction in seconds

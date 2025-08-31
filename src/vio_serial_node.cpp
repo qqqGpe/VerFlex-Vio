@@ -38,7 +38,7 @@ int main(int argc, char** argv)
     Visualizer::getInstance().Init(nh, params);
 
     // Initialize vio_backend
-    std::shared_ptr<VioManager> vio_manager = std::make_shared<VioManager>(params);
+    std::shared_ptr<VioManager> vio_manager = std::make_shared<VioManager>(nh, params);
 
     // set log level
     fLI::FLAGS_stderrthreshold = params.log_level;  // 0: info, 1: warning, 2: error, 3: fatal

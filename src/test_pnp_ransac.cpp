@@ -119,7 +119,8 @@ int main()
 
     std::vector<double> distortion;     // empty distortion coeff for debugging
     std::shared_ptr<State> state = make_shared<State>();
-    VisualManager visual_manager(params, state, nullptr);
+    std::shared_ptr<ros::NodeHandle> nh = nullptr;
+    VisualManager visual_manager(nh, params, state, nullptr);
 
     generate_camera_pose();
     project_to_camera();

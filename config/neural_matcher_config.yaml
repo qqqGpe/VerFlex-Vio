@@ -1,0 +1,164 @@
+# 神经网络特征匹配器配置文件
+# 用于配置不同的特征提取和匹配算法
+
+# 通用参数
+general:
+  max_features: 2048          # 最大特征点数
+  match_threshold: 0.7        # 匹配阈值 (Lowe's ratio test)
+  ransac_threshold: 3.0       # RANSAC阈值 (像素)
+  min_matches: 8              # 最小匹配点数
+  enable_visualization: true  # 是否启用可视化
+  save_results: true          # 是否保存结果
+
+# SuperPoint + LightGlue 配置
+superpoint_lightglue:
+  # SuperPoint参数
+  superpoint:
+    max_keypoints: 2048
+    keypoint_threshold: 0.005
+    nms_radius: 4.0
+    remove_borders: 4
+    detection_threshold: 0.0005
+
+  # LightGlue参数
+  lightglue:
+    width_confidence: 0.5
+    depth_confidence: 0.5
+    flash: false
+    num_head: 4
+    dim_head: 32
+    dims: [256, 256, 256, 256]
+    num_blocks: [7, 1, 1, 1]
+    radius: 18
+    max_num_matches: 2048
+
+# DISK + LightGlue 配置
+disk_lightglue:
+  # DISK参数
+  disk:
+    max_keypoints: 2048
+    keypoint_threshold: 0.005
+    patch_size: 32
+    detection_threshold: 0.0005
+
+  # LightGlue参数 (与SuperPoint相同)
+  lightglue:
+    width_confidence: 0.5
+    depth_confidence: 0.5
+    flash: false
+    num_head: 4
+    dim_head: 32
+    dims: [256, 256, 256, 256]
+    num_blocks: [7, 1, 1, 1]
+    radius: 18
+    max_num_matches: 2048
+
+# SIFT + LightGlue 配置
+sift_lightglue:
+  # SIFT参数
+  sift:
+    max_keypoints: 2048
+    n_octave_layers: 3
+    contrast_threshold: 0.04
+    edge_threshold: 10
+    sigma: 1.6
+
+  # LightGlue参数
+  lightglue:
+    width_confidence: 0.5
+    depth_confidence: 0.5
+    flash: false
+    num_head: 4
+    dim_head: 32
+    dims: [256, 256, 256, 256]
+    num_blocks: [7, 1, 1, 1]
+    radius: 18
+    max_num_matches: 2048
+
+# ALIKED + LightGlue 配置
+aliked_lightglue:
+  # ALIKED参数
+  aliked:
+    max_keypoints: 2048
+    keypoint_threshold: 0.005
+    detection_threshold: 0.0005
+    nms_radius: 4.0
+
+  # LightGlue参数
+  lightglue:
+    width_confidence: 0.5
+    depth_confidence: 0.5
+    flash: false
+    num_head: 4
+    dim_head: 32
+    dims: [256, 256, 256, 256]
+    num_blocks: [7, 1, 1, 1]
+    radius: 18
+    max_num_matches: 2048
+
+# 性能优化参数
+performance:
+  use_gpu: true               # 是否使用GPU
+  gpu_memory_fraction: 0.8    # GPU内存使用比例
+  batch_size: 1               # 批处理大小
+  num_threads: 4              # CPU线程数
+  enable_benchmark: true      # 是否启用性能基准测试
+
+# 输出配置
+output:
+  save_matches: true          # 保存匹配结果
+  save_features: false        # 保存特征点
+  save_visualization: true    # 保存可视化结果
+  output_dir: "results"       # 输出目录
+  file_format: "jpg"          # 图像文件格式
+  quality: 95                 # 图像质量 (0-100)
+
+# 日志配置
+logging:
+  level: "INFO"               # 日志级别 (DEBUG, INFO, WARNING, ERROR)
+  save_log: true              # 是否保存日志文件
+  log_file: "neural_matcher.log"  # 日志文件名
+  enable_console: true        # 是否在控制台输出
+
+# 模型路径配置
+models:
+  superpoint: "models/superpoint_v1.pth"
+  disk: "models/disk_v1.pth"
+  lightglue: "models/lightglue_v1.pth"
+  aliked: "models/aliked_v1.pth"
+
+# 数据集配置
+dataset:
+  euroc:
+    base_path: "/home/gao/dataset/euroc_mav"
+    sequences:
+      - "MH_01_easy"
+      - "MH_02_easy"
+      - "MH_03_medium"
+      - "MH_04_difficult"
+      - "MH_05_difficult"
+
+  tum:
+    base_path: "/home/gao/dataset/tum_rgbd"
+    sequences:
+      - "rgbd_dataset_freiburg1_xyz"
+      - "rgbd_dataset_freiburg1_rpy"
+      - "rgbd_dataset_freiburg1_360"
+
+# 评估指标
+evaluation:
+  metrics:
+    - "precision"
+    - "recall"
+    - "f1_score"
+    - "matching_time"
+    - "inlier_ratio"
+    - "geometric_consistency"
+
+  thresholds:
+    precision_threshold: 0.8
+    recall_threshold: 0.7
+    f1_threshold: 0.75
+    time_threshold: 100.0  # ms
+    inlier_threshold: 0.6
+    consistency_threshold: 0.8

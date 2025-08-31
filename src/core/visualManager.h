@@ -5,7 +5,7 @@
 #include <vector>
 #include "Imu_state.h"
 #include "camModel.h"
-#include "frontend.h"
+#include "vioFrontend.h"
 #include "parameter.h"
 #include "sensor_data.h"
 #include "state.h"
@@ -32,14 +32,14 @@ class VisualManager
         }
     }
 
-    VisualManager(const Param& params,
-                  std::shared_ptr<State>& state,
+    VisualManager(std::shared_ptr<ros::NodeHandle> &nh, const Param &params, std::shared_ptr<State> &state,
                   std::shared_ptr<MsckfSolverBase> solver = nullptr)
     {
+        nh_ = nh;
         _state = state;
         param_ = params;
         _keyframe = std::make_shared<KeyFrameStatus>(KeyFrameStatus::kNone);
-        vio_frontend = std::make_shared<VioFrontend>(params, _keyframe);
+        vio_frontend = std::make_shared<VioFrontend>(nh, params, _keyframe);
         max_clone_pose_ = params.max_clone_pose;
         max_feat_n_ = params.max_feat_n;
         solver_ = solver;
@@ -134,6 +134,7 @@ class VisualManager
 
    protected:
     Param param_;
+    std::shared_ptr<ros::NodeHandle> nh_;
     std::shared_ptr<State> _state;
     std::unordered_map<std::shared_ptr<Type>, size_t> _map_hx;
     std::vector<std::shared_ptr<Type>> _Hx_order;
