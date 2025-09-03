@@ -3,8 +3,8 @@ project(vio)
 
 add_compile_options(-std=c++17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_BUILD_TYPE RelWithDebInfo) # Debug Release
-# set(CMAKE_BUILD_TYPE Debug) # Debug Release
+# set(CMAKE_BUILD_TYPE RelWithDebInfo) # Debug Release
+set(CMAKE_BUILD_TYPE Debug) # Debug Release
 # set(CMAKE_BUILD_TYPE Release) # Debug Release
 # set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -O3  -Wall")
 # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3  -Wall")
@@ -42,7 +42,7 @@ catkin_package(
  CATKIN_DEPENDS cv_bridge geometry_msgs nav_msgs image_transport nav_msgs rosbag roscpp sensor_msgs std_msgs message_runtime
 )
 
-catkin_install_python(PROGRAMS script/nnMatcherSrv.py
+catkin_install_python(PROGRAMS script/nnFeatureSrv.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

@@ -276,7 +276,7 @@ std::vector<uint8_t> VioFrontend::TrackFeatures(const cv::Mat image_left, const 
     else
     {
         image_left_gray = image_left.clone();
-        image_left_gray = image_right.clone();
+        image_right_gray = image_right.clone();
     }
 
     if (pts_to_track.empty())
@@ -612,6 +612,7 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>> &
         {
             status = TrackNNFeatures(ref_frame.second, cur_frame.second, ref_features_to_track_,
                                      ref_feature_descriptors_map_, curr_pts);
+
         }
         else
         {
@@ -749,8 +750,8 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>> &
 
     feature_observes = std::make_pair(ts_sec, cur_features_to_track);
     cv::Mat image_to_show;
-    Utils::visualize_feature_tracking_results(input_image.second[LEFT_CAM].clone(), feature_observes, 1,
-                                              &image_to_show);
+    // Utils::visualize_feature_tracking_results(input_image.second[LEFT_CAM].clone(), feature_observes, 1,
+    //                                           &image_to_show);
     image_with_features_ = std::make_pair(ts_sec, image_to_show);
     is_first_frame_ = false;
     return true;
@@ -758,17 +759,20 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>> &
 
 bool VioFrontend::ExtractFeatures(const cv::Mat& image, std::vector<cv::Point2f>& keypoints, std::vector<cv::Mat>& descriptors)
 {
+    keypoints.clear();
+    descriptors.clear();
+
     if (use_nn_feature_)
     {
         vio::nnFeatures srv;
-        srv.request.image = *cv_bridge::CvImage(std_msgs::Header(), "bgr8", image).toImageMsg();
+        srv.request.image = *cv_bridge::CvImage(std_msgs::Header(), "mono8", image).toImageMsg();
         if (client_.call(srv))
         {
-            keypoints.clear();
-            for (size_t i = 0; i < srv.response.keypoints.size(); i += 2)
+            std::cout << "num_keypoints: " << srv.response.num_keypoints << std::endl;
+            std::cout << "descriptors size: " << srv.response.descriptors.size() << std::endl;
+            for (size_t i = 0; i < srv.response.num_keypoints; i++)
             {
-                keypoints.emplace_back(srv.response.keypoints[i], srv.response.keypoints[i + 1]);
-                // response返回的descriptor是一个大向量，每个descriptor包含256维
+                keypoints.emplace_back(srv.response.keypoints[2 * i], srv.response.keypoints[2 * i + 1]);
                 descriptors.emplace_back(cv::Mat(1, 256, CV_32F, &srv.response.descriptors.data()[i * 256]).clone());
             }
             return true;

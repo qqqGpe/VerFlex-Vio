@@ -275,9 +275,10 @@ bool Sfm::solveFrameByPnp(const std::vector<CameraObs> current_obsv, Pose &curre
     Eigen::Matrix3d K = CamModel::getInstance().K(LEFT_CAM);
     cv::eigen2cv(K, K_cv);
     cv::Mat dist_coeffs = cv::Mat::zeros(4, 1, CV_64F);
+    std::vector<int> inliers;
     // cv::solvePnP(corresponding_points_3d, corresponding_points, K, dist_coeffs, rvec, tvec); // R_wtoc, p_winc
-    cv::solvePnPRansac(corresponding_points_3d, corresponding_points, K_cv, dist_coeffs, rvec, tvec, false, 100, kMaxPixelErrorForPnp,
-                       0.9);  // R_wtoc, p_winc
+    cv::solvePnPRansac(corresponding_points_3d, corresponding_points, K_cv, dist_coeffs, rvec, tvec, false, 100, kMaxPixelErrorForPnp, 0.9, inliers,
+                       cv::SOLVEPNP_EPNP);  // R_wtoc, p_winc
 
     cv::Mat R_GtoC_cv;
     cv::Rodrigues(rvec, R_GtoC_cv);

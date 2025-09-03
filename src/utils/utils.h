@@ -71,9 +71,9 @@ class Utils
             cv::line(image_to_show, cv::Point(0, y), cv::Point(image_width, y), cv::Scalar(128, 128, 128), 1);
         }
 
-        // cv::imshow("feat_to_track", image_to_show);
+        cv::imshow("feat_to_track", image_to_show);
         // cv::imwrite("/home/gao/ws/catkin_vio_ws/src/vio/figure/feature_to_track.png", image_to_show);
-        // cv::waitKey(wait_key_time_ms);
+        cv::waitKey(wait_key_time_ms);
 
         if (out_image != nullptr)
         {

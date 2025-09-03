@@ -40,8 +40,17 @@ class VioFrontend
         ref_features_to_track_.resize(max_feat_n_, CameraObs());
         if (use_nn_feature_)
         {
-            client_ = nh_->serviceClient<vio::nnFeatures>("extract_features");
-            LOG(INFO) << fmt::format("SuperPoint service connected successfully");
+            client_ = nh_->serviceClient<vio::nnFeatures>("/extract_features");
+            if (client_.exists())
+            {
+                LOG(INFO) << "SuperPoint service connected successfully";
+            }
+            else
+            {
+                LOG(ERROR) << "nn Feature service not available";
+                use_nn_feature_ = false;
+                exit(1);
+            }
         }
     }
 

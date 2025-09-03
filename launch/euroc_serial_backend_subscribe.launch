@@ -27,7 +27,7 @@
     <arg name="use_gpu"                 default="true" />
     <arg name="confidence_threshold"    default="0.015" />
     <!-- Launch SuperPoint server -->
-    <node if="$(arg use_nn_feature)"    name="superpoint_server" pkg="vio" type="superpoint_mather.py" output="screen">
+    <node if="$(arg use_nn_feature)"    name="superpoint_server" pkg="vio" type="nnFeatureSrv.py" output="screen">
         <param name="max_keypoints"     value="$(arg max_keypoints)" />
         <param name="use_gpu"           value="$(arg use_gpu)" />
         <param name="confidence_threshold" value="$(arg confidence_threshold)" />

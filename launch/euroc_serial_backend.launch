@@ -13,27 +13,28 @@
     <!-- <arg name="dataset"     default="MH_02_easy" /> -->
     <!-- <arg name="dataset"     default="MH_03_medium" /> -->
     <!-- <arg name="dataset"     default="MH_04_difficult" /> -->
-    <!-- <arg name="dataset"         default="MH_05_difficult" /> -->
+    <!-- <arg name="dataset"     default="MH_05_difficult" /> -->
 
     <!-- <arg name="bag"         default="/media/gao/samsung/dataset/euroc_mav/$(arg dataset).bag" /> -->
     <!-- <arg name="bag"         default="/mnt/d/euroc_mav/MH_01_easy/$(arg dataset).bag" /> -->
     <arg name="bag_path"        default="/home/gao/dataset/euroc_mav/$(arg dataset).bag" />
 
     <!-- if show rviz -->
-    <arg name="use_rviz"        default="true"/>
+    <arg name="use_rviz"        default="false"/>
     <node if="$(arg use_rviz)"  pkg="rviz" type="rviz" name="rviz" args="-d $(find vio)/rviz/display.rviz"/>
 
     <!-- NN feature parameters -->
     <arg name="use_nn_feature"          default="true"/>
-    <arg name="max_keypoints"           default="225" />
+    <arg name="max_keypoints"           default="1024" />
     <arg name="use_gpu"                 default="true" />
     <arg name="confidence_threshold"    default="0.015" />
+
     <!-- Launch SuperPoint server -->
-    <node if="$(arg use_nn_feature)"    name="superpoint_server" pkg="vio" type="superpoint_mather.py" output="screen">
-        <param name="max_keypoints"     value="$(arg max_keypoints)" />
-        <param name="use_gpu"           value="$(arg use_gpu)" />
+    <!-- <node if="$(arg use_nn_feature)" pkg="vio" name="nnFeatureServer" type="nnFeatureSrv.py" output="screen">
+        <param name="max_keypoints" value="$(arg max_keypoints)" />
+        <param name="use_gpu"       value="$(arg use_gpu)" />
         <param name="confidence_threshold" value="$(arg confidence_threshold)" />
-    </node>
+    </node> -->
 
     <!-- MASTER NODE -->
     <node name="vio" pkg="vio" type="vio_serial_node" output="screen" clear_params="true" required="true">
@@ -55,7 +56,7 @@
         <param name="lazy_time"                 type="double"   value="0.2" />
 
         <!-- bag parameters -->
-        <param name="bag_name"                   type="str"     value="$(arg dataset)" />
+        <param name="bag_name"                  type="str"      value="$(arg dataset)" />
         <param name="bag_path"                  type="str"      value="$(arg bag_path)" />
         <param name="bag_start"                 type="double"   value="0" />
         <param name="bag_duration"              type="double"   value="-1" />
@@ -82,8 +83,8 @@
         </rosparam>
 
         <param name="max_feat_n"                type="int"      value="$(arg max_keypoints)" />
-        <param name="grid_w"                    type="int"      value="15" />
-        <param name="grid_h"                    type="int"      value="15" />
+        <param name="grid_w"                    type="int"      value="24" />
+        <param name="grid_h"                    type="int"      value="18" />
         <param name="max_clone_pose"            type="int"      value="6" />
         <param name="verbosity"                 type="str"      value="$(arg verbosity)" />
         <param name="log_path"                  type="str"      value="$(arg log_path)" />

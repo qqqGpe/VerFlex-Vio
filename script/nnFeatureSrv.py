@@ -1,4 +1,4 @@
-#!/home/gao/anaconda3/envs/nn/bin/python3.9
+#!/home/gao/anaconda3/envs/nn/bin/python
 """
 SuperPoint Feature Extraction ROS Service
 Receives images and returns feature points and descriptors
@@ -16,7 +16,7 @@ from sensor_msgs.msg import Image
 from vio.srv import nnFeatures, nnFeaturesResponse
 
 # Add SuperPoint to Python path
-workspace_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+workspace_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 superpoint_path = os.path.join(workspace_path, "third_party", "SuperPoint")
 sys.path.insert(0, superpoint_path)
 
@@ -33,10 +33,10 @@ class SuperPointServer:
     def __init__(self):
         """Initialize SuperPoint server"""
         # Initialize ROS node
-        rospy.init_node('superpoint_server', anonymous=True)
+        rospy.init_node('nnFeatureServer', anonymous=True)
 
         # Get parameters
-        self.max_keypoints = rospy.get_param('~max_keypoints', 256)
+        self.max_keypoints = rospy.get_param('~max_keypoints', 1024)
         self.use_gpu = rospy.get_param('~use_gpu', True)
         self.confidence_threshold = rospy.get_param('~confidence_threshold', 0.015)
 
@@ -87,7 +87,7 @@ class SuperPointServer:
         """Preprocess image for SuperPoint"""
         try:
             # Convert to RGB
-            image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+            image = cv2.cvtColor(cv_image, cv2.COLOR_GRAY2RGB)
 
             # Convert to torch tensor
             image_tensor = torch.from_numpy(image).float()
@@ -109,10 +109,12 @@ class SuperPointServer:
 
         try:
             # Convert ROS image to OpenCV format
-            cv_image = self.bridge.imgmsg_to_cv2(req.image, "bgr8")
+            cv_image  = self.bridge.imgmsg_to_cv2(req.image, "mono8")
 
             # Preprocess image
-            image_tensor = self.preprocess_image(cv_image)
+            image_tensor = self.preprocess_image(cv_image.copy())
+
+            print("tensor shape: ", image_tensor.shape)
 
             # Extract features
             with torch.no_grad():
