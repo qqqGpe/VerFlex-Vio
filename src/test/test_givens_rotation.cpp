@@ -1,6 +1,6 @@
 #include <Eigen/Core>
 #include <iostream>
-#include "utils/mathematical_tools.h"
+#include "mathematical_tools.h"
 #include "gtest/gtest.h"
 
 TEST(VioTest, GivensRotation)

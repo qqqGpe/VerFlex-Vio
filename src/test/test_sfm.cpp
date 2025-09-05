@@ -1,7 +1,7 @@
-#include "core/sfm.h"
+#include "sfm.h"
 #include "gtest/gtest.h"
-#include "types/Pose.h"
-#include "utils/mathematical_tools.h"
+#include "Pose.h"
+#include "mathematical_tools.h"
 
 #define DEG2RAD M_PI / 180
 #define RAD2DEG 180 / M_PI

@@ -98,7 +98,12 @@ target_link_libraries(${PROJECT_NAME}_subscribe_node
                       ${thirdparty_libraries}
 )
 
-add_executable(test_triangulation src/test_triangulation.cpp)
+add_executable(test_triangulation src/test/test_triangulation.cpp)
+target_include_directories(test_triangulation PRIVATE
+    src/types
+    src/core
+    src/utils
+)
 target_link_libraries(test_triangulation
                       msckf_core
                       ${catkin_LIBRARIES}
@@ -106,7 +111,12 @@ target_link_libraries(test_triangulation
                       GTest::GTest
 )
 
-add_executable(test_givens_rotation src/test_givens_rotation.cpp)
+add_executable(test_givens_rotation src/test/test_givens_rotation.cpp)
+target_include_directories(test_givens_rotation PRIVATE
+    src/types
+    src/core
+    src/utils
+)
 target_link_libraries(test_givens_rotation
                       msckf_core
                       ${catkin_LIBRARIES}
@@ -114,7 +124,12 @@ target_link_libraries(test_givens_rotation
                       GTest::GTest
 )
 
-add_executable(test_pnp_ransac src/test_pnp_ransac.cpp)
+add_executable(test_pnp_ransac src/test/test_pnp_ransac.cpp)
+target_include_directories(test_pnp_ransac PRIVATE
+    src/types
+    src/core
+    src/utils
+)
 target_link_libraries(test_pnp_ransac
                       msckf_core
                       ${catkin_LIBRARIES}
@@ -122,19 +137,35 @@ target_link_libraries(test_pnp_ransac
                       GTest::GTest
   )
 
-add_executable(test_rotation_matrix_to_euler src/test_rotation_matrix_to_euler.cpp)
+add_executable(test_rotation_matrix_to_euler src/test/test_rotation_matrix_to_euler.cpp)
+target_include_directories(test_rotation_matrix_to_euler PRIVATE
+    src/types
+    src/core
+    src/utils
+)
 target_link_libraries(test_rotation_matrix_to_euler
+                      msckf_core
                       ${thirdparty_libraries}
                       GTest::GTest)
 
-add_executable(test_sfm src/test_sfm.cpp)
+add_executable(test_sfm src/test/test_sfm.cpp)
+target_include_directories(test_sfm PRIVATE
+    src/types
+    src/core
+    src/utils
+)
 target_link_libraries(test_sfm
                       msckf_core
                       ${catkin_LIBRARIES}
                       ${thirdparty_libraries}
                       GTest::GTest)
 
-add_executable(test_bch src/test_bch.cpp)
+add_executable(test_bch src/test/test_bch.cpp)
+target_include_directories(test_bch PRIVATE
+    src/types
+    src/core
+    src/utils
+)
 target_link_libraries(test_bch
                       msckf_core
                       ${catkin_LIBRARIES}

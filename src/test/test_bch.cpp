@@ -1,6 +1,6 @@
 #include <sophus/so3.hpp>
 #include "gtest/gtest.h"
-#include "utils/mathematical_tools.h"
+#include "mathematical_tools.h"
 
 TEST(VioTest, bch)
 {

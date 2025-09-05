@@ -1,7 +1,7 @@
 #include <iostream>
 #include <Eigen/Core>
 #include <Eigen/Geometry>
-#include "utils/mathematical_tools.h"
+#include "mathematical_tools.h"
 #include "gtest/gtest.h"
 
 #define RAD2DEG 180 / M_PI

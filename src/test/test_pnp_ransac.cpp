@@ -1,4 +1,4 @@
-#include "core/visualManager.h"
+#include "visualManager.h"
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <Eigen/Eigen>
@@ -7,8 +7,11 @@
 #include <iostream>
 #include <vector>
 
+#include "Pose.h"
+#include "solver.h"
+
 #define DEG2RAD M_PI / 180
-#define POINT_NUM_N 10
+#define POINT_NUM_N 20
 #define SCALE 20
 #define IMAGE_WIDTH 752
 #define IMAGE_HEIGHT 480
@@ -16,15 +19,11 @@
 using namespace Eigen;
 using namespace std;
 
-namespace
-{
-constexpr double camera_ts[] = {0.0, 1.0, 2.0, 3.0, 4.0};
-constexpr double intrinsic[] = {458.654, 457.296, 367.215, 248.375};  // fu, fv, cu, cv
-constexpr double baseline = 0.5;
-}  // namespace
-
 Matrix3d K;
 MatrixXd pts_g; // 3d points in world frame
+std::vector<double> camera_ts = { 1.0, 2.0, 3.0, 4.0, 5.0 };
+std::vector<double> intrinsic = { 458.654, 457.296, 367.215, 248.375 }; // fu, fv, cu, cv
+double baseline = 1.0;
 std::map<double, CameraPose> camera_pose_buffer;
 std::vector<Feature*> feats;
 
@@ -73,6 +72,7 @@ void project_to_camera()
         Eigen::Vector3d p3d = pts_g.block<3, 1>(0, i).transpose();
         Feature* feat = new Feature();
         feats.push_back(feat);
+        feat->_pwf = p3d;
         for (int j = 0; j < camera_pose_buffer.size(); j++) {
             auto pose = camera_pose_buffer.at(camera_ts[j]);
             Eigen::Matrix3d R_wc = pose.Rwc;
@@ -83,35 +83,67 @@ void project_to_camera()
             Eigen::Vector3d p_inC = R_wc.transpose() * (p3d - p_wc);
             Eigen::Vector3d p_norm = p_inC / p_inC.z();
             Eigen::Vector3d uv = K * p_norm;
-            p_norm = back_project(uv);
+            // p_norm = back_project(uv);
             CameraObs obs(uv.x(), uv.y(), p_norm.x(), p_norm.y());
             feat->_visual_obs_buffer.insert(make_pair(camera_ts[j], obs));
+            feat->_valid = true;
         }
     }
 }
 
 int main()
 {
-    K << intrinsic[0], 0, intrinsic[2],
-        0, intrinsic[1], intrinsic[3],
-        0, 0, 1;
+
+    Param params;
+    params.camera_num = 1;
+    Eigen::Matrix3d K;
+    params.img_width = IMAGE_WIDTH;
+    params.img_height = IMAGE_HEIGHT;
+    params.max_feat_n = POINT_NUM_N;
+    K << intrinsic[0], 0, intrinsic[2], 0, intrinsic[1], intrinsic[3], 0, 0, 1;
+    Eigen::Matrix3d Ric = Eigen::Matrix3d::Identity();
+    Eigen::Vector3d Tic = Eigen::Vector3d::Zero();
+    Eigen::VectorXd D = Eigen::VectorXd::Zero(5); // Assuming no distortion for simplicity
+    params.intrinsics.push_back(K);
+    params.distortion.push_back(D);
+    params.Ric.push_back(Ric);
+    params.tic.push_back(Tic);
+
+    CamModel::getInstance().Init(params);
     srand((unsigned)time(NULL));
     pts_g = MatrixXd::Random(3, POINT_NUM_N).array().abs();
     pts_g.block<2, POINT_NUM_N>(0, 0) *= 1;
     pts_g.block<1, POINT_NUM_N>(2, 0) *= 5;
     std::cout << "generated pwf: \n" << std::endl;
-    std::cout << pts_g << std::endl;
+    std::cout << pts_g.transpose() << std::endl;
 
-    VisualManager visual_manager;
+    std::vector<double> distortion;     // empty distortion coeff for debugging
+    std::shared_ptr<State> state = make_shared<State>();
+    std::shared_ptr<ros::NodeHandle> nh = nullptr;
+    VisualManager visual_manager(nh, params, state, nullptr);
+
     generate_camera_pose();
     project_to_camera();
     visual_manager.FeatureTriangulation(camera_pose_buffer, feats);
 
-    cout << "triangulated feat pwf:" << endl;
-    for (auto& feat : feats) {
-        if (feat->_is_triangulated) {
-            cout << feat->_pwf.transpose() << endl;
+    std::cout << "\n feature triangulated: \n" << std::endl;
+    for (auto x : feats) {
+        if(x->_valid && x->_is_triangulated) {
+            std::cout << x->_pwf.transpose() << std::endl;
         }
     }
+
+    state->set_ts_sec(camera_ts.back());
+    visual_manager.set_state(state);
+    visual_manager.PnpRansacToRejectOutliers(feats);
+
+    Eigen::Matrix3d S;
+    Eigen::Matrix3d mat;
+    mat << 1, 2, 3, 4, 5, 6, 7, 8, 9;
+    S.triangularView<Eigen::Upper>() = mat;
+    std::cout << "S: \n" << S << std::endl;
+    Eigen::Matrix3d x = S.selfadjointView<Eigen::Upper>();
+    std::cout << "S_adj: \n" << x;
+
     return 0;
 }
