@@ -8,7 +8,7 @@ project(vio)
 # Compiler settings
 add_compile_options(-std=c++17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_BUILD_TYPE Debug)  # Options: Debug, Release, RelWithDebInfo
+set(CMAKE_BUILD_TYPE RelWithDebInfo)  # Options: Debug, Release, RelWithDebInfo
 
 # =============================================================================
 # Package Dependencies
@@ -119,8 +119,6 @@ target_include_directories(msckf_core PUBLIC
 target_link_libraries(msckf_core
     glog::glog
 )
-
-add_subdirectory(src/core)
 
 # =============================================================================
 # Main Executable Targets

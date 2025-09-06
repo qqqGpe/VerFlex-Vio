@@ -1,10 +1,10 @@
 #ifndef __VIO_INITIALIZER__
 #define __VIO_INITIALIZER__
-#include "Imu_state.h"
+#include "ImuState.h"
 #include "camModel.h"
 #include "parameter.h"
-#include "sensor_data.h"
-#include "state.h"
+#include "sensorType.h"
+#include "State.h"
 #include "utils.h"
 #include "visualManager.h"
 

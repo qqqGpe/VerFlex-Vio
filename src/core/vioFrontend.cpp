@@ -12,7 +12,7 @@
 #include "camModel.h"
 #include "vioFrontend.h"
 #include "opencv2/core/mat.hpp"
-#include "sensor_data.h"
+#include "sensorType.h"
 #include "utils.h"
 
 namespace
@@ -46,6 +46,7 @@ VioFrontend::VioFrontend(std::shared_ptr<ros::NodeHandle>& nh, const Param param
     use_census_transform_ = params.use_census_transform;
     do_prediction_ = params.frontend_prediction;
     ref_features_to_track_.resize(max_feat_n_, CameraObs());
+
     if (use_nn_feature_)
     {
         client_ = nh_->serviceClient<vio::nnFeatures>("/extract_features");

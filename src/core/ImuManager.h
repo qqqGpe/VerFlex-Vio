@@ -2,8 +2,8 @@
 #define __IMU_MANAGER__
 
 #include "parameter.h"
-#include "sensor_data.h"
-#include "state.h"
+#include "sensorType.h"
+#include "State.h"
 #include "solver.h"
 
 class ImuManager {
@@ -15,6 +15,10 @@ public:
         _gravity_magn = Eigen::Vector3d(0, 0, -param.gravity_magn);
         _data = std::make_shared<std::deque<ImuData>>();
         solver_ = solver;
+        _sigma_na = param.sigma_na;
+        _sigma_nw = param.sigma_nw;
+        _sigma_ba = param.sigma_ba;
+        _sigma_bg = param.sigma_bg;
     }
 
     ~ImuManager() { }

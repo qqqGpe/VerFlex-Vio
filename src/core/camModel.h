@@ -5,7 +5,7 @@
 #include <opencv2/opencv.hpp>
 
 #include "parameter.h"
-#include "sensor_data.h"
+#include "sensorType.h"
 
 enum CameraId
 {

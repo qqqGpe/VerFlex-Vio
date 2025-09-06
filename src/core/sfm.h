@@ -3,7 +3,7 @@
 #include "visualManager.h"
 #include "camModel.h"
 #include "parameter.h"
-#include "sensor_data.h"
+#include "sensorType.h"
 #include "mathematical_tools.h"
 #include "Pose.h"
 #include "utils.h"

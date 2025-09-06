@@ -1,8 +1,8 @@
 #ifndef __SOLVER__
 #define __SOLVER__
-#include "state.h"
+#include "State.h"
 #include "Type.h"
-#include "sensor_data.h"
+#include "sensorType.h"
 #include "mathematical_tools.h"
 
 #include <glog/logging.h>

@@ -4,7 +4,7 @@
 #include "camModel.h"
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
-#include "sensor_data.h"
+#include "sensorType.h"
 
 #define RAD2DEG 180 / M_PI
 #define DEG2RAD M_PI / 180

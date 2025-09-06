@@ -117,7 +117,7 @@ bool DynamicInitializer::LinearAlignment(Eigen::VectorXd& x)
 {
     constexpr uint32_t kGravityDim = 3;
     constexpr uint32_t kScaleDim = 1;
-    constexpr double kGravityNormTolerance = 0.2;  // Tolerance for gravity norm
+    constexpr double kGravityNormTolerance = 0.5;  // Tolerance for gravity norm
     constexpr double kGravityNorm = 9.81;  // Expected gravity norm in m/s^2
 
     const uint32_t H_rows = 6 * imu_preIntegration_map_.size();

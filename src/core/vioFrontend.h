@@ -10,7 +10,7 @@
 
 #include "camModel.h"
 #include "parameter.h"
-#include "sensor_data.h"
+#include "sensorType.h"
 
 #ifndef __FRONTEND__
 #define __FRONTEND__
@@ -77,7 +77,6 @@ class VioFrontend
     uint32_t grid_w_, grid_h_;
     std::shared_ptr<KeyFrameStatus> _keyframe;
     std::pair<double, cv::Mat> image_with_features_ = {-1, cv::Mat()}; // (ts_sec, image)
-    boost::posix_time::ptime frontend_rT, frontend_rT1, frontend_rT2, frontend_rT3, frontend_rT4;
 };
 
 #endif

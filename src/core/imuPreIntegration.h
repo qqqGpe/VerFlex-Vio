@@ -4,9 +4,9 @@
 #include <Eigen/Geometry>
 #include <sophus/so3.hpp>
 
-#include "state.h"
-#include "Imu_state.h"
-#include "sensor_data.h"
+#include "State.h"
+#include "ImuState.h"
+#include "sensorType.h"
 #include "ImuManager.h"
 
 using namespace Sophus;

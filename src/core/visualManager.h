@@ -3,12 +3,14 @@
 
 #include <map>
 #include <vector>
-#include "Imu_state.h"
+#include <mutex>
+#include <queue>
+#include "ImuState.h"
 #include "camModel.h"
 #include "vioFrontend.h"
 #include "parameter.h"
-#include "sensor_data.h"
-#include "state.h"
+#include "sensorType.h"
+#include "State.h"
 #include "solver.h"
 #include "eskf_solver.h"
 #include "sqrt_eskf_solver.h"
@@ -102,6 +104,7 @@ class VisualManager
 
     std::queue<std::pair<double, std::vector<cv::Mat>>> _input_image_buffer;
     std::queue<std::pair<double, std::vector<CameraObs>>> feature_obs_buffer;
+    mutable std::mutex input_image_buffer_mutex_; // Mutex for _input_image_buffer
 
     std::map<double, std::vector<cv::Mat>> stored_images_;
 

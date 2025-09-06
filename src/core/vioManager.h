@@ -6,6 +6,8 @@
 #include <sensor_msgs/PointCloud.h>
 #include <Eigen/Core>
 #include <thread>
+#include <mutex>
+#include <queue>
 
 #include "solver.h"
 #include "eskf_solver.h"
@@ -18,8 +20,8 @@
 #include "logger.h"
 #include "mathematical_tools.h"
 #include "parameter.h"
-#include "sensor_data.h"
-#include "state.h"
+#include "sensorType.h"
+#include "State.h"
 #include "visualManager.h"
 
 enum class FrameOptions
@@ -62,8 +64,6 @@ class VioManager
 
     void ProcessMeasurementOnce();
 
-    void start_visual_system();
-
     void GroundTruthCallback(const geometry_msgs::PointStamped::ConstPtr& msg);
 
     void ImuCallback(const sensor_msgs::Imu::ConstPtr& msg);
@@ -77,6 +77,14 @@ class VioManager
     void ResetSystem();
 
     GroundTruth InterpolateGroundTruth(const double ts) const;
+
+    void FrontendLoop();
+
+    void BackendLoop();
+
+    void StartFrontendThread();
+
+    void StartBackendThread();
 
     double _initial_timestamp = 0.f;
     double lazy_time_ = 0.2; // In seconds
@@ -94,12 +102,18 @@ class VioManager
     void SaveResultsToFile();
 
     Param params_;
+    bool use_zupt_ = false;
     std::shared_ptr<ros::NodeHandle> nh_;
     uint8_t visual_updated_this_tick_ = false;
     uint8_t zupt_updated_this_tick_ = false;
     double last_update_timestamp_ = -1.0;
     std::pair<double, std::vector<CameraObs>> last_feature_observes_;
-    bool use_zupt_ = false;
+
+    std::thread frontend_thread_;
+    std::thread backend_thread_;
+    std::queue<std::pair<double, std::vector<CameraObs>>> feature_observes_queue_; // (ts_sec, feature_observes)
+    std::queue<std::pair<double, std::vector<cv::Mat>>> image_queue_; // (ts_sec, images)
+    mutable std::mutex feature_observes_queue_mutex_; // Mutex for feature_observes_queue_
 };
 
 #endif

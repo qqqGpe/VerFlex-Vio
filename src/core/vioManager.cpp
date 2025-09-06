@@ -23,6 +23,7 @@ VioManager::VioManager(std::shared_ptr<ros::NodeHandle>& nh, const Param& params
     nh_ = nh;
     params_ = params;
 
+    // Solver configuration
     if (params.solver_type == static_cast<int>(SolverType::ESKF))
     {
         solver = std::make_shared<eskfSolver>();
@@ -32,11 +33,16 @@ VioManager::VioManager(std::shared_ptr<ros::NodeHandle>& nh, const Param& params
         solver = std::make_shared<SqrtEskfSolver>();
     }
 
-    state = std::make_shared<State>(params.estimate_ric, params.estimate_td_visual);
+    // Initialize state
+    state = std::make_shared<State>(params);
+
+    // Initialize IMU manager
     _imu_manager = std::make_shared<ImuManager>(params, state, solver);
-    _imu_manager->SetImuNoise(params.sigma_na, params.sigma_nw, params.sigma_ba, params.sigma_bg);
+
+    // Initialize visual manager
     _visual_manager = std::make_shared<VisualManager>(nh, params, state, solver);
 
+    // Initializer configuration
     if (params.initial_type == static_cast<int>(InitializerType::kStatic) && params.camera_num == 2)
     {
         initializer = std::make_shared<Initializer>(params, _visual_manager, state);
@@ -46,6 +52,7 @@ VioManager::VioManager(std::shared_ptr<ros::NodeHandle>& nh, const Param& params
         initializer = std::make_shared<DynamicInitializer>(params, _visual_manager, state);
     }
 
+    // Loggers configuration
     if (params.save_full_log)
     {
         vio_logger = std::make_shared<utils::LoggerFull>(params.log_path, params.bag_name);
@@ -58,11 +65,6 @@ VioManager::VioManager(std::shared_ptr<ros::NodeHandle>& nh, const Param& params
 
     lazy_time_ = params.lazy_time;
     use_zupt_ = params.use_zupt;
-
-    // Initialize camera extrinsic parameters
-    Eigen::Quaterniond qic(params.Ric[0]);
-    Eigen::Vector3d tic = params.tic[0];
-    state->set_extrinsic(qic.normalized(), tic);
 }
 
 void VioManager::ResetSystem()
@@ -333,8 +335,10 @@ void VioManager::PublishVioMessages(const double ts_sec)
 
 FrameOptions VioManager::CheckMeasurements() const
 {
-
     const double td_visual = state->enable_estimate_td_visual_ ? state->td_visual().data() : 0.f;
+
+    // Lock the input image buffer for checking
+    std::lock_guard<std::mutex> lock(_visual_manager->input_image_buffer_mutex_);
 
     if (_visual_manager->_input_image_buffer.empty())
     {
@@ -349,7 +353,6 @@ FrameOptions VioManager::CheckMeasurements() const
         //     _imu_manager->_imu_latest_timestamp, lazy_time_, _visual_manager->_input_image_buffer.front().first + td_visual);
         return FrameOptions::kWaitForImu;
     }
-
 
     if (_visual_manager->_input_image_buffer.front().first + td_visual < state->ts_sec())
     {
@@ -409,6 +412,136 @@ void VioManager::ProcessMeasurementOnce()
             LOG(WARNING) << fmt::format("Failed to track features in image at ts: {:f}", new_image.first);
             continue;
         }
+
+        // Dynamic monocular visual initialization
+        if (!initializer->IsInitialized())
+        {
+            if (initializer->init_type == InitializerType::kDynamic)
+            {
+                if (TryDynamicInitialization(new_image, feature_observes))
+                {
+                    LOG(INFO) << fmt::format("Dynamic initialized successfully at {:.3f}s", ts_sec);
+                }
+            }
+            else if (initializer->init_type == InitializerType::kStatic)
+            {
+                if (TryStaticInitialization(new_image, feature_observes))
+                {
+                    LOG(INFO) << fmt::format("Static stereo visual initialized successfully at {:.3f}s", ts_sec);
+                }
+            }
+            continue;
+        }
+
+        // Zupt update process
+        if (TryZuptUpdate(ts_sec))
+        {
+            zupt_updated_this_tick_ = true;
+            last_update_timestamp_ = state->ts_sec();
+            ClearExpiredMeasurements();
+        }
+
+        // Visual update process
+        if (TryVisualUpdate(feature_observes))
+        {
+            visual_updated_this_tick_ = true;
+            last_update_timestamp_ = state->ts_sec();
+            ClearExpiredMeasurements();
+        }
+
+        // Reset vio system if system goes not well
+        if (!CheckVioState(ts_sec))
+        {
+            ResetSystem();
+            continue;
+        }
+
+        // Publish VIO state and features
+        PublishVioMessages(ts_sec);
+
+        /* Save vio results to log */
+        SaveResultsToFile();
+    }
+}
+
+void VioManager::StartFrontendThread()
+{
+    frontend_thread_ = std::thread(&VioManager::FrontendLoop, this);
+}
+
+void VioManager::StartBackendThread()
+{
+    backend_thread_ = std::thread(&VioManager::BackendLoop, this);
+}
+
+void VioManager::FrontendLoop()
+{
+    std::pair<double, std::vector<cv::Mat>> new_image;
+    std::pair<double, std::vector<CameraObs>> feature_observes;
+
+    for(;;)
+    {
+        FrameOptions frame_status = CheckMeasurements();
+        {
+            std::lock_guard<std::mutex> lock(_visual_manager->input_image_buffer_mutex_);
+            if (frame_status == FrameOptions::kStatusOk)
+            {
+                new_image = _visual_manager->_input_image_buffer.front();
+                _visual_manager->_input_image_buffer.pop();
+            }
+            else if (frame_status == FrameOptions::kSkipFrame)
+            {
+                if (!_visual_manager->_input_image_buffer.empty())
+                {
+                    _visual_manager->_input_image_buffer.pop();
+                }
+                continue;
+            }
+            else
+            {
+                continue;
+            }
+        }
+
+        if (!TryFrontendTrack(new_image, feature_observes))
+        {
+            LOG(WARNING) << fmt::format("Failed to track features in image at ts: {:f}", new_image.first);
+            continue;
+        }
+
+        // Lock the feature observes queue
+        {
+            std::lock_guard<std::mutex> lock(feature_observes_queue_mutex_);
+            feature_observes_queue_.emplace(feature_observes);
+            image_queue_.emplace(new_image);
+        }
+    }
+}
+
+void VioManager::BackendLoop()
+{
+    for(;;)
+    {
+        std::pair<double, std::vector<CameraObs>> feature_observes;
+        std::pair<double, std::vector<cv::Mat>> new_image;
+        {
+            std::lock_guard<std::mutex> lock(feature_observes_queue_mutex_);
+            if (!feature_observes_queue_.empty())
+            {
+                feature_observes = feature_observes_queue_.front();
+                new_image = image_queue_.front();
+                feature_observes_queue_.pop();
+                image_queue_.pop();
+            }
+            else
+            {
+                continue;
+            }
+        }
+
+        double ts_sec = feature_observes.first;
+        visual_updated_this_tick_ = false;
+        zupt_updated_this_tick_ = false;
 
         // Dynamic monocular visual initialization
         if (!initializer->IsInitialized())
@@ -540,7 +673,6 @@ void VioManager::GroundTruthCallback(const geometry_msgs::PointStamped::ConstPtr
 
 void VioManager::ImuCallback(const sensor_msgs::Imu::ConstPtr& msg)
 {
-    // std::cout << "Received IMU data at timestamp: " << msg->header.stamp.toSec() - _initial_timestamp << std::endl;
     ImuData data;
     data.ts_sec = msg->header.stamp.toSec() - _initial_timestamp;
     data.wm << msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z;

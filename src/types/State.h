@@ -5,9 +5,10 @@
 #include <map>
 #include <memory>
 
-#include "Imu_state.h"
+#include "ImuState.h"
 #include "Pose.h"
 #include "Scalar.h"
+#include "parameter.h"
 
 struct CameraPose
 {
@@ -25,8 +26,8 @@ struct CameraPose
 class State
 {
    public:
-    explicit State(const bool estimate_ric = true, const bool estimate_td_visual = false)
-        : enable_estimate_ric_(estimate_ric), enable_estimate_td_visual_(estimate_td_visual)
+    explicit State(const Param& param)
+        : enable_estimate_ric_(param.estimate_ric), enable_estimate_td_visual_(param.estimate_td_visual)
     {
         _imu_state = std::make_shared<ImuState>();
         qic_ = std::make_shared<Quat>();
@@ -61,6 +62,7 @@ class State
 
         SetCovariance(Eigen::MatrixXd::Identity(_dim, _dim));  // initialize covariance;
         SetSqrtPt(Eigen::MatrixXd::Identity(_dim, _dim));      // initialize sqrt-root covariance;
+        SetCamExtrinsic(Eigen::Quaterniond(param.Ric[0]), param.tic[0]);    // initialize camera extrinsic
     }
     ~State() {}
 
@@ -70,9 +72,9 @@ class State
         _imu_state->set_ts(ts_sec);
     }
 
-    void set_extrinsic(Eigen::Quaterniond qic, Eigen::Vector3d tic)
+    void SetCamExtrinsic(Eigen::Quaterniond qic, Eigen::Vector3d tic)
     {
-        qic_->set_value(qic.coeffs());
+        qic_->set_value(qic.normalized().coeffs());
         tic_->set_value(tic);
     }
 

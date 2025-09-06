@@ -18,7 +18,7 @@ namespace
 constexpr uint32_t kMinFeatForMapping = 1;
 constexpr double kMaxConditionNum = 20000.f;
 constexpr double kMinTriangDist = 0.05;
-constexpr double kMaxTriangDist = 15;
+constexpr double kMaxTriangDist = 20.0;
 constexpr uint32_t kMaxIterationTimes = 5;
 constexpr uint32_t kMinFeatNumToUpdate = 15;
 }  // namespace
@@ -449,7 +449,7 @@ bool VisualManager::least_square_triangulation(const std::map<double, CameraPose
         }
         else if (paf(2, 0) < kMinTriangDist || paf(2, 0) > kMaxTriangDist)
         {
-            std::cout << "paf is out of range" <<  paf.transpose() << std::endl;
+            // std::cout << "paf is out of range" <<  paf.transpose() << std::endl;
         }
         else if (std::isnan(paf.norm()))
         {
@@ -623,7 +623,13 @@ void VisualManager::reset()
     feature_tracked_.clear();
     feature_lost_.clear();
     feature_new_.clear();
-    std::queue<std::pair<double, std::vector<cv::Mat>>>().swap(_input_image_buffer);
+
+    // Clear buffers with mutex protection
+    {
+        std::lock_guard<std::mutex> lock(input_image_buffer_mutex_);
+        std::queue<std::pair<double, std::vector<cv::Mat>>>().swap(_input_image_buffer);
+    }
+
     std::queue<std::pair<double, std::vector<CameraObs>>>().swap(feature_obs_buffer);
     std::map<double, std::vector<cv::Mat>>().swap(stored_images_);
     for (int i = 0; i < max_feat_n_; i++)
@@ -649,11 +655,16 @@ void VisualManager::ClearExpiredMeasurements(const double timestamp)
 
 void VisualManager::FeedImages(const std::pair<double, std::vector<cv::Mat>> input)
 {
-    while (_input_image_buffer.size() > kMaxImageBufferSize)
+    // Protect image buffer with mutex
     {
-        _input_image_buffer.pop();
+        std::lock_guard<std::mutex> lock(input_image_buffer_mutex_);
+        while (_input_image_buffer.size() > kMaxImageBufferSize)
+        {
+            _input_image_buffer.pop();
+        }
+        _input_image_buffer.push(input);
     }
-    _input_image_buffer.push(input);
+
     stored_images_.insert(input);
 }
 

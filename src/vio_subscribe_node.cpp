@@ -44,6 +44,13 @@ int main(int argc, char** argv)
     // Initialize vio_backend
     std::shared_ptr<VioManager> vio_manager = std::make_shared<VioManager>(nh, params);
 
+    // Start frontend and backend threads if multi-thread is enabled
+    if (params.use_multi_thread)
+    {
+        vio_manager->StartFrontendThread();
+        vio_manager->StartBackendThread();
+    }
+
     // set log level
     fLI::FLAGS_stderrthreshold = params.log_level;  // 0: info, 1: warning, 2: error, 3: fatal
 
@@ -67,7 +74,7 @@ int main(int argc, char** argv)
     while(ros::ok())
     {
         ros::spinOnce();
-        if (vio_manager->_visual_manager->_input_image_buffer.size() > 0)
+        if (!params.use_multi_thread && vio_manager->_visual_manager->_input_image_buffer.size() > 0)
         {
             vio_manager->ProcessMeasurementOnce();
         }

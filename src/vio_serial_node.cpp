@@ -62,12 +62,6 @@ int main(int argc, char** argv)
         vio_manager->SetInitialTimeStamp(0);
     }
 
-    // start vio updater
-    // if (params.use_multi_thread)
-    // {
-    //     vio_manager.start_visual_system();
-    // }
-
     // load data from rosbag
     std::string ground_truth_topic = "/leica/position";
     std::vector<rosbag::MessageInstance> msgs;
