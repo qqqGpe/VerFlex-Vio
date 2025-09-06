@@ -1,11 +1,11 @@
 #ifndef __VIO_POSE__
 #define __VIO_POSE__
 
+#include <iostream>
 #include <memory>
 #include "Quat.h"
 #include "Type.h"
 #include "Vec.h"
-#include "format.h"
 
 class Pose : public Type
 {

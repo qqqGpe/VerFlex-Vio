@@ -34,52 +34,8 @@ class VioManager
 {
    public:
     VioManager() = default;
-    VioManager(std::shared_ptr<ros::NodeHandle> &nh, const Param& params)
-    {
-        nh_ = nh;
-        params_ = params;
+    VioManager(std::shared_ptr<ros::NodeHandle> &nh, const Param& params);
 
-        if (params.solver_type == static_cast<int>(SolverType::ESKF))
-        {
-            solver = std::make_shared<eskfSolver>();
-        }
-        else if (params.solver_type == static_cast<int>(SolverType::SQRT_ESKF))
-        {
-            solver = std::make_shared<SqrtEskfSolver>();
-        }
-
-        state = std::make_shared<State>(params.estimate_ric, params.estimate_td_visual);
-        _imu_manager = std::make_shared<ImuManager>(params, state, solver);
-        _imu_manager->SetImuNoise(params.sigma_na, params.sigma_nw, params.sigma_ba, params.sigma_bg);
-        _visual_manager = std::make_shared<VisualManager>(nh, params, state, solver);
-
-        if (params.initial_type == static_cast<int>(InitializerType::kStatic) && params.camera_num == 2)
-        {
-            initializer = std::make_shared<Initializer>(params, _visual_manager, state);
-        }
-        else if (params.initial_type == static_cast<int>(InitializerType::kDynamic))
-        {
-            initializer = std::make_shared<DynamicInitializer>(params, _visual_manager, state);
-        }
-
-        if (params.save_full_log)
-        {
-            vio_logger = std::make_shared<utils::LoggerFull>(params.log_path, params.bag_name);
-        }
-
-        if (params.save_tum_log)
-        {
-            vio_logger_tum = std::make_shared<utils::LoggerTUM>(params.log_path, params.bag_name);
-        }
-
-        lazy_time_ = params.lazy_time;
-        use_zupt_ = params.use_zupt;
-
-        // Initialize camera extrinsic parameters
-        Eigen::Quaterniond qic(params.Ric[0]);
-        Eigen::Vector3d tic = params.tic[0];
-        state->set_extrinsic(qic.normalized(), tic);
-    }
     ~VioManager() {}
 
     bool TryFrontendTrack(const std::pair<double, std::vector<cv::Mat>>& images, std::pair<double, std::vector<CameraObs>>& feature_observes);
@@ -134,24 +90,16 @@ class VioManager
     std::map<double, std::pair<cv::Mat, cv::Mat>> image_bak;
     std::map<double, GroundTruth> ground_truth_;
 
-    boost::posix_time::ptime vio_rT, vio_rT1, vio_rT2, vio_rT3, vio_rT4;
-    boost::posix_time::ptime pro_rT, pro_rT1, pro_rT2, pro_rT3, pro_rT4;
-
    private:
-
     void SaveResultsToFile();
 
-    std::shared_ptr<ros::NodeHandle> nh_;
     Param params_;
+    std::shared_ptr<ros::NodeHandle> nh_;
     uint8_t visual_updated_this_tick_ = false;
     uint8_t zupt_updated_this_tick_ = false;
     double last_update_timestamp_ = -1.0;
     std::pair<double, std::vector<CameraObs>> last_feature_observes_;
     bool use_zupt_ = false;
 };
-
-void frontend_task_entry(std::shared_ptr<VisualManager> visual_manager);
-
-void backend_task_entry(VioManager* vio);
 
 #endif

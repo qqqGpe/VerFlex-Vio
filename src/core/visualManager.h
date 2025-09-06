@@ -20,33 +20,20 @@ namespace {
 class VisualManager
 {
    public:
-   static constexpr uint32_t kMaxFeatureForUpdate = 40;
-   static constexpr uint32_t kMinFeatureForUpdate = 5;
+    static constexpr uint32_t kMaxFeatureForUpdate = 40;
+    static constexpr uint32_t kMinFeatureForUpdate = 5;
 
     VisualManager() = default;
+    VisualManager(std::shared_ptr<ros::NodeHandle>& nh,
+                  const Param& params,
+                  std::shared_ptr<State>& state,
+                  std::shared_ptr<MsckfSolverBase> solver = nullptr);
+
     ~VisualManager()
     {
         for (int i = 0; i < max_feat_n_; i++)
         {
             delete feature_base_[i];
-        }
-    }
-
-    VisualManager(std::shared_ptr<ros::NodeHandle> &nh, const Param &params, std::shared_ptr<State> &state,
-                  std::shared_ptr<MsckfSolverBase> solver = nullptr)
-    {
-        nh_ = nh;
-        _state = state;
-        param_ = params;
-        _keyframe = std::make_shared<KeyFrameStatus>(KeyFrameStatus::kNone);
-        vio_frontend = std::make_shared<VioFrontend>(nh, params, _keyframe);
-        max_clone_pose_ = params.max_clone_pose;
-        max_feat_n_ = params.max_feat_n;
-        solver_ = solver;
-        for (int i = 0; i < max_feat_n_; i++)
-        {
-            Feature* feat = new Feature();
-            feature_base_.push_back(feat);
         }
     }
 

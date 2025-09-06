@@ -3,7 +3,6 @@
 
 #include "vioManager.h"
 #include "camModel.h"
-#include "format.h"
 #include "imuPreIntegration.h"
 #include "mathematical_tools.h"
 #include "utils.h"
@@ -18,6 +17,53 @@ constexpr uint32_t kNoInputDataCntThres = 100;
 constexpr double kMaxAllowedSysUpdateInterval = 1.0f;  // 2s
 constexpr uint32_t kMinVisualFeaturesForUpdate = 10;
 }  // namespace
+
+VioManager::VioManager(std::shared_ptr<ros::NodeHandle>& nh, const Param& params)
+{
+    nh_ = nh;
+    params_ = params;
+
+    if (params.solver_type == static_cast<int>(SolverType::ESKF))
+    {
+        solver = std::make_shared<eskfSolver>();
+    }
+    else if (params.solver_type == static_cast<int>(SolverType::SQRT_ESKF))
+    {
+        solver = std::make_shared<SqrtEskfSolver>();
+    }
+
+    state = std::make_shared<State>(params.estimate_ric, params.estimate_td_visual);
+    _imu_manager = std::make_shared<ImuManager>(params, state, solver);
+    _imu_manager->SetImuNoise(params.sigma_na, params.sigma_nw, params.sigma_ba, params.sigma_bg);
+    _visual_manager = std::make_shared<VisualManager>(nh, params, state, solver);
+
+    if (params.initial_type == static_cast<int>(InitializerType::kStatic) && params.camera_num == 2)
+    {
+        initializer = std::make_shared<Initializer>(params, _visual_manager, state);
+    }
+    else if (params.initial_type == static_cast<int>(InitializerType::kDynamic))
+    {
+        initializer = std::make_shared<DynamicInitializer>(params, _visual_manager, state);
+    }
+
+    if (params.save_full_log)
+    {
+        vio_logger = std::make_shared<utils::LoggerFull>(params.log_path, params.bag_name);
+    }
+
+    if (params.save_tum_log)
+    {
+        vio_logger_tum = std::make_shared<utils::LoggerTUM>(params.log_path, params.bag_name);
+    }
+
+    lazy_time_ = params.lazy_time;
+    use_zupt_ = params.use_zupt;
+
+    // Initialize camera extrinsic parameters
+    Eigen::Quaterniond qic(params.Ric[0]);
+    Eigen::Vector3d tic = params.tic[0];
+    state->set_extrinsic(qic.normalized(), tic);
+}
 
 void VioManager::ResetSystem()
 {

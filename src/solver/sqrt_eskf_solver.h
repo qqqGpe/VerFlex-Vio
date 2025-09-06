@@ -279,7 +279,7 @@ class SqrtEskfSolver : public MsckfSolverBase
             }
             else
             {
-                LOG(WARNING) << utils::Format("Imu delayed for {0}s", dt);
+                LOG(WARNING) << fmt::format("Imu delayed for {}s", dt);
                 exit(0);
             }
         }
