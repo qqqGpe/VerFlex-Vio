@@ -16,8 +16,15 @@ class eskfSolver : public MsckfSolverBase
 {
    public:
     eskfSolver() = default;
+    eskfSolver(const bool use_fej) : use_fej_(use_fej) {}
     virtual ~eskfSolver() {}
 
+    /**
+     * @brief Stochastic clone the given pose into the state
+     * @param state The state to be cloned
+     * @param imu_data The imu measurements between the last state and the current state
+     * @return void
+     */
     virtual void StochasticClone(std::shared_ptr<State> state, std::vector<ImuData>* imu_data) override
     {
         Eigen::MatrixXd Cov_old = state->Covariance();
@@ -41,7 +48,6 @@ class eskfSolver : public MsckfSolverBase
         state->_dim += clone_pose->size();
 
         // Consider the time delay of visual measurement when agument the covariance
-        // TODO: why not converge?
         if (state->enable_estimate_td_visual_)
         {
             Eigen::Vector3d last_w = imu_data->back().wm;
@@ -54,6 +60,12 @@ class eskfSolver : public MsckfSolverBase
         state->SetCovariance(Cov_new);
     }
 
+    /**
+     * @brief Marginalize the given state variable from the state
+     * @param state The state containing the variable to be marginalized
+     * @param state_to_marginalize The state variable to be marginalized
+     * @return void
+     */
     virtual void MarginalizeState(std::shared_ptr<State> state, std::shared_ptr<Type> state_to_marginalize) override
     {
         if (state_to_marginalize == nullptr)
@@ -112,6 +124,12 @@ class eskfSolver : public MsckfSolverBase
         state->SetCovariance(Cov_small);
     }
 
+    /**
+     * @brief Compute the marginal covariance of the given state variables
+     * @param state The state containing the full covariance matrix
+     * @param Hx_order The order of the state variables to compute the marginal covariance
+     * @return The marginal covariance matrix
+     */
     static Eigen::MatrixXd MarginalCovariance(const std::shared_ptr<State> state, const std::vector<std::shared_ptr<Type>> Hx_order)
     {
         int32_t matrix_size = 0;
@@ -140,6 +158,15 @@ class eskfSolver : public MsckfSolverBase
         return Cov_marginal;
     }
 
+    /**
+     * @brief Update the state with given measurements
+     * @param state The state to be updated
+     * @param Hx The measurement Jacobian matrix
+     * @param res The measurement residual
+     * @param Hx_order The order of the state variables in the Hx matrix
+     * @param map_hx The mapping from state variable to its column index in the Hx matrix
+     * @param R The measurement noise covariance
+     */
     virtual void update(std::shared_ptr<State>& state,
                         const Eigen::Ref<Eigen::MatrixXd>& Hx,
                         const Eigen::Ref<Eigen::MatrixXd>& res,
@@ -187,7 +214,7 @@ class eskfSolver : public MsckfSolverBase
         {
             if (diags(i) < 0.0)
             {
-                LOG(ERROR) << fmt::format("diagonal is negative when update, diags");
+                LOG(ERROR) << "\033[31m" << fmt::format("Diagonal is negative when update, diags") << "\033[0m";
                 LOG(ERROR) << "diags: " << diags.transpose();
                 std::exit(EXIT_FAILURE);
             }
@@ -200,6 +227,120 @@ class eskfSolver : public MsckfSolverBase
         }
     }
 
+    /**
+     * @brief Propagate the state with given imu measurements
+     * @param state The state to be propagated
+     * @param dt The time difference between the last state and the current state
+     * @param meas_k0 The imu measurement at time k0
+     * @param meas_k1 The imu measurement at time k1
+     * @param new_q The propagated orientation
+     * @param new_p The propagated position
+     * @param new_v The propagated velocity
+     * @return void
+     */
+    void PropagateState(const std::shared_ptr<State> state,
+                        const double dt,
+                        const ImuData meas_k0,
+                        const ImuData meas_k1,
+                        Eigen::Quaterniond& new_q,
+                        Eigen::Vector3d& new_p,
+                        Eigen::Vector3d& new_v)
+    {
+        Eigen::Quaterniond q_ItoG = state->_imu_state->pose()->quat();
+        Eigen::Vector3d p_IinG = state->_imu_state->pose()->p();
+        Eigen::Vector3d v_IinG = state->_imu_state->v()->vec();
+
+        Eigen::Vector3d wm_mid = 0.5 * (meas_k0.wm + meas_k1.wm) - state->_imu_state->bg()->vec();
+        Eigen::Vector3d am_mid = 0.5 * (meas_k0.am + meas_k1.am) - state->_imu_state->ba()->vec();
+        Eigen::Matrix3d dR = Eigen::AngleAxisd(wm_mid.norm() * dt, wm_mid.normalized()).toRotationMatrix();
+
+        new_q = (q_ItoG * Eigen::Quaterniond(dR)).normalized();
+
+        new_p = p_IinG + v_IinG * dt - 0.5 * state->_imu_state->gravity_inG * dt * dt + 0.5 * (q_ItoG.toRotationMatrix() * am_mid * dt * dt);
+
+        new_v = v_IinG + (q_ItoG.toRotationMatrix() * am_mid - state->_imu_state->gravity_inG) * dt;
+    }
+
+    /**
+     * @brief Compute the state transition matrix F and the process noise matrix G
+     * @param state The state to be propagated
+     * @param dt The time difference between the last state and the current state
+     * @param meas_k0 The imu measurement at time k0
+     * @param meas_k1 The imu measurement at time k1
+     * @param new_q The propagated orientation
+     * @param F The state transition matrix to be computed
+     * @param G The process noise matrix to be computed
+     * @return void
+     */
+    void Compute_F_and_G(const std::shared_ptr<State> state,
+                         const double dt,
+                         const ImuData meas_k0,
+                         const ImuData meas_k1,
+                         const Eigen::Quaterniond new_q,
+                         Eigen::MatrixXd& F,
+                         Eigen::MatrixXd& G)
+    {
+        const uint32_t th_id = state->_imu_state->q()->id();
+        const uint32_t p_id = state->_imu_state->p()->id();
+        const uint32_t v_id = state->_imu_state->v()->id();
+        const uint32_t bg_id = state->_imu_state->bg()->id();
+        const uint32_t ba_id = state->_imu_state->ba()->id();
+
+        F = Eigen::MatrixXd::Identity(15, 15);
+        G = Eigen::MatrixXd::Zero(15, 12);
+
+        Eigen::Vector3d p_IinG = state->_imu_state->pose()->p();
+        Eigen::Matrix3d R_ItoG = state->_imu_state->pose()->quat().toRotationMatrix();
+        Eigen::Vector3d v_IinG = state->_imu_state->v()->vec();
+        Eigen::Vector3d ba = state->_imu_state->ba()->vec();
+        Eigen::Vector3d bg = state->_imu_state->bg()->vec();
+        Eigen::Vector3d wm_mid = 0.5 * (meas_k0.wm + meas_k1.wm) - state->_imu_state->bg()->vec();
+        Eigen::Vector3d am_mid = 0.5 * (meas_k0.am + meas_k1.am) - state->_imu_state->ba()->vec();
+
+        if (use_fej_)
+        {
+            p_IinG = state->_imu_state->pose()->p_fej();
+            R_ItoG = state->_imu_state->pose()->quat_fej().toRotationMatrix();
+        }
+
+        Eigen::Matrix3d dR = new_q.toRotationMatrix().transpose() * R_ItoG;
+
+        // For R
+        F.block<3, 3>(th_id, th_id) = dR;
+        F.block<3, 3>(th_id, bg_id) = -Eigen::Matrix3d::Identity() * dt;
+
+        // For p
+        F.block<3, 3>(p_id, p_id) = Eigen::Matrix3d::Identity();
+        F.block<3, 3>(p_id, v_id) = Eigen::Matrix3d::Identity() * dt;
+        F.block<3, 3>(p_id, th_id) = -0.5 * R_ItoG * MathUtils::skew(am_mid * dt * dt);
+        F.block<3, 3>(p_id, ba_id) = -0.5 * R_ItoG * dt * dt;
+
+        // For v
+        F.block<3, 3>(v_id, v_id) = Eigen::Matrix3d::Identity();
+        F.block<3, 3>(v_id, th_id) = -R_ItoG * MathUtils::skew(am_mid * dt);
+        F.block<3, 3>(v_id, ba_id) = -R_ItoG * dt;
+
+        // For bg
+        F.block<3, 3>(bg_id, bg_id) = Eigen::Matrix3d::Identity();
+
+        // For ba
+        F.block<3, 3>(ba_id, ba_id) = Eigen::Matrix3d::Identity();
+
+        // For measurement noise
+        G.block<3, 3>(th_id, kNoiseGyroId) = -Eigen::Matrix3d::Identity() * dt;
+        G.block<3, 3>(p_id, kNoiseAccId) = -0.5 * R_ItoG * dt * dt;
+        G.block<3, 3>(v_id, kNoiseAccId) = -R_ItoG * dt;
+        G.block<3, 3>(bg_id, kNoiseGyroBiasId) = Eigen::Matrix3d::Identity();
+        G.block<3, 3>(ba_id, kNoiseAccBiasId) = Eigen::Matrix3d::Identity();
+    }
+
+    /**
+     * @brief Propagate the state and covariance with given imu measurements
+     * @param imu_data The imu measurements between the last state and the current state
+     * @param visual_ts The timestamp of the current state
+     * @param state The state to be propagated
+     * @return true if the propagation is successful, false otherwise
+     */
     virtual bool PropagateStateAndCovariance(const std::vector<ImuData> imu_data, const double visual_ts, std::shared_ptr<State> state) override
     {
         if (visual_ts <= state->_imu_state->ts())
@@ -216,123 +357,77 @@ class eskfSolver : public MsckfSolverBase
             return false;
         }
 
-        Eigen::Vector3d P = state->_imu_state->pose()->p();
-        Eigen::Matrix3d R = state->_imu_state->pose()->quat().toRotationMatrix();
-        Eigen::Vector3d V = state->_imu_state->v()->vec();
-        Eigen::Vector3d ba = state->_imu_state->ba()->vec();
-        Eigen::Vector3d bg = state->_imu_state->bg()->vec();
+        Eigen::MatrixXd Phi_sum = Eigen::MatrixXd::Identity(state->_imu_state->size(), state->_imu_state->size());
+        Eigen::MatrixXd Q_sum = state->_imu_state->covariance().block<15, 15>(state->_imu_state->id(), state->_imu_state->id());
 
-        Eigen::Vector3d P_next = P;
-        Eigen::Matrix3d R_next = R;
-        Eigen::Vector3d V_next = V;
-        Eigen::Vector3d ba_next = ba;
-        Eigen::Vector3d bg_next = bg;
-
-        const uint32_t dim = state->_imu_state->size();
-        const uint32_t th_id = state->_imu_state->q()->id();
-        const uint32_t p_id = state->_imu_state->p()->id();
-        const uint32_t v_id = state->_imu_state->v()->id();
-        const uint32_t bg_id = state->_imu_state->bg()->id();
-        const uint32_t ba_id = state->_imu_state->ba()->id();
-
-        constexpr uint32_t kNoiseAccId = 0;
-        constexpr uint32_t kNoiseGyroId = 3;
-        constexpr uint32_t kNoiseGyroBiasId = 6;
-        constexpr uint32_t kNoiseAccBiasId = 9;
-
-        Eigen::MatrixXd Cov_m = Eigen::MatrixXd::Identity(12, 12);
-        Cov_m.block(kNoiseAccId, kNoiseAccId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_na, 2);
-        Cov_m.block(kNoiseGyroId, kNoiseGyroId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_nw, 2);
-        Cov_m.block(kNoiseGyroBiasId, kNoiseGyroBiasId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_bg, 2);
-        Cov_m.block(kNoiseAccBiasId, kNoiseAccBiasId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_ba, 2);
-
-        Eigen::MatrixXd Phi_sum = Eigen::MatrixXd::Identity(dim, dim);
-        Eigen::MatrixXd Cov_imu_old = state->_imu_state->covariance().block<15, 15>(state->_imu_state->id(), state->_imu_state->id());
-        Eigen::MatrixXd Cov_imu_new = Cov_imu_old;
+        Eigen::MatrixXd Q = Eigen::MatrixXd::Identity(12, 12);
+        Q.block(kNoiseAccId, kNoiseAccId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_na, 2);
+        Q.block(kNoiseGyroId, kNoiseGyroId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_nw, 2);
+        Q.block(kNoiseGyroBiasId, kNoiseGyroBiasId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_bg, 2);
+        Q.block(kNoiseAccBiasId, kNoiseAccBiasId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_ba, 2);
 
         for (int i = 0; i < imu_data.size() - 1; i++)
         {
             Eigen::MatrixXd F = Eigen::MatrixXd::Identity(15, 15);
             Eigen::MatrixXd G = Eigen::MatrixXd::Zero(15, 12);
-            Eigen::MatrixXd Q = Cov_imu_new;
-
             double dt = imu_data.at(i + 1).ts_sec - imu_data.at(i).ts_sec;
+
             if (dt > 0 && dt < kMaxImuToleranceDelayTime)
             {
-                Eigen::Vector3d am_mid = 0.5 * (imu_data.at(i).am + imu_data.at(i + 1).am) - ba;
-                Eigen::Vector3d wm_mid = 0.5 * (imu_data.at(i).wm + imu_data.at(i + 1).wm) - bg;
+                Eigen::Quaterniond new_q;
+                Eigen::Vector3d new_p;
+                Eigen::Vector3d new_v;
 
-                P = P_next;
-                V = V_next;
-                R = R_next;
-                ba = ba_next;
-                bg = bg_next;
+                // 1. Propagate state
+                PropagateState(state, dt, imu_data.at(i), imu_data.at(i + 1), new_q, new_p, new_v);
 
-                // for R
-                F.block<3, 3>(th_id, th_id) = SO3d::exp(-wm_mid * dt).matrix();
-                F.block<3, 3>(th_id, bg_id) = -Eigen::Matrix3d::Identity() * dt;
+                // 2. Compute F and G
+                Compute_F_and_G(state, dt, imu_data.at(i), imu_data.at(i + 1), new_q, F, G);
 
-                // for p
-                F.block<3, 3>(p_id, p_id) = Eigen::Matrix3d::Identity();
-                F.block<3, 3>(p_id, v_id) = Eigen::Matrix3d::Identity() * dt;
-                F.block<3, 3>(p_id, th_id) = -0.5 * R * MathUtils::skew(am_mid * dt * dt);
-                F.block<3, 3>(p_id, ba_id) = -0.5 * R * dt * dt;
-
-                // for v
-                F.block<3, 3>(v_id, v_id) = Eigen::Matrix3d::Identity();
-                F.block<3, 3>(v_id, th_id) = -R * MathUtils::skew(am_mid * dt);
-                F.block<3, 3>(v_id, ba_id) = -R * dt;
-
-                // for bg
-                F.block<3, 3>(bg_id, bg_id) = Eigen::Matrix3d::Identity();
-
-                // for ba
-                F.block<3, 3>(ba_id, ba_id) = Eigen::Matrix3d::Identity();
-
-                // for sigma noise
-                G.block<3, 3>(th_id, kNoiseGyroId) = -Eigen::Matrix3d::Identity() * dt;
-                G.block<3, 3>(p_id, kNoiseAccId) = -0.5 * R * dt * dt;
-                G.block<3, 3>(v_id, kNoiseAccId) = -R * dt;
-                G.block<3, 3>(bg_id, kNoiseGyroBiasId) = Eigen::Matrix3d::Identity();
-                G.block<3, 3>(ba_id, kNoiseAccBiasId) = Eigen::Matrix3d::Identity();
-
-                // state propagation
-                P_next = P + V * dt - 0.5 * state->_imu_state->gravity_inG * dt * dt + 0.5 * (R * am_mid * dt * dt);
-                V_next = V - state->_imu_state->gravity_inG * dt + R * am_mid * dt;
-                R_next = R * SO3d::exp(wm_mid * dt).matrix();
-                ba_next = ba;
-                bg_next = bg;
-
+                // 3. Propagate covariance
                 Phi_sum = F * Phi_sum;
-                Cov_imu_new = G * Cov_m * G.transpose() + F * Q * F.transpose();
-                Cov_imu_new = 0.5 * (Cov_imu_new.eval() + Cov_imu_new.eval().transpose());
+                Q_sum = F * Q_sum.eval() * F.transpose() + G * Q * G.transpose();
+                Q_sum = 0.5 * (Q_sum.eval() + Q_sum.eval().transpose());
+
+                // 4. Update state
+                state->set_ts_sec(imu_data.at(i + 1).ts_sec);
+                state->_imu_state->q()->set_value(new_q.coeffs());
+                state->_imu_state->p()->set_value(new_p);
+                state->_imu_state->v()->set_value(new_v);
+
+                if (use_fej_)
+                {
+                    state->_imu_state->pose()->set_pose_fej(new_q.toRotationMatrix(), new_p);
+                }
             }
             else
             {
-                LOG(WARNING) << fmt::format("Imu delayed for {}s", dt);
+                LOG(WARNING) << "\033[31m" << fmt::format("Imu delayed for {}s", dt) << "\033[0m";
                 exit(0);
             }
         }
 
-        state->_imu_state->q()->set_value(Eigen::Quaterniond(R_next).normalized().coeffs());
-        state->_imu_state->p()->set_value(P_next);
-        state->_imu_state->v()->set_value(V_next);
+        state->_imu_state->set_covariance(Q_sum);
+        state->_covariance.block(state->_imu_state->id(), state->_imu_state->id(), state->_imu_state->size(), state->_imu_state->size()) = Q_sum;
 
-        state->_imu_state->set_ts(visual_ts);
-        state->_imu_state->set_covariance(Cov_imu_new);
-        state->_covariance.block(state->_imu_state->id(), state->_imu_state->id(), state->_imu_state->size(), state->_imu_state->size()) =
-            Cov_imu_new;
-
-        uint32_t clone_state_size = state->_clone_pose.size();
-        if (clone_state_size > 0)
+        const Eigen::MatrixXd Cov = state->Covariance();
+        const uint32_t imu_dim = state->_imu_state->size();
+        if (Cov.rows() != imu_dim)
         {
-            Eigen::MatrixXd Cov_ic = state->_covariance.block(0, 15, 15, 6 * clone_state_size);
-            state->_covariance.block(0, 15, 15, 6 * clone_state_size) = Phi_sum * Cov_ic;
-            state->_covariance.block(15, 0, 6 * clone_state_size, 15) = Cov_ic.transpose() * Phi_sum.transpose();
+            Eigen::MatrixXd Cov_ic = state->Covariance().block(0, imu_dim, imu_dim, Cov.rows() - imu_dim);
+            state->_covariance.block(0, imu_dim, imu_dim, Cov.rows() - imu_dim) = Phi_sum * Cov_ic;
+            state->_covariance.block(imu_dim, 0, Cov.rows() - imu_dim, imu_dim) = Cov_ic.transpose() * Phi_sum.transpose();
         }
 
         return true;
     }
+
+   private:
+    bool use_fej_ = true;
+    const uint32_t kNoiseAccId = 0;
+    const uint32_t kNoiseGyroId = 3;
+    const uint32_t kNoiseGyroBiasId = 6;
+    const uint32_t kNoiseAccBiasId = 9;
 };
 
 #endif

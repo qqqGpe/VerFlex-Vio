@@ -1,3 +1,10 @@
+/*
+ * @Author: pengen.gao gaope.hb@gmail.com
+ * @Date: 2025-06-23 02:03:20
+ * @LastEditors: pengen.gao gaope.hb@gmail.com
+ * @LastEditTime: 2025-09-24 00:17:49
+ * @FilePath: /catkin_ws/src/vio_backend/src/core/vioFrontend.h
+ */
 #include <Eigen/Eigen>
 #include <cv_bridge/cv_bridge.h>
 #include <fmt/format.h>
@@ -63,6 +70,8 @@ class VioFrontend
     static uint8_t ComputeCensusByte(const cv::Mat &image, int x, int y);
 
     bool ExtractFeatures(const cv::Mat& image, std::vector<cv::Point2f>& keypoints, std::vector<cv::Mat>& descriptors);
+
+    KeyFrameStatus getKeyframeStatus() const;
 
     std::shared_ptr<ros::NodeHandle> nh_;
     ros::ServiceClient client_;

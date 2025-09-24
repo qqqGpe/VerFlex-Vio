@@ -176,12 +176,17 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     imu_state->p()->set_value(Eigen::Vector3d::Zero());
     imu_state->v()->set_value(v_CinG);
 
+    if (param_.use_fej)
+    {
+        imu_state->pose()->set_pose_fej(R_ItoG, imu_state->p()->vec());
+    }
+
     // initialize stereo initialization imu covariance
-    const uint32_t kQId = state_->getImuState().q()->id();
-    const uint32_t kPId = state_->getImuState().p()->id();
-    const uint32_t kVId = state_->getImuState().v()->id();
-    const uint32_t kBgId = state_->getImuState().bg()->id();
-    const uint32_t kBaId = state_->getImuState().ba()->id();
+    const uint32_t kQId = state_->getImuState()->q()->id();
+    const uint32_t kPId = state_->getImuState()->p()->id();
+    const uint32_t kVId = state_->getImuState()->v()->id();
+    const uint32_t kBgId = state_->getImuState()->bg()->id();
+    const uint32_t kBaId = state_->getImuState()->ba()->id();
     const uint32_t kRicId = state_->enable_estimate_ric_ ? state_->qic().id() : -1;
     const uint32_t kTdVisualId = state_->enable_estimate_td_visual_ ? state_->td_visual().id() : -1;
 

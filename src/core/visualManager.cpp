@@ -785,8 +785,6 @@ bool VisualManager::StereoTriangulation(CameraObs& cam_obs, Eigen::Vector3d& pcf
 void VisualManager::FeatureTriangulation(const std::map<double, CameraPose> camera_pose_buffer, std::vector<Feature*>& feats)
 {
     // std::map<double, CameraPose> camera_pose_buffer = _state->AccessClonePoseBuffer();
-
-
     feature_mapping_success_ = 0;
     int origin_feats_size = feats.size();
     int less_obs_delete = 0;
@@ -801,24 +799,10 @@ void VisualManager::FeatureTriangulation(const std::map<double, CameraPose> came
             continue;
         }
 
-        // std::cout << "camera_pose_buffer size: " << camera_pose_buffer.size() << std::endl;
-        // for (auto x : camera_pose_buffer)
-        // {
-        //     std::cout << "clone pose timestamp: " << x.first << std::endl;
-        // }
-
-        // std::cout << "-------------------" << std::endl;
-        // std::cout << "feature id: " << (*it)->_id << std::endl;
-        // for (auto obs_it = (*it)->_visual_obs_buffer.begin(); obs_it != (*it)->_visual_obs_buffer.end(); obs_it++)
-        // {
-        //     std::cout << "feature timestamp: " << obs_it->first << std::endl;
-        // }
-
         if ((*it)->_is_triangulated == false)
         {
             if (false == least_square_triangulation(camera_pose_buffer, *it))
             {
-                // (*it)->_pwf.setZero();
                 (*it)->parallex = 0;
                 it = feats.erase(it);
                 triangulate_failed++;
@@ -998,6 +982,15 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
             Eigen::Vector2d uv = CamModel::getInstance().project(cam_id, p_finCi);
             Eigen::Vector2d res = zm - uv;
             Hfx.block<2, 1>(2 * cnt, Hfx.cols() - kResidualCols) = res;
+
+            if (param_.use_fej)
+            {
+                R_IitoG = obs_pose->quat_fej().toRotationMatrix();
+                p_IiinG = obs_pose->p_fej();
+                R_CitoG = R_IitoG * R_CtoI;
+                p_CiinG = p_IiinG + R_IitoG * p_CinI;
+                p_finCi = R_CitoG.transpose() * (p_finG - p_CiinG);
+            }
 
             // Pre-compute dz_dpcf
             Eigen::MatrixXd dz_norm_dpcf = Eigen::MatrixXd::Zero(2, 3);

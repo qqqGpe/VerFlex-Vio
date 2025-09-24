@@ -38,7 +38,7 @@ class Quat : public Type
         assert(new_fej.cols() == 1);
         _quat_fej = Eigen::Quaterniond(new_fej.block<4, 1>(0, 0));
         _Rot_fej = _quat_fej.toRotationMatrix();
-        _fej << _quat_fej.w(), _quat_fej.x(), _quat_fej.y(), _quat_fej.z();
+        _fej = _quat_fej.coeffs();
     }
 
     virtual void update(const Eigen::VectorXd& d_theta) override
@@ -53,8 +53,9 @@ class Quat : public Type
     virtual std::shared_ptr<Type> clone() const override
     {
         std::shared_ptr<Quat> clone_variable = std::make_shared<Quat>();
-        clone_variable->set_value(_quat.coeffs());
-        // clone_variable->set_fej(this->fej());    // disable fej for debug
+        clone_variable->set_value(this->q().coeffs());
+        clone_variable->set_fej(this->q_fej().coeffs());
+        clone_variable->set_ts(this->ts());
         return clone_variable;
     }
 

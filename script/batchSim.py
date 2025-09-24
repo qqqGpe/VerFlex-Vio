@@ -25,9 +25,8 @@ def is_process_running(process):
 
 
 def run_slam_and_rosbag(rosbag_file, ros_node_name, roslaunch_name, log_dir):
-
     print(f"Launching SLAM system: {roslaunch_name}")
-    dataset_name = os.path.splittext(os.path.basename(rosbag_file))[0]
+    dataset_name = os.path.splitext(os.path.basename(rosbag_file))[0]
     cmd_disbale_rviz = "use_rviz:=false"
     cmd_disable_full_log = "save_full_log:=false"
     cmd_set_bag_path = "bag_path:=" + rosbag_file
@@ -56,7 +55,7 @@ def run_slam_and_rosbag(rosbag_file, ros_node_name, roslaunch_name, log_dir):
             print("SLAM system has terminated.")
             break
 
-    # # 终止SLAM系统
+    # Terminate SLAM process if still running
     print("Finish batch simulation, terminating SLAM system...")
     vio_process.terminate()
     try:
@@ -70,7 +69,8 @@ if __name__ == "__main__":
     ros_node_name = "vio"
     roslaunch_name = "euroc_serial_backend.launch"
 
-    dataset_dir = os.path.join(os.path.expanduser("~"), "dataset/euroc_mav")  # 替换为实际的Euroc数据集路径
+    # Substitute with your dataset path
+    dataset_dir = os.path.join(os.path.expanduser("~"), "dataset/euroc_mav")
     vio_dir = os.path.join(os.path.expanduser("~"), "ws/catkin_ws")
     log_dir = os.path.join(vio_dir, "src/vio_backend/log/vio_sim_" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M"))
 
@@ -88,11 +88,11 @@ if __name__ == "__main__":
     source_cmd = "source " + os.path.join(vio_dir, "devel/setup.zsh")
     subprocess.run(source_cmd, shell=True, executable="/bin/zsh")
 
-    # 依次处理每个rosbag
+    # Process each rosbag file
     for rosbag_file in rosbags:
         print(f"\n=== Processing rosbag: {rosbag_file} ===")
         run_slam_and_rosbag(rosbag_file, ros_node_name, roslaunch_name, log_dir)
         print(f"=== Finished processing {rosbag_file} ===\n")
 
-        # 短暂暂停，确保系统完全清理
+        # Short pause to ensure system is fully cleaned up
         time.sleep(2)

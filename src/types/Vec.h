@@ -29,7 +29,8 @@ class Vec : public Type
     {
         std::shared_ptr<Vec> clone_variable = std::make_shared<Vec>();
         clone_variable->set_value(this->value());
-        // clone_variable->set_fej(this->fej());
+        clone_variable->set_fej(this->fej());
+        clone_variable->set_ts(this->ts());
         return clone_variable;
     }
 

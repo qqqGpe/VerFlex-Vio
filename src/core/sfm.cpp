@@ -268,8 +268,8 @@ bool Sfm::solveFrameByPnp(const std::vector<CameraObs> current_obsv, Pose &curre
 
     // For debug
     // std::cout << cv::format("origin obv: %zu", current_obsv.size()) << std::endl;
-    std::cout << fmt::format("corresponding_point: {}", corresponding_points.size()) << std::endl;
-    std::cout << fmt::format("corresponding_points_3d: {}", corresponding_points_3d.size()) << std::endl;
+    // std::cout << fmt::format("corresponding_point: {}", corresponding_points.size()) << std::endl;
+    // std::cout << fmt::format("corresponding_points_3d: {}", corresponding_points_3d.size()) << std::endl;
     cv::Mat K_cv;
     cv::Mat rvec, tvec;
     Eigen::Matrix3d K = CamModel::getInstance().K(LEFT_CAM);
@@ -386,8 +386,8 @@ bool Sfm::initSfmSolver()
     oldest_keyframe_timestamp_ = all_feature_observes_.begin()->first;
     const std::vector<CameraObs> oldest_keyframe_observes = all_feature_observes_.begin()->second;
     reference_keyframe_timestamp_ = findReferenceKeyframeTimestamp();
-    std::cout << "oldest_keyframe_timestamp_: " << oldest_keyframe_timestamp_ << std::endl;
-    std::cout << "reference_keyframe_timestamp_: " << reference_keyframe_timestamp_ << std::endl;
+    // std::cout << "oldest_keyframe_timestamp_: " << oldest_keyframe_timestamp_ << std::endl;
+    // std::cout << "reference_keyframe_timestamp_: " << reference_keyframe_timestamp_ << std::endl;
 
     // Calculate the up-to-scale relative pose between the oldest keyframe and the reference keyframe
     Eigen::Matrix3d R_rto0;

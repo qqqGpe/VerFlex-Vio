@@ -26,8 +26,7 @@ struct CameraPose
 class State
 {
    public:
-    explicit State(const Param& param)
-        : enable_estimate_ric_(param.estimate_ric), enable_estimate_td_visual_(param.estimate_td_visual)
+    explicit State(const Param& param) : enable_estimate_ric_(param.estimate_ric), enable_estimate_td_visual_(param.estimate_td_visual)
     {
         _imu_state = std::make_shared<ImuState>();
         qic_ = std::make_shared<Quat>();
@@ -60,27 +59,25 @@ class State
             _dim += td_visual_->size();
         }
 
-        SetCovariance(Eigen::MatrixXd::Identity(_dim, _dim));  // initialize covariance;
-        SetSqrtPt(Eigen::MatrixXd::Identity(_dim, _dim));      // initialize sqrt-root covariance;
-        SetCamExtrinsic(Eigen::Quaterniond(param.Ric[0]), param.tic[0]);    // initialize camera extrinsic
+        SetCovariance(Eigen::MatrixXd::Identity(_dim, _dim));             // initialize covariance;
+        SetSqrtPt(Eigen::MatrixXd::Identity(_dim, _dim));                 // initialize sqrt-root covariance;
+        SetCamExtrinsic(Eigen::Quaterniond(param.Ric[0]), param.tic[0]);  // initialize camera extrinsic
     }
     ~State() {}
 
-    // for debug
-    void set_ts_sec(double ts_sec)
-    {
-        _imu_state->set_ts(ts_sec);
-    }
-
-    void SetCamExtrinsic(Eigen::Quaterniond qic, Eigen::Vector3d tic)
-    {
-        qic_->set_value(qic.normalized().coeffs());
-        tic_->set_value(tic);
-    }
-
-    double ts_sec() { return _imu_state->ts(); }
+    double ts_sec() const { return _imu_state->ts(); }
 
     uint32_t dim() const { return _dim; }
+
+    Eigen::MatrixXd Covariance() const { return _covariance; }
+
+    Eigen::MatrixXd Sqrt_Pt() const { return sqrt_Pt_; }
+
+    std::shared_ptr<ImuState> getImuState() const { return _imu_state; }
+
+    Quat qic() const { return *qic_; }
+
+    Scalar td_visual() const { return *td_visual_; }
 
     std::map<double, CameraPose> AccessClonePoseBuffer() const
     {
@@ -99,7 +96,13 @@ class State
         return camera_clone_poses;
     }
 
-    Eigen::MatrixXd Covariance() { return _covariance; }
+    void set_ts_sec(double ts_sec) { _imu_state->set_ts(ts_sec); }
+
+    void SetCamExtrinsic(Eigen::Quaterniond qic, Eigen::Vector3d tic)
+    {
+        qic_->set_value(qic.normalized().coeffs());
+        tic_->set_value(tic);
+    }
 
     void SetCovariance(const Eigen::MatrixXd& covariance_new)
     {
@@ -107,38 +110,10 @@ class State
         _imu_state->set_covariance(covariance_new.block(_imu_state->id(), _imu_state->id(), _imu_state->size(), _imu_state->size()));
     }
 
-    Eigen::MatrixXd Sqrt_Pt() { return sqrt_Pt_; }
-
     void SetSqrtPt(const Eigen::MatrixXd& sqrt_Pt_new)
     {
         sqrt_Pt_.noalias() = sqrt_Pt_new;
         _imu_state->set_sqrt_Pt(sqrt_Pt_new.block(_imu_state->id(), _imu_state->id(), _imu_state->size(), _imu_state->size()));
-    }
-
-    ImuState getImuState() { return *_imu_state; }
-
-    Quat qic() const
-    {
-        if (qic_)
-        {
-            return *qic_;
-        }
-        else
-        {
-            throw std::runtime_error("qic is not set.");
-        }
-    }
-
-    Scalar td_visual() const
-    {
-        if (enable_estimate_td_visual_)
-        {
-            return *td_visual_;
-        }
-        else
-        {
-            throw std::runtime_error("td_visual is not set.");
-        }
     }
 
     void reset()

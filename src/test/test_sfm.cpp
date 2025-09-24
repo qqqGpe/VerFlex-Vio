@@ -83,7 +83,7 @@ CameraObs ProjectToCamera(const Pose &camera_pose, Feature &feature)
     Eigen::Vector3d p_CinG = camera_pose.p();
     Eigen::Matrix3d R_CtoG = camera_pose.quat().toRotationMatrix();
     Eigen::Vector3d pcf = R_CtoG.transpose() * (p_finG - p_CinG);
-    std::cout << "Camera Pose: " << camera_pose.R().transpose() << ", Position: " << camera_pose.p().transpose() << std::endl;
+    // std::cout << "Camera Pose: " << camera_pose.R().transpose() << ", Position: " << camera_pose.p().transpose() << std::endl;
 
     CameraObs obs;
     obs.ts_sec = camera_pose.ts();
@@ -92,8 +92,8 @@ CameraObs ProjectToCamera(const Pose &camera_pose, Feature &feature)
     const double v_norm = pcf(1) / pcf(2);
     Eigen::Vector3d uv_norm(u_norm, v_norm, 1.0);
     Eigen::Vector3d uv = K * uv_norm;
-    std::cout << "Camera Intrinsics: " << K << std::endl;
-    std::cout << "Feature ID: " << feature._id << ", UV: " << uv.transpose() << std::endl;
+    // std::cout << "Camera Intrinsics: " << K << std::endl;
+    // std::cout << "Feature ID: " << feature._id << ", UV: " << uv.transpose() << std::endl;
 
     obs.uv[LEFT_CAM] << uv.x(), uv.y();
     obs.uv_norm[LEFT_CAM] << u_norm, v_norm;

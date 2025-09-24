@@ -125,13 +125,13 @@ class MathUtils
         typedef typename Derived::Scalar Scalar_t;
         Eigen::Matrix<Scalar_t, 3, 3> Jl;
         Scalar_t theta = phi.norm();
-        Eigen::Matrix<Scalar_t, 3, 1> vec = phi / theta;
         if (theta < 1e-12)
         {
             Jl = Eigen::Matrix<Scalar_t, 3, 3>::Identity();
         }
         else
         {
+            Eigen::Matrix<Scalar_t, 3, 1> vec = phi / theta;
             Jl = (sin(theta) / theta) * Eigen::Matrix<Scalar_t, 3, 3>::Identity() + (1 - sin(theta) / theta) * vec * vec.transpose() +
                  (1 - cos(theta)) / theta * skew(vec);
         }

@@ -73,21 +73,29 @@ class Pose : public Type
         _p->set_value(t);
     }
 
+    void set_pose_fej(const Eigen::Matrix3d& R_fej, const Eigen::Vector3d& t_fej)
+    {
+        _q->set_fej(Eigen::Quaterniond(R_fej).coeffs());
+        _p->set_fej(t_fej);
+    }
+
     virtual std::shared_ptr<Type> clone() const override
     {
         std::shared_ptr<Pose> clone_variable = std::make_shared<Pose>();
         clone_variable->_q = std::dynamic_pointer_cast<Quat>(_q->clone());
         clone_variable->_p = std::dynamic_pointer_cast<Vec>(_p->clone());
-        clone_variable->set_ts(ts());
-        assert(clone_variable != nullptr && clone_variable != nullptr);
+        clone_variable->set_ts(this->ts());
         return clone_variable;
     }
 
     Eigen::Quaterniond quat() const { return _q->q(); }
+
     Eigen::Matrix3d R() const { return quat().toRotationMatrix(); }
+
     Eigen::Vector3d p() const { return _p->vec(); }
 
     Eigen::Quaterniond quat_fej() const { return _q->q_fej(); }
+
     Eigen::Vector3d p_fej() const { return _p->fej(); }
 
     friend class ImuState;

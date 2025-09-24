@@ -1,3 +1,11 @@
+/*
+ * @Author: pengen.gao gaope.hb@gmail.com
+ * @Date: 2025-02-03 20:11:13
+ * @LastEditors: pengen.gao gaope.hb@gmail.com
+ * @LastEditTime: 2025-09-24 00:23:54
+ * @FilePath: /catkin_ws/src/vio_backend/src/core/initializer.h
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
 #ifndef __VIO_INITIALIZER__
 #define __VIO_INITIALIZER__
 #include "ImuState.h"
@@ -34,6 +42,7 @@ class Initializer
     Initializer(const Param& paramters, const std::shared_ptr<VisualManager> visual_manager, std::shared_ptr<State>& state)
     {
         state_ = state;
+        param_ = paramters;
         visual_manager_ = visual_manager;
         gravity_mag = paramters.gravity_magn;
         init_type = static_cast<InitializerType>(paramters.initial_type);
@@ -59,6 +68,7 @@ class Initializer
     bool is_velocity_initialized = false;
 
    protected:
+    Param param_;
     std::shared_ptr<VisualManager> visual_manager_;
     std::shared_ptr<State> state_;
     std::deque<std::unordered_map<uint32_t, CameraObs>> feature_obs_buffer_;

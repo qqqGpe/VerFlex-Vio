@@ -19,6 +19,7 @@ public:
         _nh->param<bool>("estimate_ric", estimate_ric, true);
         _nh->param<bool>("estimate_td_visual", estimate_td_visual, true);
         _nh->param<bool>("use_zupt", use_zupt, false);
+        _nh->param<bool>("use_fej", use_fej, false);
         _nh->param<bool>("use_nn_feature", use_nn_feature, false);
         _nh->param<bool>("frontend_prediction", frontend_prediction, false);
         _nh->param<int>("log_level", log_level, 2);
@@ -93,6 +94,7 @@ public:
     bool save_tum_log = true;
     bool use_census_transform = true;
     bool use_pnp_ransac = true;
+    bool use_fej = false;
 
     int running_rate; // Hz
     int log_level = 2;

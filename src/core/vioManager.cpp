@@ -18,6 +18,11 @@ constexpr double kMaxAllowedSysUpdateInterval = 1.0f;  // 2s
 constexpr uint32_t kMinVisualFeaturesForUpdate = 10;
 }  // namespace
 
+/**
+ * @brief Constructor for VioManager
+ * @param nh Shared pointer to ROS NodeHandle
+ * @param params Configuration parameters
+ */
 VioManager::VioManager(std::shared_ptr<ros::NodeHandle>& nh, const Param& params)
 {
     nh_ = nh;
@@ -26,11 +31,11 @@ VioManager::VioManager(std::shared_ptr<ros::NodeHandle>& nh, const Param& params
     // Solver configuration
     if (params.solver_type == static_cast<int>(SolverType::ESKF))
     {
-        solver = std::make_shared<eskfSolver>();
+        solver = std::make_shared<eskfSolver>(params.use_fej);
     }
     else if (params.solver_type == static_cast<int>(SolverType::SQRT_ESKF))
     {
-        solver = std::make_shared<SqrtEskfSolver>();
+        solver = std::make_shared<SqrtEskfSolver>(params.use_fej);
     }
 
     // Initialize state
@@ -148,6 +153,12 @@ bool VioManager::TryFrontendTrack(const std::pair<double, std::vector<cv::Mat>>&
     return false;
 }
 
+/**
+ * @brief Attempt dynamic initialization of the VIO system
+ * @param image Pair of timestamp and vector of images
+ * @param feature_observes Pair of timestamp and vector of camera observations
+ * @return True if initialization is successful, false otherwise
+ */
 bool VioManager::TryDynamicInitialization(const std::pair<double, std::vector<cv::Mat>>& image,
                                           const std::pair<double, std::vector<CameraObs>>& feature_observes)
 {
@@ -202,6 +213,12 @@ bool VioManager::TryDynamicInitialization(const std::pair<double, std::vector<cv
     }
 }
 
+/**
+ * @brief Attempt static initialization of the VIO system
+ * @param image Pair of timestamp and vector of images
+ * @param feature_observes Pair of timestamp and vector of camera observations
+ * @return True if initialization is successful, false otherwise
+ */
 bool VioManager::TryStaticInitialization(const std::pair<double, std::vector<cv::Mat>>& image,
                                          const std::pair<double, std::vector<CameraObs>>& feature_observes)
 {
@@ -267,20 +284,20 @@ bool VioManager::TryZuptUpdate(const double ts_sec)
 bool VioManager::TryVisualUpdate(const std::pair<double, std::vector<CameraObs>>& feature_observes)
 {
     double time0 = state->ts_sec();
-    double time1 = feature_observes.first;
+    double time_comp = feature_observes.first;
     if (state->enable_estimate_td_visual_)
     {
-        time1 += state->td_visual().data();
+        time_comp += state->td_visual().data();
     }
 
-    std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(time0, time1);
+    std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(time0, time_comp);
     if (imu_data.empty())
     {
-        LOG(WARNING) << fmt::format("No IMU data available for visual update at {:f}s, time0: {:f}s, time1: {:f}s", feature_observes.first, time0, time1);
+        LOG(WARNING) << fmt::format("No IMU data available for visual update at {:f}s, time0: {:f}s, time_comp: {:f}s", feature_observes.first, time0, time_comp);
         return false;
     }
 
-    solver->PropagateStateAndCovariance(imu_data, time1, state);
+    solver->PropagateStateAndCovariance(imu_data, time_comp, state);
 
     solver->StochasticClone(state, &imu_data);
 
@@ -289,7 +306,7 @@ bool VioManager::TryVisualUpdate(const std::pair<double, std::vector<CameraObs>>
     if (_visual_manager->VisualUpdate())
     {
         LOG(INFO) << fmt::format(
-            "VIO updated, current state ts: {:f}, pos: [{:.3f}, {:.3f}, {:.3f}], vel: [{:.3f}, {:.3f}, {:.3f}], rpy: [{:.3f}, {:.3f}, {:.3f}]",
+            "\033[32mVIO updated, current state ts: {:f}, pos: [{:.3f}, {:.3f}, {:.3f}], vel: [{:.3f}, {:.3f}, {:.3f}], rpy: [{:.3f}, {:.3f}, {:.3f}]\033[0m",
             state->ts_sec(), state->_imu_state->p()->vec().x(), state->_imu_state->p()->vec().y(), state->_imu_state->p()->vec().z(),
             state->_imu_state->v()->vec().x(), state->_imu_state->v()->vec().y(), state->_imu_state->v()->vec().z(),
             state->_imu_state->q()->rpy().x(), state->_imu_state->q()->rpy().y(), state->_imu_state->q()->rpy().z());

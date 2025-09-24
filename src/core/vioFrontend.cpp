@@ -33,36 +33,6 @@ bool VioFrontend::InBorder(int x, int y)
     return (x >= 0 && x < width_) && (y >= 0 && y < height_);
 }
 
-VioFrontend::VioFrontend(std::shared_ptr<ros::NodeHandle>& nh, const Param params, std::shared_ptr<KeyFrameStatus> keyframe)
-{
-    nh_ = nh;
-    _keyframe = keyframe;
-    grid_w_ = params.grid_w;
-    grid_h_ = params.grid_h;
-    width_ = params.img_width;
-    height_ = params.img_height;
-    max_feat_n_ = params.max_feat_n;
-    use_nn_feature_ = params.use_nn_feature;
-    use_census_transform_ = params.use_census_transform;
-    do_prediction_ = params.frontend_prediction;
-    ref_features_to_track_.resize(max_feat_n_, CameraObs());
-
-    if (use_nn_feature_)
-    {
-        client_ = nh_->serviceClient<vio::nnFeatures>("/extract_features");
-        if (client_.exists())
-        {
-            LOG(INFO) << "SuperPoint service connected successfully";
-        }
-        else
-        {
-            LOG(ERROR) << "nn Feature service not available";
-            use_nn_feature_ = false;
-            exit(1);
-        }
-    }
-}
-
 void HomographyRansac(const std::vector<cv::Point2f> points_prev, const std::vector<cv::Point2f> points_curr,
                       std::vector<uchar> *inliers)
 {
@@ -108,6 +78,41 @@ void EpipolarRansac(const std::vector<cv::Point2f> points_prev, const std::vecto
             (*inliers)[i] = 1;
         }
     }
+}
+
+VioFrontend::VioFrontend(std::shared_ptr<ros::NodeHandle>& nh, const Param params, std::shared_ptr<KeyFrameStatus> keyframe)
+{
+    nh_ = nh;
+    _keyframe = keyframe;
+    grid_w_ = params.grid_w;
+    grid_h_ = params.grid_h;
+    width_ = params.img_width;
+    height_ = params.img_height;
+    max_feat_n_ = params.max_feat_n;
+    use_nn_feature_ = params.use_nn_feature;
+    use_census_transform_ = params.use_census_transform;
+    do_prediction_ = params.frontend_prediction;
+    ref_features_to_track_.resize(max_feat_n_, CameraObs());
+
+    if (use_nn_feature_)
+    {
+        client_ = nh_->serviceClient<vio::nnFeatures>("/extract_features");
+        if (client_.exists())
+        {
+            LOG(INFO) << "SuperPoint service connected successfully";
+        }
+        else
+        {
+            LOG(ERROR) << "nn Feature service not available";
+            use_nn_feature_ = false;
+            exit(1);
+        }
+    }
+}
+
+KeyFrameStatus VioFrontend::getKeyframeStatus() const
+{
+    return *_keyframe;
 }
 
 uint8_t VioFrontend::ComputeCensusByte(const cv::Mat &image, int x, int y)
@@ -532,7 +537,8 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::vector<cv::Mat>> &inp
     }
 
     // Add new features to current observations if keyframe or first frame
-    bool switch_keyframe = (*_keyframe != KeyFrameStatus::kNone) || is_first_entry;
+    const bool switch_keyframe = (getKeyframeStatus() != KeyFrameStatus::kNone) || is_first_entry;
+
     if (switch_keyframe)
     {
         std::vector<cv::Point2f> harris_new, harris_tracked;
@@ -723,7 +729,7 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>> &
     }
 
     // Add new features if keyframe
-    if (*_keyframe != KeyFrameStatus::kNone || is_first_frame_)
+    if (getKeyframeStatus() != KeyFrameStatus::kNone || is_first_frame_)
     {
         std::deque<CameraObs> new_features;
         std::deque<cv::Mat> new_feature_descriptors;

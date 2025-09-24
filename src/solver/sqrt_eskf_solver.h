@@ -10,13 +10,19 @@
 #include <sophus/so3.hpp>
 
 using namespace Sophus;
-
 class SqrtEskfSolver : public MsckfSolverBase
 {
    public:
     SqrtEskfSolver() = default;
+    SqrtEskfSolver(const bool use_fej) : use_fej_(use_fej) {}
     virtual ~SqrtEskfSolver() {}
 
+    /**
+     * @brief Clone the given pose into the state with stochastic cloning
+     * @param state The state to be cloned
+     * @param imu_data The imu measurements between the last state and the current state
+     * @return void
+     */
     virtual void StochasticClone(std::shared_ptr<State> state, std::vector<ImuData>* imu_data) override
     {
         Eigen::MatrixXd SqrtPt_old = state->Sqrt_Pt();
@@ -30,9 +36,9 @@ class SqrtEskfSolver : public MsckfSolverBase
         SqrtPt_new.topLeftCorner(old_rows, old_cols) = SqrtPt_old;
         SqrtPt_new.rightCols(clone_pose_size) = SqrtPt_new.leftCols(clone_pose_size);
 
-        std::shared_ptr<Type> clone_pose = pose_to_clone->clone();
+        std::shared_ptr<Pose> clone_pose = std::dynamic_pointer_cast<Pose>(pose_to_clone->clone());
         clone_pose->set_local_id(old_cols);
-        state->_clone_pose.insert(std::make_pair(clone_pose->ts(), std::dynamic_pointer_cast<Pose>(clone_pose)));
+        state->_clone_pose.insert(std::make_pair(clone_pose->ts(), clone_pose));
         state->_variables.push_back(clone_pose);
         state->_dim += clone_pose->size();
 
@@ -47,6 +53,12 @@ class SqrtEskfSolver : public MsckfSolverBase
         state->SetSqrtPt(SqrtPt_new);
     }
 
+    /**
+     * @brief Marginalize the given state variable from the state
+     * @param state The state containing the variable to be marginalized
+     * @param state_to_marginalize The state variable to be marginalized
+     * @return void
+     */
     virtual void MarginalizeState(std::shared_ptr<State> state, std::shared_ptr<Type> state_to_marginalize) override
     {
         if (state_to_marginalize == nullptr)
@@ -101,6 +113,16 @@ class SqrtEskfSolver : public MsckfSolverBase
         state->SetSqrtPt(SqrtPt_small);
     }
 
+    /**
+     * @brief Update the state with given measurements
+     * @param state The state to be updated
+     * @param Hx The measurement Jacobian matrix
+     * @param res The measurement residual
+     * @param Hx_order The order of the state variables in the Hx matrix
+     * @param map_hx The mapping from state variable to its column index in the Hx matrix
+     * @param R The measurement noise covariance
+     * @return void
+     */
     virtual void update(std::shared_ptr<State>& state,
                         const Eigen::Ref<Eigen::MatrixXd>& Hx,
                         const Eigen::Ref<Eigen::MatrixXd>& res,
@@ -151,10 +173,8 @@ class SqrtEskfSolver : public MsckfSolverBase
         {
             if (diags(i) < 0.0)
             {
-                LOG(ERROR) << cv::format("diagonal is negative when update");
+                LOG(ERROR) << "\033[31m" << fmt::format("Diagonal is negative when update, diags") << "\033[0m";
                 LOG(ERROR) << "diags: " << diags.transpose();
-                // std::cout << "diag size: " << diags.size() << std::endl;
-                // std::cout << "variable size: " << state->_variables.size() << std::endl;
                 std::exit(EXIT_FAILURE);
             }
         }
@@ -171,46 +191,140 @@ class SqrtEskfSolver : public MsckfSolverBase
         state->SetCovariance(0.5 * (Cov_full + Cov_full.transpose()));
     }
 
+    /**
+     * @brief Propagate the state with given imu measurements
+     * @param state The state to be propagated
+     * @param dt The time difference between the last state and the current state
+     * @param meas_k0 The imu measurement at time k0
+     * @param meas_k1 The imu measurement at time k1
+     * @param new_q The propagated orientation
+     * @param new_p The propagated position
+     * @param new_v The propagated velocity
+     * @return void
+     */
+    void PropagateState(const std::shared_ptr<State> state,
+                        const double dt,
+                        const ImuData meas_k0,
+                        const ImuData meas_k1,
+                        Eigen::Quaterniond& new_q,
+                        Eigen::Vector3d& new_p,
+                        Eigen::Vector3d& new_v)
+    {
+        Eigen::Quaterniond q_ItoG = state->_imu_state->pose()->quat();
+        Eigen::Vector3d p_IinG = state->_imu_state->pose()->p();
+        Eigen::Vector3d v_IinG = state->_imu_state->v()->vec();
+
+        Eigen::Vector3d wm_mid = 0.5 * (meas_k0.wm + meas_k1.wm) - state->_imu_state->bg()->vec();
+        Eigen::Vector3d am_mid = 0.5 * (meas_k0.am + meas_k1.am) - state->_imu_state->ba()->vec();
+        Eigen::Matrix3d dR = Eigen::AngleAxisd(wm_mid.norm() * dt, wm_mid.normalized()).toRotationMatrix();
+
+        new_q = (q_ItoG * Eigen::Quaterniond(dR)).normalized();
+
+        new_p = p_IinG + v_IinG * dt - 0.5 * state->_imu_state->gravity_inG * dt * dt + 0.5 * (q_ItoG.toRotationMatrix() * am_mid * dt * dt);
+
+        new_v = v_IinG + (q_ItoG.toRotationMatrix() * am_mid - state->_imu_state->gravity_inG) * dt;
+    }
+
+
+    /**
+     * @brief Compute the state transition matrix F and the process noise matrix G
+     * @param state The state to be propagated
+     * @param dt The time difference between the last state and the current state
+     * @param meas_k0 The imu measurement at time k0
+     * @param meas_k1 The imu measurement at time k1
+     * @param new_q The propagated orientation
+     * @param F The state transition matrix to be computed
+     * @param G The process noise matrix to be computed
+     * @return void
+     */
+    void Compute_F_and_G(const std::shared_ptr<State> state,
+                         const double dt,
+                         const ImuData meas_k0,
+                         const ImuData meas_k1,
+                         const Eigen::Quaterniond new_q,
+                         Eigen::MatrixXd& F,
+                         Eigen::MatrixXd& G)
+    {
+        const uint32_t imu_state_dim = state->_imu_state->size();
+        const uint32_t imu_id = state->_imu_state->id();
+        const uint32_t th_id = state->_imu_state->q()->id();
+        const uint32_t p_id = state->_imu_state->p()->id();
+        const uint32_t v_id = state->_imu_state->v()->id();
+        const uint32_t bg_id = state->_imu_state->bg()->id();
+        const uint32_t ba_id = state->_imu_state->ba()->id();
+
+        F = Eigen::MatrixXd::Identity(15, 15);
+        G = Eigen::MatrixXd::Zero(15, 12);
+
+        Eigen::Vector3d p_IinG = state->_imu_state->pose()->p();
+        Eigen::Matrix3d R_ItoG = state->_imu_state->pose()->quat().toRotationMatrix();
+        Eigen::Vector3d v_IinG = state->_imu_state->v()->vec();
+        Eigen::Vector3d ba = state->_imu_state->ba()->vec();
+        Eigen::Vector3d bg = state->_imu_state->bg()->vec();
+        Eigen::Vector3d wm_mid = 0.5 * (meas_k0.wm + meas_k1.wm) - state->_imu_state->bg()->vec();
+        Eigen::Vector3d am_mid = 0.5 * (meas_k0.am + meas_k1.am) - state->_imu_state->ba()->vec();
+
+        if (use_fej_)
+        {
+            p_IinG = state->_imu_state->pose()->p_fej();
+            R_ItoG = state->_imu_state->pose()->quat_fej().toRotationMatrix();
+        }
+
+        Eigen::Matrix3d dR = new_q.toRotationMatrix().transpose() * R_ItoG;
+
+        // For R
+        F.block<3, 3>(th_id, th_id) = dR;
+        F.block<3, 3>(th_id, bg_id) = -Eigen::Matrix3d::Identity() * dt;
+
+        // For p
+        F.block<3, 3>(p_id, p_id) = Eigen::Matrix3d::Identity();
+        F.block<3, 3>(p_id, v_id) = Eigen::Matrix3d::Identity() * dt;
+        F.block<3, 3>(p_id, th_id) = -0.5 * R_ItoG * MathUtils::skew(am_mid * dt * dt);
+        F.block<3, 3>(p_id, ba_id) = -0.5 * R_ItoG * dt * dt;
+
+        // For v
+        F.block<3, 3>(v_id, v_id) = Eigen::Matrix3d::Identity();
+        F.block<3, 3>(v_id, th_id) = -R_ItoG * MathUtils::skew(am_mid * dt);
+        F.block<3, 3>(v_id, ba_id) = -R_ItoG * dt;
+
+        // For bg
+        F.block<3, 3>(bg_id, bg_id) = Eigen::Matrix3d::Identity();
+
+        // For ba
+        F.block<3, 3>(ba_id, ba_id) = Eigen::Matrix3d::Identity();
+
+        // For measurement noise
+        G.block<3, 3>(th_id, kNoiseGyroId) = -Eigen::Matrix3d::Identity() * dt;
+        G.block<3, 3>(p_id, kNoiseAccId) = -0.5 * R_ItoG * dt * dt;
+        G.block<3, 3>(v_id, kNoiseAccId) = -R_ItoG * dt;
+        G.block<3, 3>(bg_id, kNoiseGyroBiasId) = Eigen::Matrix3d::Identity();
+        G.block<3, 3>(ba_id, kNoiseAccBiasId) = Eigen::Matrix3d::Identity();
+    }
+
+    /**
+     * @brief Propagate the state and covariance with given imu measurements
+     * @param imu_data The imu measurements between the last state and the current state
+     * @param visual_ts The timestamp of the current state
+     * @param state The state to be propagated
+     * @return true if the propagation is successful, false otherwise
+     */
     virtual bool PropagateStateAndCovariance(const std::vector<ImuData> imu_data, const double visual_ts, std::shared_ptr<State> state) override
     {
         if (visual_ts <= state->_imu_state->ts())
         {
-            LOG(WARNING) << cv::format("Propagation failed, curent state timestamp: %f, must be later than imu_state timestamp: %f", visual_ts,
+            LOG(WARNING) << fmt::format("Propagation failed, curent state timestamp: {}, must be later than imu_state timestamp: {}", visual_ts,
                                        state->_imu_state->ts());
             return false;
         }
 
         if (imu_data.empty() || imu_data.back().ts_sec < state->ts_sec())
         {
-            LOG(WARNING) << cv::format("Propagation failed, waiting for imu data, current state timestamp: %f but latest imu timestamp: %f",
+            LOG(WARNING) << fmt::format("Propagation failed, waiting for imu data, current state timestamp: {} but latest imu timestamp: {}",
                                        state->ts_sec(), imu_data.back().ts_sec);
             return false;
         }
 
-        Eigen::Vector3d P = state->_imu_state->pose()->p();
-        Eigen::Matrix3d R = state->_imu_state->pose()->quat().toRotationMatrix();
-        Eigen::Vector3d V = state->_imu_state->v()->vec();
-        Eigen::Vector3d ba = state->_imu_state->ba()->vec();
-        Eigen::Vector3d bg = state->_imu_state->bg()->vec();
-
-        Eigen::Vector3d P_next = P;
-        Eigen::Matrix3d R_next = R;
-        Eigen::Vector3d V_next = V;
-        Eigen::Vector3d ba_next = ba;
-        Eigen::Vector3d bg_next = bg;
-
-        uint32_t imu_state_dim = state->_imu_state->size();
-        uint32_t imu_id = state->_imu_state->id();
-        uint32_t th_id = state->_imu_state->q()->id();
-        uint32_t p_id = state->_imu_state->p()->id();
-        uint32_t v_id = state->_imu_state->v()->id();
-        uint32_t bg_id = state->_imu_state->bg()->id();
-        uint32_t ba_id = state->_imu_state->ba()->id();
-
-        constexpr uint32_t kNoiseAccId = 0;
-        constexpr uint32_t kNoiseGyroId = 3;
-        constexpr uint32_t kNoiseGyroBiasId = 6;
-        constexpr uint32_t kNoiseAccBiasId = 9;
+        const uint32_t imu_state_dim = state->_imu_state->size();
 
         Eigen::MatrixXd Q = Eigen::MatrixXd::Identity(12, 12);
         Q.block(kNoiseAccId, kNoiseAccId, 3, 3) = Eigen::Matrix3d::Identity() * std::pow(ImuManager::_sigma_na, 2);
@@ -225,57 +339,34 @@ class SqrtEskfSolver : public MsckfSolverBase
         {
             Eigen::MatrixXd F = Eigen::MatrixXd::Identity(15, 15);
             Eigen::MatrixXd G = Eigen::MatrixXd::Zero(15, 12);
-
             double dt = imu_data.at(i + 1).ts_sec - imu_data.at(i).ts_sec;
+
             if (dt > 0 && dt < kMaxImuToleranceDelayTime)
             {
-                Eigen::Vector3d am_mid = 0.5 * (imu_data.at(i).am + imu_data.at(i + 1).am) - ba;
-                Eigen::Vector3d wm_mid = 0.5 * (imu_data.at(i).wm + imu_data.at(i + 1).wm) - bg;
+                Eigen::Quaterniond new_q;
+                Eigen::Vector3d new_p;
+                Eigen::Vector3d new_v;
 
-                P = P_next;
-                V = V_next;
-                R = R_next;
-                ba = ba_next;
-                bg = bg_next;
+                // 1. Propagate state
+                PropagateState(state, dt, imu_data.at(i), imu_data.at(i + 1), new_q, new_p, new_v);
 
-                // For R
-                F.block<3, 3>(th_id, th_id) = SO3d::exp(-wm_mid * dt).matrix();
-                F.block<3, 3>(th_id, bg_id) = -Eigen::Matrix3d::Identity() * dt;
+                // 2. Compute F and G
+                Compute_F_and_G(state, dt, imu_data.at(i), imu_data.at(i + 1), new_q, F, G);
 
-                // For p
-                F.block<3, 3>(p_id, p_id) = Eigen::Matrix3d::Identity();
-                F.block<3, 3>(p_id, v_id) = Eigen::Matrix3d::Identity() * dt;
-                F.block<3, 3>(p_id, th_id) = -0.5 * R * MathUtils::skew(am_mid * dt * dt);
-                F.block<3, 3>(p_id, ba_id) = -0.5 * R * dt * dt;
-
-                // For v
-                F.block<3, 3>(v_id, v_id) = Eigen::Matrix3d::Identity();
-                F.block<3, 3>(v_id, th_id) = -R * MathUtils::skew(am_mid * dt);
-                F.block<3, 3>(v_id, ba_id) = -R * dt;
-
-                // For bg
-                F.block<3, 3>(bg_id, bg_id) = Eigen::Matrix3d::Identity();
-
-                // For ba
-                F.block<3, 3>(ba_id, ba_id) = Eigen::Matrix3d::Identity();
-
-                // For measurement noise
-                G.block<3, 3>(th_id, kNoiseGyroId) = -Eigen::Matrix3d::Identity() * dt;
-                G.block<3, 3>(p_id, kNoiseAccId) = -0.5 * R * dt * dt;
-                G.block<3, 3>(v_id, kNoiseAccId) = -R * dt;
-                G.block<3, 3>(bg_id, kNoiseGyroBiasId) = Eigen::Matrix3d::Identity();
-                G.block<3, 3>(ba_id, kNoiseAccBiasId) = Eigen::Matrix3d::Identity();
-
-                // State propagation
-                P_next = P + V * dt - 0.5 * state->_imu_state->gravity_inG * dt * dt + 0.5 * (R * am_mid * dt * dt);
-                V_next = V - state->_imu_state->gravity_inG * dt + R * am_mid * dt;
-                R_next = R * SO3d::exp(wm_mid * dt).matrix();
-                ba_next = ba;
-                bg_next = bg;
-
-                // Phi and Q_sum propagation
+                // 3. Propagate covariance
                 Phi_sum = F * Phi_sum;
                 Q_sum = F * Q_sum * F.transpose() + G * Q * G.transpose();
+
+                // 4. Update state
+                state->set_ts_sec(imu_data.at(i + 1).ts_sec);  // Set current state timestamp to visual timestamp
+                state->_imu_state->q()->set_value(new_q.coeffs());
+                state->_imu_state->p()->set_value(new_p);
+                state->_imu_state->v()->set_value(new_v);
+
+                if (use_fej_)
+                {
+                    state->_imu_state->pose()->set_pose_fej(new_q.toRotationMatrix(), new_p);
+                }
             }
             else
             {
@@ -283,12 +374,6 @@ class SqrtEskfSolver : public MsckfSolverBase
                 exit(0);
             }
         }
-
-        // Update state
-        state->_imu_state->set_ts(visual_ts);   // Set current state timestamp to visual timestamp
-        state->_imu_state->q()->set_value(Eigen::Quaterniond(R_next).normalized().coeffs());
-        state->_imu_state->p()->set_value(P_next);
-        state->_imu_state->v()->set_value(V_next);
 
         // Update sqrt root covariance
         Eigen::MatrixXd SqrtPt_imu = state->_imu_state->Sqrt_Pt();
@@ -307,6 +392,13 @@ class SqrtEskfSolver : public MsckfSolverBase
 
         return true;
     }
+
+   private:
+    bool use_fej_ = true;
+    const uint32_t kNoiseAccId = 0;
+    const uint32_t kNoiseGyroId = 3;
+    const uint32_t kNoiseGyroBiasId = 6;
+    const uint32_t kNoiseAccBiasId = 9;
 };
 
 #endif

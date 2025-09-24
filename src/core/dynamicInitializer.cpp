@@ -219,7 +219,7 @@ void DynamicInitializer::assignImuState(const Eigen::VectorXd velocity_gravity_s
 
         Eigen::Vector3d rpy = MathUtils::R2rpy(R_bitoG) * 180.0 / M_PI;  // Convert to degrees
         LOG(INFO) << fmt::format(
-            "Dynamic initialized imu state at {:f}: RPY: [{:f}, {:f}, {:f}], Position: [{:f}, {:f}, {:f}], Velocity: [{:f}, {:f}, {:f}]",
+            "\033[32mDynamic initialized imu state at {:f}: RPY: [{:f}, {:f}, {:f}], Position: [{:f}, {:f}, {:f}], Velocity: [{:f}, {:f}, {:f}]\033[0m",
             imu_state_i->ts(), rpy.x(), rpy.y(), rpy.z(), p_biinG.x(), p_biinG.y(), p_biinG.z(), v_biinG.x(), v_biinG.y(), v_biinG.z());
     }
 
@@ -232,12 +232,17 @@ void DynamicInitializer::assignImuState(const Eigen::VectorXd velocity_gravity_s
     value << last_imu_state->q()->q().coeffs(), last_imu_state->p()->vec(), last_imu_state->v()->vec(), last_imu_state->bg()->vec(), last_imu_state->ba()->vec();
     state_->_imu_state->set_value(value);
 
+    if (param_.use_fej)
+    {
+        state_->_imu_state->pose()->set_pose_fej(last_imu_state->q()->q().toRotationMatrix(), last_imu_state->p()->vec());
+    }
+
     // initialize dynamic initialization imu covariance
-    const uint32_t kQId = state_->getImuState().q()->id();
-    const uint32_t kPId = state_->getImuState().p()->id();
-    const uint32_t kVId = state_->getImuState().v()->id();
-    const uint32_t kBgId = state_->getImuState().bg()->id();
-    const uint32_t kBaId = state_->getImuState().ba()->id();
+    const uint32_t kQId = state_->getImuState()->q()->id();
+    const uint32_t kPId = state_->getImuState()->p()->id();
+    const uint32_t kVId = state_->getImuState()->v()->id();
+    const uint32_t kBgId = state_->getImuState()->bg()->id();
+    const uint32_t kBaId = state_->getImuState()->ba()->id();
     const uint32_t kRicId = state_->enable_estimate_ric_ ? state_->qic().id() : -1;
     const uint32_t kTdVisualId = state_->enable_estimate_td_visual_ ? state_->td_visual().id() : -1;
 
