@@ -34,7 +34,7 @@
 
         <param name="running_rate"              type="int"      value="20" /> <!--Hz-->
         <param name="set_init_timestamp_to_zero" type="bool"    value="true" />
-        <param name="use_multi_thread"          type="bool"     value="false" />
+        <param name="use_multi_thread"          type="bool"     value="true" />
         <param name="log_level"                 type="int"      value="0" /> <!-- 0: info, 1: warning, 2: error, 3: fatal -->
         <param name="save_full_log"             type="bool"     value="$(arg save_full_log)" />
         <param name="save_tum_log"              type="bool"     value="$(arg save_tum_log)" />
