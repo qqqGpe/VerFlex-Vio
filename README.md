@@ -9,12 +9,11 @@ A high-performance Visual Inertial Odometry (VIO) system implemented in C++ with
 
 ## 🚀 Features
 - **Multiple camera models**: Support monocular and stereo camera models
-- **Multiple estimators**: ESKF, Sqrt-ESKF
-- **Dual operation modes**: Online/Offline processing
-- **Flexible initialization**: Static/Dynamic startup
-- **Multiple estimators**: ESKF, Sqrt-ESKF
-- **Multiple frontends**: Traditional Fast Corners and KLT tracking & NN descriptor-based
-- **Threading options**: Multi-threaded/Single-threaded execution
+- **Dual operation modes**: Support online/offline processing
+- **Flexible initialization**: Support Static/Dynamic visual initialization
+- **Multiple estimators**: Support ESKF, Sqrt-ESKF solvers
+- **Multiple frontends**: Support traditional Fast Corners and KLT tracking & NN descriptor-based
+- **Threading options**: Support Multi-threaded/Single-threaded execution
 
 
 ## 🛠️ Installation
