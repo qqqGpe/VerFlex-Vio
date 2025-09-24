@@ -47,7 +47,7 @@ sudo apt install -y \
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone git@github.com:qqqGpe/VerFlex-Vio.git
 cd catkin_ws
 
 # Quickly build the project with script
