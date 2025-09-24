@@ -52,7 +52,7 @@ git clone <repository-url>
 cd catkin_ws
 
 # Quickly build the project with script
-./src/vio_backend/script/build_vio_backend.sh
+./src/VerFlex-Vio/script/build_vio_backend.sh
 
 # Source the workspace
 source devel/setup.bash
