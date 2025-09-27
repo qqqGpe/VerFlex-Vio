@@ -312,12 +312,12 @@ class eskfSolver : public MsckfSolverBase
         // For p
         F.block<3, 3>(p_id, p_id) = Eigen::Matrix3d::Identity();
         F.block<3, 3>(p_id, v_id) = Eigen::Matrix3d::Identity() * dt;
-        F.block<3, 3>(p_id, th_id) = -0.5 * R_ItoG * MathUtils::skew(am_mid * dt * dt);
+        F.block<3, 3>(p_id, th_id) = -0.5 * R_ItoG * utils::math::skew(am_mid * dt * dt);
         F.block<3, 3>(p_id, ba_id) = -0.5 * R_ItoG * dt * dt;
 
         // For v
         F.block<3, 3>(v_id, v_id) = Eigen::Matrix3d::Identity();
-        F.block<3, 3>(v_id, th_id) = -R_ItoG * MathUtils::skew(am_mid * dt);
+        F.block<3, 3>(v_id, th_id) = -R_ItoG * utils::math::skew(am_mid * dt);
         F.block<3, 3>(v_id, ba_id) = -R_ItoG * dt;
 
         // For bg
@@ -424,10 +424,10 @@ class eskfSolver : public MsckfSolverBase
 
    private:
     bool use_fej_ = true;
-    const uint32_t kNoiseAccId = 0;
-    const uint32_t kNoiseGyroId = 3;
-    const uint32_t kNoiseGyroBiasId = 6;
-    const uint32_t kNoiseAccBiasId = 9;
+    static constexpr uint32_t kNoiseAccId = 0;
+    static constexpr uint32_t kNoiseGyroId = 3;
+    static constexpr uint32_t kNoiseGyroBiasId = 6;
+    static constexpr uint32_t kNoiseAccBiasId = 9;
 };
 
 #endif

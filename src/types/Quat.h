@@ -69,7 +69,7 @@ class Quat : public Type
 
     Eigen::Vector3d rpy()
     {
-        return MathUtils::R2rpy(_quat.toRotationMatrix()) * 180.0 / M_PI;
+        return utils::math::R2rpy(_quat.toRotationMatrix()) * 180.0 / M_PI;
     }
 
    protected:

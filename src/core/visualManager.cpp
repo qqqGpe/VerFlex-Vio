@@ -104,7 +104,7 @@ bool VisualManager::VisualUpdate()
     {
         images_to_show.push_back(it->second);
     }
-    Utils::ShowGridImages(images_to_show);
+    utils::ShowGridImages(images_to_show);
 #endif
 
     _origin_feature_tracked = feat_msckf_.size();
@@ -425,8 +425,8 @@ bool VisualManager::least_square_triangulation(const std::map<double, CameraPose
             Eigen::Vector3d p_CiinA = R_AtoG.transpose() * (p_CiinG - p_AinG);
 
             Eigen::Vector3d b_iinA = R_CitoA * b_i;
-            ATA += MathUtils::skew(b_iinA).transpose() * MathUtils::skew(b_iinA);
-            ATb += MathUtils::skew(b_iinA).transpose() * MathUtils::skew(b_iinA) * p_CiinA;
+            ATA += utils::math::skew(b_iinA).transpose() * utils::math::skew(b_iinA);
+            ATb += utils::math::skew(b_iinA).transpose() * utils::math::skew(b_iinA) * p_CiinA;
         }
     }
 
@@ -603,8 +603,8 @@ bool VisualManager::StereoLeastSqureTriangulation(CameraObs& cam_obs, Eigen::Vec
         }
 
         Eigen::Vector3d b_iinA = R_CitoA * b_i;
-        ATA += MathUtils::skew(b_iinA).transpose() * MathUtils::skew(b_iinA);
-        ATb += MathUtils::skew(b_iinA).transpose() * MathUtils::skew(b_iinA) * p_CiinA;
+        ATA += utils::math::skew(b_iinA).transpose() * utils::math::skew(b_iinA);
+        ATb += utils::math::skew(b_iinA).transpose() * utils::math::skew(b_iinA) * p_CiinA;
     }
 
     pcf = ATA.colPivHouseholderQr().solve(ATb);
@@ -914,12 +914,12 @@ bool VisualManager::ConstructFeatureJacobianFull(std::vector<Feature*> feats, Ei
     // measurements compression
     if (Hx_full.rows() > Hx_full.cols())
     {
-        Hx_full = MathUtils::GivensRotation(Hx_full, Hx_full.cols() - 1);
+        Hx_full = utils::math::GivensRotation(Hx_full, Hx_full.cols() - 1);
         int final_hx_rows = Hx_full.cols() - 1 - 7;
         res.resize(final_hx_rows, 1);
         res = Hx_full.block(0, Hx_full.cols() - 1, final_hx_rows, 1);
         Hx_full.conservativeResize(final_hx_rows, Hx_full.cols() - 1);
-        // Utils::show_eigen_matrix(Hx_full, "Hx_full_qr");
+        // utils::show_eigen_matrix(Hx_full, "Hx_full_qr");
     }
     else
     {
@@ -1017,19 +1017,19 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
                 Eigen::Matrix3d dpcf_dqic = Eigen::Matrix3d::Zero();
                 if (cam_id == LEFT_CAM)
                 {
-                    dpcf_dqic = MathUtils::skew(p_finCi);
+                    dpcf_dqic = utils::math::skew(p_finCi);
                 }
                 else if (cam_id == RIGHT_CAM)
                 {
                     Eigen::Vector3d p_finCl = CamModel::getInstance().Rlr() * p_finCi + CamModel::getInstance().plr();
-                    dpcf_dqic = CamModel::getInstance().Rlr().transpose() * MathUtils::skew(p_finCl);
+                    dpcf_dqic = CamModel::getInstance().Rlr().transpose() * utils::math::skew(p_finCl);
                 }
                 Hfx.block<2, 3>(2 * cnt, kPwfCols + map_hx.at(_state->qic_)) = dz_dpcf * dpcf_dqic;
             }
 
             // Get jacobian wrt clone pose
             Eigen::MatrixXd dpcf_dclone = Eigen::MatrixXd::Zero(3, 6);
-            dpcf_dclone.block<3, 3>(0, 0) = R_CtoI.transpose() * MathUtils::skew(R_IitoG.transpose() * (p_finG - p_IiinG));
+            dpcf_dclone.block<3, 3>(0, 0) = R_CtoI.transpose() * utils::math::skew(R_IitoG.transpose() * (p_finG - p_IiinG));
             dpcf_dclone.block<3, 3>(0, 3) = -R_CitoG.transpose();
             Hfx.block<2, 6>(2 * cnt, kPwfCols + map_hx.at(obs_pose)) = dz_dpcf * dpcf_dclone;
 
@@ -1048,7 +1048,7 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
             // // @@@@@@@@@@@@@@@@@@@@ Check R_CtoI @@@@@@@@@@@@@@@@@@@@@@@@@
             // Eigen::Vector3d dtheta_CtoI(0.01, 0.01, 0.01);
             // Eigen::Vector2d Hx_plus_dR_ItoC = Hfx.block<2, 3>(2 * cnt, kPwfCols + map_hx.at(_state->qic_)) * dtheta_CtoI;
-            // Eigen::Matrix3d delta_R_CtoI = Eigen::Matrix3d::Identity() + MathUtils::skew(dtheta_CtoI);
+            // Eigen::Matrix3d delta_R_CtoI = Eigen::Matrix3d::Identity() + utils::math::skew(dtheta_CtoI);
             // Eigen::Matrix3d R_CtoI_hat, R_CitoG_hat;
             // Eigen::Vector3d p_CinI_hat, p_CiinG_hat, p_finCi_hat;
 
@@ -1082,7 +1082,7 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
             // // @@@@@@@@@@@@@@@@@@@@ Check clone pose R @@@@@@@@@@@@@@@@@@@@@@@@@
             // Eigen::Vector3d dR_ItoG(0.1, 0.1, 0.1);
             // Eigen::Vector2d Hx_plus_dR_ItoG = Hfx.block<2, 3>(2 * c, kPwfDim + map_hx.at(obs_pose)) * dR_ItoG;
-            // Eigen::Matrix3d dR_ItoG_mat = Eigen::Matrix3d::Identity() + MathUtils::skew(dR_ItoG.head(3));
+            // Eigen::Matrix3d dR_ItoG_mat = Eigen::Matrix3d::Identity() + utils::math::skew(dR_ItoG.head(3));
             // Eigen::Matrix3d R_IitoG_hat = R_IitoG * dR_ItoG_mat;
             // p_CiinG_hat = p_IiinG + R_IitoG_hat * p_CinI;
             // Eigen::Vector3d pcf_dR_ItoG = (R_IitoG * dR_ItoG_mat * R_CtoI).transpose() * (p_finG - p_CiinG_hat);
@@ -1109,11 +1109,11 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
     }
 
     /*show single Hx matrix*/
-    // Utils::show_eigen_matrix(Hfx, "Hfx");
+    // utils::show_eigen_matrix(Hfx, "Hfx");
 
     /* project Hfx to feature left null space */
-    // MathUtils::NullSpaceProjectInplace(Hfx, 3);
-    Hfx = MathUtils::GivensRotation(Hfx, 3);
+    // utils::math::NullSpaceProjectInplace(Hfx, 3);
+    Hfx = utils::math::GivensRotation(Hfx, 3);
     Eigen::MatrixXd Hx = Eigen::MatrixXd::Zero(Hfx.rows() - 3, Hfx.cols() - 3);
     Hx.noalias() = Hfx.block(3, 3, Hfx.rows() - 3, Hfx.cols() - 3);
 

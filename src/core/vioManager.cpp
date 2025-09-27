@@ -72,6 +72,9 @@ VioManager::VioManager(std::shared_ptr<ros::NodeHandle>& nh, const Param& params
     use_zupt_ = params.use_zupt;
 }
 
+/**
+ * @brief Reset the VIO system to its initial state
+ */
 void VioManager::ResetSystem()
 {
     state->reset();
@@ -82,6 +85,11 @@ void VioManager::ResetSystem()
     LOG(INFO) << "VIO system reset";
 }
 
+/**
+ * @brief Interpolate ground truth data for a given timestamp
+ * @param ts Timestamp for interpolation
+ * @return Interpolated GroundTruth object
+ */
 GroundTruth VioManager::InterpolateGroundTruth(const double ts) const
 {
     auto interpolate = [](std::pair<double, GroundTruth> pv1, std::pair<double, GroundTruth> pv2, double ts)
@@ -117,6 +125,11 @@ GroundTruth VioManager::InterpolateGroundTruth(const double ts) const
     }
 }
 
+/**
+ * @brief Attempt to track features using the visual frontend
+ * @param images Pair of timestamp and vector of images
+ * @param feature_observes Output pair of timestamp and vector of camera observations
+ */
 bool VioManager::TryFrontendTrack(const std::pair<double, std::vector<cv::Mat>>& images, std::pair<double, std::vector<CameraObs>>& feature_observes)
 {
     const double td_visual = state->enable_estimate_td_visual_ ? state->td_visual().data() : 0.0;
@@ -259,6 +272,10 @@ bool VioManager::TryStaticInitialization(const std::pair<double, std::vector<cv:
     }
 }
 
+/**
+ * @brief Perform ZUPT update of the VIO system if conditions are met
+ * @param ts_sec Current timestamp in seconds
+ */
 bool VioManager::TryZuptUpdate(const double ts_sec)
 {
     if (use_zupt_)
@@ -281,6 +298,10 @@ bool VioManager::TryZuptUpdate(const double ts_sec)
     return false;
 }
 
+/**
+ * @brief Perform visual update of the VIO system using feature observations
+ * @param feature_observes Pair of timestamp and vector of camera observations
+ */
 bool VioManager::TryVisualUpdate(const std::pair<double, std::vector<CameraObs>>& feature_observes)
 {
     double time0 = state->ts_sec();
@@ -322,6 +343,10 @@ bool VioManager::TryVisualUpdate(const std::pair<double, std::vector<CameraObs>>
     return false;
 }
 
+/**
+ * @brief Check the VIO system state for validity
+ * @param ts_sec Current timestamp in seconds
+ */
 bool VioManager::CheckVioState(const double ts_sec) const
 {
     if (std::abs(ts_sec - last_update_timestamp_) > kMaxAllowedSysUpdateInterval)
@@ -334,6 +359,10 @@ bool VioManager::CheckVioState(const double ts_sec) const
     return true;
 }
 
+/**
+ * @brief Publish VIO state and features to ROS topics
+ * @param ts_sec Current timestamp in seconds
+ */
 void VioManager::PublishVioMessages(const double ts_sec)
 {
     Visualizer::getInstance().PublishVioState(state->_imu_state);
@@ -350,6 +379,10 @@ void VioManager::PublishVioMessages(const double ts_sec)
     }
 }
 
+/**
+ * @brief Check the availability and validity of measurements for processing
+ * @return FrameOptions indicating the status of measurements
+ */
 FrameOptions VioManager::CheckMeasurements() const
 {
     const double td_visual = state->enable_estimate_td_visual_ ? state->td_visual().data() : 0.f;
@@ -381,6 +414,10 @@ FrameOptions VioManager::CheckMeasurements() const
     return FrameOptions::kStatusOk;
 }
 
+/**
+ * @brief Clear expired IMU and visual measurements from their respective buffers
+ * @note Measurements older than a certain threshold relative to the oldest cloned pose are removed
+ */
 void VioManager::ClearExpiredMeasurements()
 {
     constexpr double kClearToTimestampThreshold = 0.5; // In second
@@ -393,6 +430,11 @@ void VioManager::ClearExpiredMeasurements()
     _visual_manager->ClearExpiredMeasurements(clear_to_timestamp);
 }
 
+/**
+ * @brief Process a single measurement from the input buffer
+ * @note This function handles the entire VIO processing pipeline for a single measurement, including feature tracking, initialization, state updates,
+ *       and publishing results
+ */
 void VioManager::ProcessMeasurementOnce()
 {
     while (!_visual_manager->_input_image_buffer.empty())
@@ -481,16 +523,26 @@ void VioManager::ProcessMeasurementOnce()
     }
 }
 
+/**
+ * @brief Start the frontend processing thread
+ */
 void VioManager::StartFrontendThread()
 {
     frontend_thread_ = std::thread(&VioManager::FrontendLoop, this);
 }
 
+/**
+ * @brief Start the backend processing thread
+ */
 void VioManager::StartBackendThread()
 {
     backend_thread_ = std::thread(&VioManager::BackendLoop, this);
 }
 
+/**
+ * @brief Frontend processing loop running in a separate thread
+ * @note Continuously checks for new images, performs feature tracking, and stores the results in a thread-safe queue
+ */
 void VioManager::FrontendLoop()
 {
     std::pair<double, std::vector<cv::Mat>> new_image;
@@ -535,6 +587,10 @@ void VioManager::FrontendLoop()
     }
 }
 
+/**
+ * @brief Backend processing loop running in a separate thread
+ * @note Continuously checks for new feature observations and performs VIO updates
+ */
 void VioManager::BackendLoop()
 {
     for(;;)
@@ -611,6 +667,10 @@ void VioManager::BackendLoop()
     }
 }
 
+/**
+ * @brief Save VIO results to log files
+ * @note Saves both full log and TUM format log based on configuration
+ */
 void VioManager::SaveResultsToFile()
 {
     if (params_.save_full_log)
@@ -624,7 +684,7 @@ void VioManager::SaveResultsToFile()
         log_value.vy = state->_imu_state->v()->vec().y();
         log_value.vz = state->_imu_state->v()->vec().z();
 
-        Eigen::Vector3d euler_angle = MathUtils::R2rpy(state->_imu_state->q()->Rot()) * RAD2DEG;
+        Eigen::Vector3d euler_angle = utils::math::R2rpy(state->_imu_state->q()->Rot()) * RAD2DEG;
         log_value.roll = euler_angle.x();
         log_value.pitch = euler_angle.y();
         log_value.yaw = euler_angle.z();
@@ -688,6 +748,10 @@ void VioManager::GroundTruthCallback(const geometry_msgs::PointStamped::ConstPtr
     ground_truth_.try_emplace(ts_sec, gt_pv);
 }
 
+/**
+ * @brief IMU data callback function
+ * @param msg Pointer to the incoming IMU message
+ */
 void VioManager::ImuCallback(const sensor_msgs::Imu::ConstPtr& msg)
 {
     ImuData data;
@@ -699,6 +763,11 @@ void VioManager::ImuCallback(const sensor_msgs::Imu::ConstPtr& msg)
     _imu_manager->FeedImuMeasurement(data);
 }
 
+/**
+ * @brief Stereo camera data callback function
+ * @param msg0 Pointer to the left camera image message
+ * @param msg1 Pointer to the right camera image message
+ */
 void VioManager::CallbackStereo(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1)
 {
     double ts_sec = msg0->header.stamp.toSec() - _initial_timestamp;
@@ -708,8 +777,8 @@ void VioManager::CallbackStereo(const sensor_msgs::ImageConstPtr& msg0, const se
     {
         cv::Mat image_l, image_l_rectify;
         cv::Mat image_r, image_r_rectify;
-        Utils::transfer_image(msg0, image_l);
-        Utils::transfer_image(msg1, image_r);
+        utils::transfer_image(msg0, image_l);
+        utils::transfer_image(msg1, image_r);
         CamModel::getInstance().RectifyImage(0, image_l, &image_l_rectify);
         CamModel::getInstance().RectifyImage(1, image_r, &image_r_rectify);
         images.push_back(image_l_rectify);
@@ -718,6 +787,10 @@ void VioManager::CallbackStereo(const sensor_msgs::ImageConstPtr& msg0, const se
     }
 }
 
+/**
+ * @brief Monocular camera data callback function
+ * @param msg0 Pointer to the monocular camera image message
+ */
 void VioManager::CallbackMonocular(const sensor_msgs::ImageConstPtr& msg0)
 {
     double ts_sec = msg0->header.stamp.toSec() - _initial_timestamp;
@@ -726,13 +799,18 @@ void VioManager::CallbackMonocular(const sensor_msgs::ImageConstPtr& msg0)
     if (msg0 != nullptr)
     {
         cv::Mat image_l, image_l_rectify;
-        Utils::transfer_image(msg0, image_l);
+        utils::transfer_image(msg0, image_l);
         CamModel::getInstance().RectifyImage(0, image_l, &image_l_rectify);
         images.push_back(image_l_rectify);
         _visual_manager->FeedImages(std::make_pair(ts_sec, images));
     }
 }
 
+/**
+ * @brief Camera data callback function for both mono and stereo setups
+ * @param msg0 Pointer to the first camera image message (left or mono)
+ * @param msg1 Pointer to the second camera image message (right), can be nullptr for mono
+ */
 void VioManager::CameraCallback(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1)
 {
     double ts_sec = msg0->header.stamp.toSec() - _initial_timestamp;
@@ -741,7 +819,7 @@ void VioManager::CameraCallback(const sensor_msgs::ImageConstPtr& msg0, const se
     if (params_.camera_num == CamType::MONO && msg0 != nullptr)
     {
         cv::Mat image_l, image_l_rectify;
-        Utils::transfer_image(msg0, image_l);
+        utils::transfer_image(msg0, image_l);
         CamModel::getInstance().RectifyImage(0, image_l, &image_l_rectify);
         images.push_back(image_l_rectify);
         _visual_manager->FeedImages(std::make_pair(ts_sec, images));
@@ -751,8 +829,8 @@ void VioManager::CameraCallback(const sensor_msgs::ImageConstPtr& msg0, const se
     {
         cv::Mat image_l, image_l_rectify;
         cv::Mat image_r, image_r_rectify;
-        Utils::transfer_image(msg0, image_l);
-        Utils::transfer_image(msg1, image_r);
+        utils::transfer_image(msg0, image_l);
+        utils::transfer_image(msg1, image_r);
         CamModel::getInstance().RectifyImage(0, image_l, &image_l_rectify);
         CamModel::getInstance().RectifyImage(1, image_r, &image_r_rectify);
         images.push_back(image_l_rectify);

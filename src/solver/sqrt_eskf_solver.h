@@ -156,7 +156,7 @@ class SqrtEskfSolver : public MsckfSolverBase
         M_all.bottomRightCorner(SqrtPt_predict.rows(), SqrtPt_predict.cols()) = SqrtPt_predict;
 
         // QR decomposition
-        Eigen::MatrixXd rhks = MathUtils::GivensRotation(M_all, M_all.cols());
+        Eigen::MatrixXd rhks = utils::math::GivensRotation(M_all, M_all.cols());
         Eigen::MatrixXd rh = rhks.topLeftCorner(R.rows(), R.cols());
         Eigen::MatrixXd K_hat = rhks.topRightCorner(R.rows(), SqrtPt_predict.cols()).transpose();
         Eigen::MatrixXd SqrtPt_update = rhks.bottomRightCorner(SqrtPt_predict.rows(), SqrtPt_predict.cols());
@@ -279,12 +279,12 @@ class SqrtEskfSolver : public MsckfSolverBase
         // For p
         F.block<3, 3>(p_id, p_id) = Eigen::Matrix3d::Identity();
         F.block<3, 3>(p_id, v_id) = Eigen::Matrix3d::Identity() * dt;
-        F.block<3, 3>(p_id, th_id) = -0.5 * R_ItoG * MathUtils::skew(am_mid * dt * dt);
+        F.block<3, 3>(p_id, th_id) = -0.5 * R_ItoG * utils::math::skew(am_mid * dt * dt);
         F.block<3, 3>(p_id, ba_id) = -0.5 * R_ItoG * dt * dt;
 
         // For v
         F.block<3, 3>(v_id, v_id) = Eigen::Matrix3d::Identity();
-        F.block<3, 3>(v_id, th_id) = -R_ItoG * MathUtils::skew(am_mid * dt);
+        F.block<3, 3>(v_id, th_id) = -R_ItoG * utils::math::skew(am_mid * dt);
         F.block<3, 3>(v_id, ba_id) = -R_ItoG * dt;
 
         // For bg
@@ -381,7 +381,7 @@ class SqrtEskfSolver : public MsckfSolverBase
         SqrtPt_tmp.block(0, 0, state->Sqrt_Pt().rows(), state->Sqrt_Pt().cols()) = state->Sqrt_Pt();
         SqrtPt_tmp.block(0, 0, imu_state_dim, imu_state_dim) = SqrtPt_imu * Phi_sum.transpose();
         SqrtPt_tmp.block(state->Sqrt_Pt().rows(), 0, Q_sum.rows(), Q_sum.cols()) = Q_sum.llt().matrixL().transpose();
-        Eigen::MatrixXd SqrtPt_triangulated = MathUtils::GivensRotation(SqrtPt_tmp, SqrtPt_tmp.cols());
+        Eigen::MatrixXd SqrtPt_triangulated = utils::math::GivensRotation(SqrtPt_tmp, SqrtPt_tmp.cols());
         Eigen::MatrixXd SqrtPt_propagated = SqrtPt_triangulated.block(0, 0, SqrtPt_tmp.cols(), SqrtPt_tmp.cols());
 
         assert(SqrtPt_tmp.cols() == state->Sqrt_Pt().cols());
@@ -395,10 +395,10 @@ class SqrtEskfSolver : public MsckfSolverBase
 
    private:
     bool use_fej_ = true;
-    const uint32_t kNoiseAccId = 0;
-    const uint32_t kNoiseGyroId = 3;
-    const uint32_t kNoiseGyroBiasId = 6;
-    const uint32_t kNoiseAccBiasId = 9;
+    static constexpr uint32_t kNoiseAccId = 0;
+    static constexpr uint32_t kNoiseGyroId = 3;
+    static constexpr uint32_t kNoiseGyroBiasId = 6;
+    static constexpr uint32_t kNoiseAccBiasId = 9;
 };
 
 #endif

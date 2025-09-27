@@ -126,7 +126,7 @@ public:
             if (jacobians[1])
             {
                 Eigen::Map<Eigen::Matrix<double, 2, 4, Eigen::RowMajor>> J_dz_dqwc(jacobians[1]);
-                Eigen::Matrix<double, 2, 3> dz_dqwc = dz_dpcf * R_CtoG.transpose() * MathUtils::skew(p_finG - p_CinG);
+                Eigen::Matrix<double, 2, 3> dz_dqwc = dz_dpcf * R_CtoG.transpose() * utils::math::skew(p_finG - p_CinG);
                 J_dz_dqwc.leftCols<3>() = 2 * dz_dqwc;
                 J_dz_dqwc.rightCols<1>().setZero();
             }

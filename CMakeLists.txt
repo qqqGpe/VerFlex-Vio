@@ -101,12 +101,11 @@ list(APPEND thirdparty_libraries
 # =============================================================================
 # Core Library Target
 # =============================================================================
+add_subdirectory(src/utils)
 
-file(GLOB_RECURSE CORE_FILE_LIST "src/core/*.cpp")
-message(STATUS "CORE_FILE_LIST = ${CORE_FILE_LIST}")
-
+aux_source_directory(src/core msckf_core_files)
 add_library(msckf_core STATIC
-    ${CORE_FILE_LIST}
+    ${msckf_core_files}
 )
 
 target_include_directories(msckf_core PUBLIC
@@ -115,10 +114,10 @@ target_include_directories(msckf_core PUBLIC
     src/solver
 )
 
-target_link_libraries(msckf_core
-    glog::glog
+target_link_libraries(msckf_core PUBLIC
+    utils
+    ${thirdparty_libraries}
 )
-
 # =============================================================================
 # Main Executable Targets
 # =============================================================================
@@ -126,15 +125,11 @@ target_link_libraries(msckf_core
 add_executable(${PROJECT_NAME}_serial_node src/vio_serial_node.cpp)
 target_link_libraries(${PROJECT_NAME}_serial_node
     msckf_core
-    ${catkin_LIBRARIES}
-    ${thirdparty_libraries}
 )
 
 add_executable(${PROJECT_NAME}_subscribe_node src/vio_subscribe_node.cpp)
 target_link_libraries(${PROJECT_NAME}_subscribe_node
     msckf_core
-    ${catkin_LIBRARIES}
-    ${thirdparty_libraries}
 )
 
 # =============================================================================

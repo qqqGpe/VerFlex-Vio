@@ -7,7 +7,7 @@ TEST(VioTest, GivensRotation)
 {
     Eigen::MatrixXd random_matrix = Eigen::MatrixXd::Random(10, 10);
     std::cout << "origin matrix: \n" << random_matrix << std::endl;
-    Eigen::MatrixXd R_matrix = MathUtils::GivensRotation(random_matrix, 10);
+    Eigen::MatrixXd R_matrix = utils::math::GivensRotation(random_matrix, 10);
     std::cout << "After givens rotation: \n" << R_matrix << std::endl;
 }
 

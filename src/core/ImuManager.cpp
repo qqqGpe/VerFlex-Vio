@@ -164,7 +164,7 @@ void ImuManager::ConstructZuptConstraint(std::shared_ptr<State> state,
     }
 
     // jacobian for R_ItoG
-    Hx.block(0, _map_hx[state->_imu_state->q()], 3, 3) = -MathUtils::skew(R_ItoG.transpose() * _gravity_magn);
+    Hx.block(0, _map_hx[state->_imu_state->q()], 3, 3) = -utils::math::skew(R_ItoG.transpose() * _gravity_magn);
 
     // jacobian for bg
     Hx.block(3, _map_hx[state->_imu_state->bg()], 3, 3) = -Eigen::Matrix3d::Identity();

@@ -189,9 +189,9 @@ void DynamicInitializer::assignImuState(const Eigen::VectorXd velocity_gravity_s
     Eigen::Vector3d gravity = velocity_gravity_scale.segment<3>(velocity_gravity_scale.size() - 4);   // Gravity in C0 frame
     Eigen::Vector3d gravity_in_I = R_CtoI_ * gravity;           // Gravity in b0 frame
     Eigen::Matrix3d R_b0toG = Eigen::Quaterniond::FromTwoVectors(gravity_in_I.normalized(), Eigen::Vector3d(0, 0, -1.0)).toRotationMatrix();
-    Eigen::Vector3d rpy = MathUtils::R2rpy(R_b0toG);
+    Eigen::Vector3d rpy = utils::math::R2rpy(R_b0toG);
     rpy(2) = 0;  // Set yaw to zero
-    R_b0toG = MathUtils::rpy2R(rpy);
+    R_b0toG = utils::math::rpy2R(rpy);
 
     // Assign all states in sliding window
     for (auto it = imu_state_map_.begin(); it != imu_state_map_.end(); ++it)
@@ -217,7 +217,7 @@ void DynamicInitializer::assignImuState(const Eigen::VectorXd velocity_gravity_s
         imu_state_i->set_pose(R_bitoG, p_biinG);
         imu_state_i->set_velocity(v_biinG);
 
-        Eigen::Vector3d rpy = MathUtils::R2rpy(R_bitoG) * 180.0 / M_PI;  // Convert to degrees
+        Eigen::Vector3d rpy = utils::math::R2rpy(R_bitoG) * 180.0 / M_PI;  // Convert to degrees
         LOG(INFO) << fmt::format(
             "\033[32mDynamic initialized imu state at {:f}: RPY: [{:f}, {:f}, {:f}], Position: [{:f}, {:f}, {:f}], Velocity: [{:f}, {:f}, {:f}]\033[0m",
             imu_state_i->ts(), rpy.x(), rpy.y(), rpy.z(), p_biinG.x(), p_biinG.y(), p_biinG.z(), v_biinG.x(), v_biinG.y(), v_biinG.z());

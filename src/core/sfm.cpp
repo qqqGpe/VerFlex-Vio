@@ -374,7 +374,7 @@ void Sfm::showKeyframeImages() const
 void Sfm::ShowPoseWrtFirstFrame(const Pose current_pose)
 {
     Pose first_pose = keyframe_poses_[oldest_keyframe_timestamp_];
-    Eigen::Vector3d rpy = MathUtils::R2rpy(first_pose.quat().toRotationMatrix().transpose() * current_pose.quat().toRotationMatrix()) * RAD2DEG;
+    Eigen::Vector3d rpy = utils::math::R2rpy(first_pose.quat().toRotationMatrix().transpose() * current_pose.quat().toRotationMatrix()) * RAD2DEG;
     std::cout << cv::format("Relative pose between oldest keyframe and current keyframe(%f): RPY: [%f, %f, %f], p: [%f, %f, %f]", current_pose.ts(),
                             rpy(0), rpy(1), rpy(2), current_pose.p().x(), current_pose.p().y(), current_pose.p().z())
               << std::endl;
@@ -570,7 +570,7 @@ bool Sfm::Optimization()
     std::cout << "Pose before optimization: " << std::endl;
     for (auto &[timestamp, pose] : keyframe_poses_)
     {
-        Eigen::Vector3d rpy = MathUtils::R2rpy(pose.quat().toRotationMatrix()) * RAD2DEG;
+        Eigen::Vector3d rpy = utils::math::R2rpy(pose.quat().toRotationMatrix()) * RAD2DEG;
         std::cout << cv::format("timestamp: %f, rpy: [%f, %f, %f], p: [%f, %f, %f]", timestamp, rpy.x(), rpy.y(), rpy.z(), pose.p().x(),
                                 pose.p().y(), pose.p().z())
                 << std::endl;
@@ -595,7 +595,7 @@ bool Sfm::Optimization()
     //     {
     //         Eigen::Quaterniond q_updated(qs[i][3], qs[i][0], qs[i][1], qs[i][2]);   // w, x, y, z
     //         Eigen::Vector3d p_updated(ps[i][0], ps[i][1], ps[i][2]);
-    //         Eigen::Vector3d rpy = MathUtils::R2rpy(q_updated.toRotationMatrix()) * RAD2DEG;
+    //         Eigen::Vector3d rpy = utils::math::R2rpy(q_updated.toRotationMatrix()) * RAD2DEG;
     //         std::cout << cv::format("index: %d, rpy: [%f, %f, %f], p: [%f, %f, %f]", i, rpy.x(), rpy.y(), rpy.z(), p_updated.x(),
     //                                 p_updated.y(), p_updated.z())
     //                 << std::endl;
@@ -610,7 +610,7 @@ bool Sfm::Optimization()
         uint32_t pose_idx = indexInMap<double, Pose>(keyframe_poses_, timestamp).value();
         Eigen::Quaterniond q_updated(qs[pose_idx][3], qs[pose_idx][0], qs[pose_idx][1], qs[pose_idx][2]);  // w, x, y, z
         Eigen::Vector3d p_updated(ps[pose_idx][0], ps[pose_idx][1], ps[pose_idx][2]);
-        Eigen::Vector3d rpy = MathUtils::R2rpy(q_updated.toRotationMatrix()) * RAD2DEG;
+        Eigen::Vector3d rpy = utils::math::R2rpy(q_updated.toRotationMatrix()) * RAD2DEG;
         LOG(INFO) << fmt::format("timestamp: {:f}, rpy: [{:f}, {:f}, {:f}], p: [{:f}, {:f}, {:f}]", timestamp, rpy.x(), rpy.y(), rpy.z(),
                                  p_updated.x(), p_updated.y(), p_updated.z())
                   << std::endl;

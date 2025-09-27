@@ -18,7 +18,7 @@ TEST(VioTest, RotationMatrixToEuler)
     Eigen::AngleAxisd Rz = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ());
 
     Eigen::Matrix3d R = (Rz * Ry * Rx).toRotationMatrix();
-    Eigen::Vector3d rpy = MathUtils::R2rpy(R) * RAD2DEG;
+    Eigen::Vector3d rpy = utils::math::R2rpy(R) * RAD2DEG;
 
     EXPECT_NEAR(rpy.x(), roll * RAD2DEG, 1e-6);
     EXPECT_NEAR(rpy.y(), pitch * RAD2DEG, 1e-6);

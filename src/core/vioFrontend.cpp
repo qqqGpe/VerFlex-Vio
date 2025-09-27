@@ -596,10 +596,21 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::vector<cv::Mat>> &inp
         previous_observations = feature_observes;
         R_ref = Rwc;
     }
+
+    // Show tracking results
     cv::Mat image_to_show;
-    Utils::visualize_feature_tracking_results(input_image.second[LEFT_CAM].clone(), feature_observes, 1,
-                                              &image_to_show);
+    std::vector<std::pair<int32_t, cv::Point2f>> feature_with_ids;
+    for (auto& obs: feature_observes.second)
+    {
+        if (obs.valid)
+        {
+            cv::Point2f point(obs.uv[LEFT_CAM].x(), obs.uv[LEFT_CAM].y());
+            feature_with_ids.emplace_back(obs.feat_id, point);
+        }
+    }
+    utils::visualize_feature_tracking_results(input_image.second[LEFT_CAM].clone(), feature_with_ids, 1, &image_to_show);
     image_with_features_ = std::make_pair(ts_sec, image_to_show);
+
     return true;
 }
 
@@ -785,11 +796,22 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>> &
     }
 
     feature_observes = std::make_pair(ts_sec, cur_features_to_track);
-    cv::Mat image_to_show;
-    // Utils::visualize_feature_tracking_results(input_image.second[LEFT_CAM].clone(), feature_observes, 1,
-    //                                           &image_to_show);
-    image_with_features_ = std::make_pair(ts_sec, image_to_show);
     is_first_frame_ = false;
+
+    // Show tracking results
+    cv::Mat image_to_show;
+    std::vector<std::pair<int32_t, cv::Point2f>> feature_with_ids;
+    for (auto& obs: feature_observes.second)
+    {
+        if (obs.valid)
+        {
+            cv::Point2f point(obs.uv[LEFT_CAM].x(), obs.uv[LEFT_CAM].y());
+            feature_with_ids.emplace_back(obs.feat_id, point);
+        }
+    }
+    utils::visualize_feature_tracking_results(input_image.second[LEFT_CAM].clone(), feature_with_ids, 1, &image_to_show);
+    image_with_features_ = std::make_pair(ts_sec, image_to_show);
+
     return true;
 }
 

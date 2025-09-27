@@ -49,27 +49,27 @@ void ImuPreintegrator::Propagate(const Eigen::Vector3d ba, const Eigen::Vector3d
             // For P
             A.block<3, 3>(p_id, p_id) = Eigen::Matrix3d::Identity();
             A.block<3, 3>(p_id, v_id) = Eigen::Matrix3d::Identity() * dt;
-            A.block<3, 3>(p_id, theta_id) = -0.5 * dR * MathUtils::skew(am_mid * dt2);
+            A.block<3, 3>(p_id, theta_id) = -0.5 * dR * utils::math::skew(am_mid * dt2);
 
             // For V
             A.block<3, 3>(v_id, v_id) = Eigen::Matrix3d::Identity();
-            A.block<3, 3>(v_id, theta_id)  = -dR * MathUtils::skew(am_mid * dt);
+            A.block<3, 3>(v_id, theta_id)  = -dR * utils::math::skew(am_mid * dt);
 
             B.block<3, 3>(p_id, kNoiseAccId) = 0.5 * dR * dt2;
             B.block<3, 3>(v_id, kNoiseAccId) = dR * dt;
 
             dp_dba = dp_dba + dv_dba * dt - 0.5 * dR * dt2;
-            dp_dbg = dp_dbg + dv_dbg * dt - 0.5 * dR * dt2 * MathUtils::skew(am_mid) * dR_dbg;
+            dp_dbg = dp_dbg + dv_dbg * dt - 0.5 * dR * dt2 * utils::math::skew(am_mid) * dR_dbg;
             dv_dba = dv_dba - dR * dt;
-            dv_dbg = dv_dbg - dR * dt * MathUtils::skew(am_mid) * dR_dbg;
+            dv_dbg = dv_dbg - dR * dt * utils::math::skew(am_mid) * dR_dbg;
 
             // For R
             Eigen::Matrix3d delta_R = SO3d::exp(wm_mid * dt).matrix();
             dR = dR * delta_R;
 
             A.block<3, 3>(theta_id, theta_id) = delta_R.transpose();
-            B.block<3, 3>(theta_id, kNoiseGyroId) = MathUtils::Jr(wm_mid) * dt;
-            dR_dbg = delta_R.transpose() * dR_dbg - MathUtils::Jr(wm_mid) * dt;
+            B.block<3, 3>(theta_id, kNoiseGyroId) = utils::math::Jr(wm_mid) * dt;
+            dR_dbg = delta_R.transpose() * dR_dbg - utils::math::Jr(wm_mid) * dt;
 
             Cov = A * Cov * A.transpose() + B * Cov_m * B.transpose();
         }

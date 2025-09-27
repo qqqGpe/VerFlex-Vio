@@ -1,7 +1,7 @@
 <!--
  * @Author: pengen.gao gaope.hb@gmail.com
  * @Date: 2025-08-31 02:06:34
- * Copyright (c) 2025 by ${git_name_email}, All Rights Reserved.
+ * Copyright (c) 2025 by gaope.hb@gmail.com, All Rights Reserved.
 -->
 # VerFlex-Vio: Versatile and Flexible Visual-Inertial Odometry System
 
@@ -70,6 +70,12 @@ roslaunch vio euroc_serial_backend_subscribe.launch
 
 # Launch VIO with Intel Realsense Camera
 roslaunch vio realsense_serial_online.launch
+```
+
+### 2. Basic Usage with Euroc Dataset
+```bash
+# Batch simulation and evaluation
+
 ```
 
 

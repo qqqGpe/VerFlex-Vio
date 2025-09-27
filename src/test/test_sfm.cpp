@@ -167,7 +167,7 @@ TEST(VioTest, Sfm)
         Pose pose_gt = camera_poses[i];
         Pose pose_est = estimate_poses.at(pose_gt.ts());
         Eigen::Matrix3d R_relative = pose_gt.R().transpose() * pose_est.R();
-        Eigen::Vector3d rpy_relative = MathUtils::R2rpy(R_relative);
+        Eigen::Vector3d rpy_relative = utils::math::R2rpy(R_relative);
         EXPECT_NEAR(rpy_relative.norm(), 0.0, 1e-2);
     }
 }
