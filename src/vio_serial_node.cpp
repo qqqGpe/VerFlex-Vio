@@ -92,6 +92,7 @@ int main(int argc, char** argv)
     }
 
     ros::Rate loop_rate(params.running_rate);
+
     for (int m = 0; m < msgs.size(); m++)
     {
         if (!ros::ok())
@@ -173,7 +174,11 @@ int main(int argc, char** argv)
             }
 
             vio_manager->ProcessMeasurementOnce();
-            loop_rate.sleep();
+
+            if (params.use_rate_limit)
+            {
+                loop_rate.sleep();
+            }
         }
     }
 

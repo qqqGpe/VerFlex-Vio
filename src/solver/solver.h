@@ -1,3 +1,8 @@
+/*
+ * @Author: pengen.gao gaope.hb@gmail.com
+ * @Date: 2025-04-16 22:27:58
+ * Copyright (c) 2025 by gaope.hb@gmail.com, All Rights Reserved.
+ */
 #ifndef __SOLVER__
 #define __SOLVER__
 #include "State.h"
@@ -12,12 +17,6 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 
-namespace
-{
-constexpr uint32_t kImuOutputHz = 200;
-constexpr double kMaxImuToleranceDelayTime = 1.0 / kImuOutputHz * 5;
-}  // namespace
-
 enum class SolverType
 {
     ESKF = 0,
@@ -28,7 +27,7 @@ class MsckfSolverBase
 {
    public:
     MsckfSolverBase() = default;
-    virtual ~MsckfSolverBase() {}
+    virtual ~MsckfSolverBase() = default;
 
     virtual void update(std::shared_ptr<State>& state,
                         const Eigen::Ref<Eigen::MatrixXd>& Hx,
@@ -42,6 +41,10 @@ class MsckfSolverBase
     virtual void StochasticClone(std::shared_ptr<State> state, std::vector<ImuData>* imu_data) = 0;
 
     virtual void MarginalizeState(std::shared_ptr<State> state, std::shared_ptr<Type> state_to_marginalize) = 0;
+
+   protected:
+    constexpr static uint32_t kImuOutputHz = 200;
+    constexpr static double kMaxImuToleranceDelayTime = 1.0 / kImuOutputHz * 5;
 };
 
 #endif

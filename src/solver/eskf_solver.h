@@ -17,7 +17,7 @@ class eskfSolver : public MsckfSolverBase
    public:
     eskfSolver() = default;
     eskfSolver(const bool use_fej) : use_fej_(use_fej) {}
-    virtual ~eskfSolver() {}
+    virtual ~eskfSolver() = default;
 
     /**
      * @brief Stochastic clone the given pose into the state
@@ -424,10 +424,10 @@ class eskfSolver : public MsckfSolverBase
 
    private:
     bool use_fej_ = true;
-    static constexpr uint32_t kNoiseAccId = 0;
-    static constexpr uint32_t kNoiseGyroId = 3;
-    static constexpr uint32_t kNoiseGyroBiasId = 6;
-    static constexpr uint32_t kNoiseAccBiasId = 9;
+    constexpr static uint32_t kNoiseAccId = 0;
+    constexpr static uint32_t kNoiseGyroId = 3;
+    constexpr static uint32_t kNoiseGyroBiasId = 6;
+    constexpr static uint32_t kNoiseAccBiasId = 9;
 };
 
 #endif

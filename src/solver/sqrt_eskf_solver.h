@@ -15,7 +15,7 @@ class SqrtEskfSolver : public MsckfSolverBase
    public:
     SqrtEskfSolver() = default;
     SqrtEskfSolver(const bool use_fej) : use_fej_(use_fej) {}
-    virtual ~SqrtEskfSolver() {}
+    virtual ~SqrtEskfSolver() = default;
 
     /**
      * @brief Clone the given pose into the state with stochastic cloning
@@ -395,10 +395,10 @@ class SqrtEskfSolver : public MsckfSolverBase
 
    private:
     bool use_fej_ = true;
-    static constexpr uint32_t kNoiseAccId = 0;
-    static constexpr uint32_t kNoiseGyroId = 3;
-    static constexpr uint32_t kNoiseGyroBiasId = 6;
-    static constexpr uint32_t kNoiseAccBiasId = 9;
+    constexpr static  uint32_t kNoiseAccId = 0;
+    constexpr static  uint32_t kNoiseGyroId = 3;
+    constexpr static uint32_t kNoiseGyroBiasId = 6;
+    constexpr static uint32_t kNoiseAccBiasId = 9;
 };
 
 #endif

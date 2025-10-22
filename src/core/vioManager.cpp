@@ -56,6 +56,11 @@ VioManager::VioManager(std::shared_ptr<ros::NodeHandle>& nh, const Param& params
     {
         initializer = std::make_shared<DynamicInitializer>(params, _visual_manager, state);
     }
+    else
+    {
+        LOG(FATAL) << "Unsupported initialization type or camera type!";
+        exit(1);
+    }
 
     // Loggers configuration
     if (params.save_full_log)
@@ -80,7 +85,6 @@ void VioManager::ResetSystem()
     state->reset();
     _visual_manager->reset();
     initializer->reset();
-    // dynamic_initializer->reset();
     last_update_timestamp_ = -1.0;
     LOG(INFO) << "VIO system reset";
 }

@@ -4,18 +4,23 @@ import subprocess
 import datetime
 import time
 import psutil
-import rospy
-import rosbag
+import logging
+import argparse
 
+# Substitute with your dataset path
+DATA_DIR = os.path.join(os.path.expanduser("~"), "dataset/euroc_mav")
+VIO_DIR = os.path.join(os.path.expanduser("~"), "ws/catkin_ws")
+LOG_DIR = os.path.join(VIO_DIR, "src/vio_backend/log/vio_sim_" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M"))
 
-def find_euroc_rosbags(directory):
-    rosbags = []
-    for root, _, files in os.walk(directory):
-        for file in files:
-            if file.lower().endswith(".bag"):
-                rosbags.append(os.path.join(root, file))
-    return sorted(rosbags)
-
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    handlers=[
+        logging.StreamHandler()  # Log to console
+    ]
+)
+logger = logging.getLogger(__name__)
 
 def is_process_running(process):
     try:
@@ -23,15 +28,15 @@ def is_process_running(process):
     except (psutil.NoSuchProcess, psutil.ZombieProcess, psutil.AccessDenied):
         return False
 
-
-def run_slam_and_rosbag(rosbag_file, ros_node_name, roslaunch_name, log_dir):
-    print(f"Launching SLAM system: {roslaunch_name}")
+def run_slam_and_rosbag(data_dir, case_name, ros_node_name, roslaunch_name, log_dir):
+    logger.info(f"Launching SLAM system: {roslaunch_name}")
     dataset_name = os.path.splitext(os.path.basename(rosbag_file))[0]
     cmd_disbale_rviz = "use_rviz:=false"
     cmd_disable_full_log = "save_full_log:=false"
-    cmd_set_bag_path = "bag_path:=" + rosbag_file
+    cmd_set_bag_path = "bag_path:={}".format(os.path.join(data_dir, case_name + ".bag"))
     cmd_set_log_path = "log_path:={}".format(log_dir)
-    cmd_set_dataset = "dataset:=" + dataset_name
+    cmd_set_dataset = "dataset:={}".format(case_name)
+    cmd_use_limit = "use_rate_limit:={}".format("false")
     vio_process = subprocess.Popen(
         [
             "roslaunch",
@@ -42,6 +47,7 @@ def run_slam_and_rosbag(rosbag_file, ros_node_name, roslaunch_name, log_dir):
             cmd_set_bag_path,
             cmd_set_dataset,
             cmd_set_log_path,
+            cmd_use_limit
         ]
     )
     process = psutil.Process(vio_process.pid)
@@ -52,11 +58,11 @@ def run_slam_and_rosbag(rosbag_file, ros_node_name, roslaunch_name, log_dir):
             if process.status() == psutil.STATUS_RUNNING:
                 time.sleep(1)
         except psutil.NoSuchProcess:
-            print("SLAM system has terminated.")
+            logger.info("SLAM system has terminated.")
             break
 
     # Terminate SLAM process if still running
-    print("Finish batch simulation, terminating SLAM system...")
+    logger.info("Finish batch simulation, terminating SLAM system...")
     vio_process.terminate()
     try:
         vio_process.wait(timeout=5)
@@ -66,33 +72,26 @@ def run_slam_and_rosbag(rosbag_file, ros_node_name, roslaunch_name, log_dir):
 
 if __name__ == "__main__":
 
-    ros_node_name = "vio"
-    roslaunch_name = "euroc_serial_backend.launch"
+    parser = argparse.ArgumentParser(description="Batch VIO Simulation Script")
+    parser.add_argument("--ros_node", type=str, default="vio", help="Name of the ROS node")
+    parser.add_argument("--launch_file", type=str, default="euroc_serial_backend.launch", help="ROS launch file to use")
+    args = parser.parse_args()
 
-    # Substitute with your dataset path
-    dataset_dir = os.path.join(os.path.expanduser("~"), "dataset/euroc_mav")
-    vio_dir = os.path.join(os.path.expanduser("~"), "ws/catkin_ws")
-    log_dir = os.path.join(vio_dir, "src/vio_backend/log/vio_sim_" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M"))
+    # Define the list of cases to process
+    CASE_LIST = ["MH_01_easy", "MH_02_easy"]
 
-    rosbags = find_euroc_rosbags(dataset_dir)
-    if not rosbags:
-        print("No rosbag files found in the specified directory.")
-        exit(1)
+    logger.info(f"Found {len(CASE_LIST)} rosbag files for simulation:")
+    for i, rosbag_file in enumerate(CASE_LIST, 1):
+        logger.info(f"{i}. {rosbag_file}")
 
-    print("Found {} rosbag files for simulation:".format(len(rosbags)))
-    for i, rosbag_file in enumerate(rosbags, 1):
-        print("{}. {}".format(i, rosbag_file))
-
-    os.makedirs(log_dir, exist_ok=True)
-
-    source_cmd = "source " + os.path.join(vio_dir, "devel/setup.zsh")
+    os.makedirs(LOG_DIR, exist_ok=True)
+    source_cmd = "source " + os.path.join(VIO_DIR, "devel/setup.zsh")
     subprocess.run(source_cmd, shell=True, executable="/bin/zsh")
 
     # Process each rosbag file
-    for rosbag_file in rosbags:
-        print(f"\n=== Processing rosbag: {rosbag_file} ===")
-        run_slam_and_rosbag(rosbag_file, ros_node_name, roslaunch_name, log_dir)
-        print(f"=== Finished processing {rosbag_file} ===\n")
-
+    for case_name in CASE_LIST:
+        logger.info(f"\n=== Processing rosbag: {case_name} ===")
+        run_slam_and_rosbag(DATA_DIR, case_name, args.ros_node, args.launch_file, LOG_DIR)
+        logger.info(f"=== Finished processing {case_name} ===\n")
         # Short pause to ensure system is fully cleaned up
         time.sleep(2)

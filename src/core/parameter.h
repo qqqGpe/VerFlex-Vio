@@ -28,6 +28,7 @@ public:
         _nh->param<bool>("use_pnp_ransac", use_pnp_ransac, true);
         _nh->param<int>("camera_num", camera_num, 1);
         _nh->param<int>("running_rate", running_rate, 20);
+        _nh->param<bool>("use_rate_limit", use_rate_limit, true);
         _nh->param<double>("lazy_time", lazy_time, 0.2);
         _nh->param<int>("img_width", img_width, 752);
         _nh->param<int>("img_height", img_height, 480);
@@ -95,6 +96,7 @@ public:
     bool use_census_transform = true;
     bool use_pnp_ransac = true;
     bool use_fej = false;
+    bool use_rate_limit = true;
 
     int running_rate; // Hz
     int log_level = 2;
