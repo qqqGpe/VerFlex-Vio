@@ -72,11 +72,13 @@ roslaunch vio euroc_serial_backend_subscribe.launch
 roslaunch vio realsense_serial_online.launch
 ```
 
-### 2. Basic Usage with Euroc Dataset
+### 2. Batch simulatation with Euroc dataset
 ```bash
 # Batch simulation and evaluation
 cd ${PATH_TO_WS}
+
 source ./devel/setup.zsh
+
 python3 ${PATH_TO_PROJECT}/script/batchSim.py --ros_node "vio" --launch_file "euroc_serial_backend.launch"
 
 # example
