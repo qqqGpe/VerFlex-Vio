@@ -11,9 +11,9 @@
 
     <!-- mono or stereo and what ros bag to play -->
     <arg name="bag_start"       default="0" />
-    <arg name="dataset"         default="MH_01_easy" />
+    <!-- <arg name="dataset"         default="MH_01_easy" /> -->
     <!-- <arg name="dataset"     default="MH_02_easy" /> -->
-    <!-- <arg name="dataset"     default="MH_03_medium" /> -->
+    <arg name="dataset"     default="MH_03_medium" />
     <!-- <arg name="dataset"     default="MH_04_difficult" /> -->
     <!-- <arg name="dataset"     default="MH_05_difficult" /> -->
 
@@ -41,7 +41,7 @@
         <param name="save_full_log"             type="bool"     value="$(arg save_full_log)" />
         <param name="save_tum_log"              type="bool"     value="$(arg save_tum_log)" />
         <param name="solver_type"               type="int"      value="0" /> <!-- 0: eskf_solver, 1: sqrt_root_eskf_solver -->
-        <param name="initial_type"              type="int"      value="1" /> <!-- 0: static initialization, 1: dynamic initialization -->
+        <param name="initial_type"              type="int"      value="0" /> <!-- 0: static initialization, 1: dynamic initialization -->
         <param name="estimate_ric"              type="bool"     value="true" />
         <param name="estimate_td_visual"        type="bool"     value="true" />
         <param name="frontend_prediction"       type="bool"     value="true" />
