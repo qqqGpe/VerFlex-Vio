@@ -12,26 +12,31 @@
 
 struct CameraPose
 {
+    explicit CameraPose(const int cam_num)
+    {
+        Rwc.resize(cam_num);
+        Rwc_fej.resize(cam_num);
+        pwc.resize(cam_num);
+        pwc_fej.resize(cam_num);
+    }
+    std::vector<Eigen::Matrix3d> Rwc, Rwc_fej;
+    std::vector<Eigen::Vector3d> pwc, pwc_fej;
     Eigen::Matrix3d Rwi;
-    Eigen::Matrix3d Rwc;
     Eigen::Vector3d pwi;
-    Eigen::Vector3d pwc;
-
     Eigen::Matrix3d Rwi_fej;
-    Eigen::Matrix3d Rwc_fej;
     Eigen::Vector3d pwi_fej;
-    Eigen::Vector3d pwc_fej;
 };
 
 class State
 {
    public:
-    explicit State(const Param& param) : enable_estimate_ric_(param.estimate_ric), enable_estimate_td_visual_(param.estimate_td_visual)
+    explicit State(const Param& param)
     {
-        _imu_state = std::make_shared<ImuState>();
-        qic_ = std::make_shared<Quat>();
-        tic_ = std::make_shared<Vec>();
+        _param = param;
+        enable_estimate_ric_ = param.estimate_ric;
+        enable_estimate_td_visual_ = param.estimate_td_visual;
 
+        _imu_state = std::make_shared<ImuState>();
         _imu_state->set_local_id(_dim);
         _variables.push_back(_imu_state->q());
         _dim += _imu_state->q()->size();
@@ -44,11 +49,23 @@ class State
         _variables.push_back(_imu_state->ba());
         _dim += _imu_state->ba()->size();
 
-        if (enable_estimate_ric_)
+        _vQic.resize(param.camera_num);
+        _vPic.resize(param.camera_num);
+        for (int i = 0; i < param.camera_num; i++)
         {
-            qic_->set_local_id(_dim);
-            _variables.push_back(qic_);
-            _dim += qic_->size();
+            _vQic[i] = std::make_shared<Quat>();
+            _vPic[i] = std::make_shared<Vec>();
+            InitCamExtrinsic(i, Eigen::Quaterniond(param.Ric[i]), param.tic[i]);
+            if (enable_estimate_ric_)
+            {
+                _vQic[i]->set_local_id(_dim);
+                _variables.push_back(_vQic[i]);
+                _dim += _vQic[i]->size();
+
+                _vPic[i]->set_local_id(_dim);
+                _variables.push_back(_vPic[i]);
+                _dim += _vPic[i]->size();
+            }
         }
 
         if (enable_estimate_td_visual_)
@@ -61,7 +78,6 @@ class State
 
         SetCovariance(Eigen::MatrixXd::Identity(_dim, _dim));             // initialize covariance;
         SetSqrtPt(Eigen::MatrixXd::Identity(_dim, _dim));                 // initialize sqrt-root covariance;
-        SetCamExtrinsic(Eigen::Quaterniond(param.Ric[0]), param.tic[0]);  // initialize camera extrinsic
     }
     ~State() {}
 
@@ -69,13 +85,21 @@ class State
 
     uint32_t dim() const { return _dim; }
 
+    bool enableEstimateRic() const { return enable_estimate_ric_; }
+
+    bool enableEstimateTdVisual() const { return enable_estimate_td_visual_; }
+
+    uint8_t CameraNum() const { return _param.camera_num; }
+
     Eigen::MatrixXd Covariance() const { return _covariance; }
 
     Eigen::MatrixXd Sqrt_Pt() const { return sqrt_Pt_; }
 
     std::shared_ptr<ImuState> getImuState() const { return _imu_state; }
 
-    Quat qic() const { return *qic_; }
+    std::shared_ptr<Quat> Qic(const int cam_id) const { return _vQic[cam_id]; }
+
+    std::shared_ptr<Vec> Pic(const int cam_id) const { return _vPic[cam_id]; }
 
     Scalar td_visual() const { return *td_visual_; }
 
@@ -84,25 +108,22 @@ class State
         std::map<double, CameraPose> camera_clone_poses;
         for (auto it = _clone_pose.begin(); it != _clone_pose.end(); it++)
         {
-            CameraPose camera_pose;
+            CameraPose camera_pose(_param.camera_num);
             camera_pose.Rwi = it->second->quat().normalized().toRotationMatrix();
             camera_pose.pwi = it->second->p();
-            Eigen::Matrix3d R_CtoI = qic_->q().toRotationMatrix();
-            Eigen::Vector3d p_CinI = tic_->vec();
-            camera_pose.Rwc = camera_pose.Rwi * R_CtoI;
-            camera_pose.pwc = camera_pose.pwi + camera_pose.Rwi * p_CinI;
-            camera_clone_poses.insert(std::make_pair(it->first, camera_pose));
+            for (int i_cam = 0; i_cam < _param.camera_num; i_cam++)
+            {
+                Eigen::Matrix3d R_CtoI = _vQic[i_cam]->q().toRotationMatrix();
+                Eigen::Vector3d p_CinI = _vPic[i_cam]->vec();
+                camera_pose.Rwc[i_cam] = camera_pose.Rwi * R_CtoI;
+                camera_pose.pwc[i_cam] = camera_pose.pwi + camera_pose.Rwi * p_CinI;
+            }
+            camera_clone_poses.try_emplace(it->first, camera_pose);
         }
         return camera_clone_poses;
     }
 
     void set_ts_sec(double ts_sec) { _imu_state->set_ts(ts_sec); }
-
-    void SetCamExtrinsic(Eigen::Quaterniond qic, Eigen::Vector3d tic)
-    {
-        qic_->set_value(qic.normalized().coeffs());
-        tic_->set_value(tic);
-    }
 
     void SetCovariance(const Eigen::MatrixXd& covariance_new)
     {
@@ -114,6 +135,12 @@ class State
     {
         sqrt_Pt_.noalias() = sqrt_Pt_new;
         _imu_state->set_sqrt_Pt(sqrt_Pt_new.block(_imu_state->id(), _imu_state->id(), _imu_state->size(), _imu_state->size()));
+    }
+
+    void InitCamExtrinsic(const int cam_id, const Eigen::Quaterniond& qic, const Eigen::Vector3d& tic)
+    {
+        _vQic[cam_id]->set_value(qic.normalized().coeffs());
+        _vPic[cam_id]->set_value(tic);
     }
 
     void reset()
@@ -140,21 +167,20 @@ class State
         SetSqrtPt(Eigen::MatrixXd::Identity(_dim, _dim));
     }
 
-    int _dim = 0;
-
+    uint32_t _dim = 0;
+    Param _param;
     std::shared_ptr<ImuState> _imu_state;
-    std::shared_ptr<Quat> qic_;
-    std::shared_ptr<Vec> tic_;
     std::shared_ptr<Scalar> td_visual_;
-
     std::map<double, std::shared_ptr<Pose>> _clone_pose;
     std::vector<std::shared_ptr<Type>> _variables;
-
     Eigen::MatrixXd _covariance;
     Eigen::MatrixXd sqrt_Pt_;
 
-    int32_t enable_estimate_ric_ = 0;
-    int32_t enable_estimate_td_visual_ = 0;
+   private:
+    std::vector<std::shared_ptr<Quat>> _vQic;
+    std::vector<std::shared_ptr<Vec>> _vPic;
+    bool enable_estimate_ric_ = false;
+    bool enable_estimate_td_visual_ = false;
 };
 
 #endif

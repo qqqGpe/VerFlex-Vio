@@ -243,8 +243,9 @@ void DynamicInitializer::assignImuState(const Eigen::VectorXd velocity_gravity_s
     const uint32_t kVId = state_->getImuState()->v()->id();
     const uint32_t kBgId = state_->getImuState()->bg()->id();
     const uint32_t kBaId = state_->getImuState()->ba()->id();
-    const uint32_t kRicId = state_->enable_estimate_ric_ ? state_->qic().id() : -1;
-    const uint32_t kTdVisualId = state_->enable_estimate_td_visual_ ? state_->td_visual().id() : -1;
+    const uint32_t kRicLeftId = state_->enableEstimateRic() ? state_->Qic(LEFT_CAM)->id() : -1;
+    const uint32_t kRicRightId = state_->enableEstimateRic() && state_->CameraNum() == 2 ? state_->Qic(RIGHT_CAM)->id() : -1;
+    const uint32_t kTdVisualId = state_->enableEstimateTdVisual() ? state_->td_visual().id() : -1;
 
     // Eigen::MatrixXd init_covariance = state_->getImuState().covariance();
     Eigen::MatrixXd init_covariance = Eigen::MatrixXd::Identity(state_->dim(), state_->dim());
@@ -253,9 +254,13 @@ void DynamicInitializer::assignImuState(const Eigen::VectorXd velocity_gravity_s
     init_covariance.block(kVId, kVId, 3, 3) = std::pow(kInitSigmaVelocity, 2) * Eigen::Matrix3d::Identity();     // v
     init_covariance.block(kBgId, kBgId, 3, 3) = std::pow(kInitSigmaGyroBias, 2) * Eigen::Matrix3d::Identity();   // bg
     init_covariance.block(kBaId, kBaId, 3, 3) = std::pow(kInitSigmaAccelBias, 2) * Eigen::Matrix3d::Identity();  // ba
-    if (kRicId != -1)
+    if (kRicLeftId != -1)
     {
-        init_covariance.block(kRicId, kRicId, 3, 3) = std::pow(kInitSigmaRic, 2) * Eigen::Matrix3d::Identity();  // qic
+        init_covariance.block(kRicLeftId, kRicLeftId, 3, 3) = std::pow(kInitSigmaRic, 2) * Eigen::Matrix3d::Identity();  // qic left
+    }
+    if (kRicRightId != -1)
+    {
+        init_covariance.block(kRicRightId, kRicRightId, 3, 3) = std::pow(kInitSigmaRic, 2) * Eigen::Matrix3d::Identity();  // qic right
     }
     if (kTdVisualId != -1)
     {

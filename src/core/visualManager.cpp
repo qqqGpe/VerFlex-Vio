@@ -394,8 +394,8 @@ void VisualManager::InitFeatureBase(std::unordered_map<int32_t, std::pair<Camera
 bool VisualManager::least_square_triangulation(const std::map<double, CameraPose>& clone_pose_buffer, Feature* feat)
 {
     auto first_obs = feat->_visual_obs_buffer.begin();
-    Eigen::Matrix3d R_AtoG = clone_pose_buffer.at(first_obs->first).Rwc;
-    Eigen::Vector3d p_AinG = clone_pose_buffer.at(first_obs->first).pwc;
+    Eigen::Matrix3d R_AtoG = clone_pose_buffer.at(first_obs->first).Rwc[LEFT_CAM];
+    Eigen::Vector3d p_AinG = clone_pose_buffer.at(first_obs->first).pwc[LEFT_CAM];
 
     Eigen::Matrix3d ATA = Eigen::Matrix3d::Zero();
     Eigen::Vector3d ATb = Eigen::Vector3d::Zero();
@@ -405,21 +405,9 @@ bool VisualManager::least_square_triangulation(const std::map<double, CameraPose
     {
         for (int cam_id = 0; cam_id < param_.camera_num; cam_id++)
         {
-            Eigen::Matrix3d R_CitoG;
-            Eigen::Vector3d p_CiinG;
-            Eigen::Vector3d b_i;
-            if (cam_id == LEFT_CAM)
-            {
-                R_CitoG = clone_pose_buffer.at(it->first).Rwc;
-                p_CiinG = clone_pose_buffer.at(it->first).pwc;
-                b_i << it->second.uv_norm[cam_id], 1;
-            }
-            else if (cam_id == RIGHT_CAM)
-            {
-                R_CitoG = clone_pose_buffer.at(it->first).Rwc * CamModel::getInstance().Rlr();
-                p_CiinG = clone_pose_buffer.at(it->first).pwc + clone_pose_buffer.at(it->first).Rwc * CamModel::getInstance().plr();
-                b_i << it->second.uv_norm[cam_id], 1;
-            }
+            Eigen::Matrix3d R_CitoG = clone_pose_buffer.at(it->first).Rwc[cam_id];;
+            Eigen::Vector3d p_CiinG = clone_pose_buffer.at(it->first).pwc[cam_id];;
+            Eigen::Vector3d b_i{it->second.uv_norm[cam_id].x(), it->second.uv_norm[cam_id].y(), 1.0};
 
             Eigen::Matrix3d R_CitoA = R_AtoG.transpose() * R_CitoG;
             Eigen::Vector3d p_CiinA = R_AtoG.transpose() * (p_CiinG - p_AinG);
@@ -466,8 +454,8 @@ bool VisualManager::GaussianNewtonOptimization(const std::map<double, CameraPose
 {
     auto last_obs = feat->_visual_obs_buffer.end();
     last_obs--;
-    const Eigen::Matrix3d R_AtoG = clone_pose_buffer.at(last_obs->first).Rwc;
-    const Eigen::Vector3d p_AinG = clone_pose_buffer.at(last_obs->first).pwc;
+    const Eigen::Matrix3d R_AtoG = clone_pose_buffer.at(last_obs->first).Rwc[LEFT_CAM];
+    const Eigen::Vector3d p_AinG = clone_pose_buffer.at(last_obs->first).pwc[LEFT_CAM];
 
     Eigen::Vector3d paf = R_AtoG.transpose() * (feat->_pwf - p_AinG);
     if (abs(paf.z()) < 1e-2)
@@ -488,22 +476,10 @@ bool VisualManager::GaussianNewtonOptimization(const std::map<double, CameraPose
             for (int cam_id = 0; cam_id < param_.camera_num; cam_id++)
             {
                 double feature_timestamp = (*it).first;
-                Eigen::Matrix3d R_CitoG;
-                Eigen::Vector3d p_CiinG;
-                Eigen::Vector2d z_m;
+                Eigen::Matrix3d R_CitoG = clone_pose_buffer.at(feature_timestamp).Rwc[cam_id];;
+                Eigen::Vector3d p_CiinG = clone_pose_buffer.at(feature_timestamp).pwc[cam_id];;
+                Eigen::Vector2d z_m = it->second.uv_norm[cam_id];
 
-                if (cam_id == LEFT_CAM)
-                {
-                    z_m << (*it).second.uv_norm[cam_id];
-                    R_CitoG = clone_pose_buffer.at(feature_timestamp).Rwc;
-                    p_CiinG = clone_pose_buffer.at(feature_timestamp).pwc;
-                }
-                else if (cam_id == RIGHT_CAM)
-                {
-                    z_m << (*it).second.uv_norm[cam_id];
-                    R_CitoG = clone_pose_buffer.at(feature_timestamp).Rwc * CamModel::getInstance().Rlr();
-                    p_CiinG = clone_pose_buffer.at(feature_timestamp).pwc + clone_pose_buffer.at(feature_timestamp).Rwc * CamModel::getInstance().plr();
-                }
 
                 Eigen::Matrix3d R_AtoCi = R_CitoG.transpose() * R_AtoG;
                 Eigen::Vector3d p_CiinA = R_AtoG.transpose() * (p_CiinG - p_AinG);
@@ -878,18 +854,22 @@ bool VisualManager::ConstructFeatureJacobianFull(std::vector<Feature*> feats, Ei
     _map_hx.clear();
     _Hx_order.clear();
     int total_hx = 0;
-    if (_state->enable_estimate_ric_)
-    {
-        _map_hx.emplace(_state->qic_, total_hx);
-        _Hx_order.push_back(_state->qic_);
-        total_hx += _state->qic_->size();
-    }
 
     for (auto x : _state->_clone_pose)
     {
         _map_hx.insert({x.second, total_hx});
         _Hx_order.push_back(x.second);
         total_hx += x.second->size();
+    }
+
+    if (_state->enableEstimateRic())
+    {
+        for (uint8_t i = 0; i < param_.camera_num; i++)
+        {
+            _map_hx.emplace(_state->Qic(i), total_hx);
+            _Hx_order.push_back(_state->Qic(i));
+            total_hx += _state->Qic(i)->size();
+        }
     }
 
     Hx_full.resize(4 * feats.size() * _state->_clone_pose.size(), total_hx + 1);
@@ -955,18 +935,9 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
             Eigen::Matrix3d R_CtoI;
             Eigen::Vector3d p_CinI;
 
-            if (cam_id == LEFT_CAM)
-            {
-                focal_length = CamModel::getInstance().K(LEFT_CAM)(0, 0);
-                R_CtoI = _state->qic_->q().toRotationMatrix();
-                p_CinI = _state->tic_->vec();
-            }
-            else if (cam_id == RIGHT_CAM)
-            {
-                focal_length = CamModel::getInstance().K(RIGHT_CAM)(0, 0);
-                R_CtoI = _state->qic_->q().toRotationMatrix() * CamModel::getInstance().Rlr();
-                p_CinI = _state->tic_->vec() + _state->qic_->q().toRotationMatrix() * CamModel::getInstance().plr();
-            }
+            focal_length = CamModel::getInstance().K(LEFT_CAM)(0, 0);
+            R_CtoI = _state->Qic(cam_id)->q().toRotationMatrix();
+            p_CinI = _state->Pic(cam_id)->vec();
 
             std::shared_ptr<Pose> obs_pose = _state->_clone_pose.at(obs_ts);
             Eigen::Matrix3d R_IitoG = obs_pose->quat().toRotationMatrix();
@@ -1012,19 +983,10 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
             Hfx.block<2, kPwfCols>(2 * cnt, 0) = dz_dpcf * dpcf_dpwf;
 
             // Get jacobian wrt extrinsic parameters
-            if (_state->enable_estimate_ric_)
+            if (_state->enableEstimateRic())
             {
-                Eigen::Matrix3d dpcf_dqic = Eigen::Matrix3d::Zero();
-                if (cam_id == LEFT_CAM)
-                {
-                    dpcf_dqic = utils::math::skew(p_finCi);
-                }
-                else if (cam_id == RIGHT_CAM)
-                {
-                    Eigen::Vector3d p_finCl = CamModel::getInstance().Rlr() * p_finCi + CamModel::getInstance().plr();
-                    dpcf_dqic = CamModel::getInstance().Rlr().transpose() * utils::math::skew(p_finCl);
-                }
-                Hfx.block<2, 3>(2 * cnt, kPwfCols + map_hx.at(_state->qic_)) = dz_dpcf * dpcf_dqic;
+                Eigen::Matrix3d dpcf_dqic = utils::math::skew(p_finCi);
+                Hfx.block<2, 3>(2 * cnt, kPwfCols + map_hx.at(_state->Qic(cam_id))) = dz_dpcf * dpcf_dqic;
             }
 
             // Get jacobian wrt clone pose

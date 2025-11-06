@@ -136,7 +136,7 @@ GroundTruth VioManager::InterpolateGroundTruth(const double ts) const
  */
 bool VioManager::TryFrontendTrack(const std::pair<double, std::vector<cv::Mat>>& images, std::pair<double, std::vector<CameraObs>>& feature_observes)
 {
-    const double td_visual = state->enable_estimate_td_visual_ ? state->td_visual().data() : 0.0;
+    const double td_visual = state->enableEstimateTdVisual() ? state->td_visual().data() : 0.0;
     std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(state->ts_sec(), images.first + td_visual);
     bool do_prediction_flag = params_.frontend_prediction && initializer->IsInitialized();
 
@@ -310,7 +310,7 @@ bool VioManager::TryVisualUpdate(const std::pair<double, std::vector<CameraObs>>
 {
     double time0 = state->ts_sec();
     double time_comp = feature_observes.first;
-    if (state->enable_estimate_td_visual_)
+    if (state->enableEstimateTdVisual())
     {
         time_comp += state->td_visual().data();
     }
@@ -318,7 +318,8 @@ bool VioManager::TryVisualUpdate(const std::pair<double, std::vector<CameraObs>>
     std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(time0, time_comp);
     if (imu_data.empty())
     {
-        LOG(WARNING) << fmt::format("No IMU data available for visual update at {:f}s, time0: {:f}s, time_comp: {:f}s", feature_observes.first, time0, time_comp);
+        LOG(WARNING) << fmt::format("No IMU data available for visual update at {:f}s, time0: {:f}s, time_comp: {:f}s", feature_observes.first, time0,
+                                    time_comp);
         return false;
     }
 
@@ -330,11 +331,10 @@ bool VioManager::TryVisualUpdate(const std::pair<double, std::vector<CameraObs>>
 
     if (_visual_manager->VisualUpdate())
     {
-        LOG(INFO) << fmt::format(
-            "\033[32mVIO updated, current state ts: {:f}, pos: [{:.3f}, {:.3f}, {:.3f}], vel: [{:.3f}, {:.3f}, {:.3f}], rpy: [{:.3f}, {:.3f}, {:.3f}]\033[0m",
-            state->ts_sec(), state->_imu_state->p()->vec().x(), state->_imu_state->p()->vec().y(), state->_imu_state->p()->vec().z(),
-            state->_imu_state->v()->vec().x(), state->_imu_state->v()->vec().y(), state->_imu_state->v()->vec().z(),
-            state->_imu_state->q()->rpy().x(), state->_imu_state->q()->rpy().y(), state->_imu_state->q()->rpy().z());
+        LOG(INFO) << fmt::format("\033[32mVIO updated, current state ts: {:f}, pos: [{:.3f}, {:.3f}, {:.3f}], vel: [{:.3f}, {:.3f}, {:.3f}]\033[0m",
+                                 state->ts_sec(), state->_imu_state->p()->vec().x(), state->_imu_state->p()->vec().y(),
+                                 state->_imu_state->p()->vec().z(), state->_imu_state->v()->vec().x(), state->_imu_state->v()->vec().y(),
+                                 state->_imu_state->v()->vec().z());
 
         // if (params_.estimate_td_visual)
         // {
@@ -389,7 +389,7 @@ void VioManager::PublishVioMessages(const double ts_sec)
  */
 FrameOptions VioManager::CheckMeasurements() const
 {
-    const double td_visual = state->enable_estimate_td_visual_ ? state->td_visual().data() : 0.f;
+    const double td_visual = state->enableEstimateTdVisual() ? state->td_visual().data() : 0.f;
 
     // Lock the input image buffer for checking
     std::lock_guard<std::mutex> lock(_visual_manager->input_image_buffer_mutex_);

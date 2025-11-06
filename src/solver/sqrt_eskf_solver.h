@@ -42,7 +42,7 @@ class SqrtEskfSolver : public MsckfSolverBase
         state->_variables.push_back(clone_pose);
         state->_dim += clone_pose->size();
 
-        if (state->enable_estimate_td_visual_)
+        if (state->enableEstimateTdVisual())
         {
             Eigen::Vector3d last_w = imu_data->back().wm;
             Eigen::MatrixXd J_td = Eigen::MatrixXd::Zero(clone_pose_size, 1);
