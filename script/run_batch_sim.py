@@ -20,7 +20,7 @@ WS_DIR = os.path.join(os.path.expanduser("~"), "ws/catkin_ws")
 LOG_DIR = os.path.join(WS_DIR, "src/vio_backend/log/vio_sim_" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M"))
 CODEBASE_DIR = os.path.join(WS_DIR, "src/vio_backend")
 # Define the list of cases to process
-CASE_LIST = ["MH_01_easy", "MH_02_easy", "MH_03_medium"]
+CASE_LIST = ["MH_01_easy", "MH_02_easy", "MH_03_medium", "V1_01_easy", "V1_02_medium", "V2_01_easy", "V2_02_medium"]
 
 logging.basicConfig(
     level=logging.INFO,
