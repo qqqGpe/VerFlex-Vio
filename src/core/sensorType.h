@@ -1,18 +1,25 @@
+/*
+ * @Author: pengen.gao gaope.hb@gmail.com
+ * @Date: 2025-11-07 01:40:59
+ * Copyright (c) 2025 by gaope.hb@gmail.com, All Rights Reserved.
+ */
 #ifndef __VIO_SENSOR_DATA__
 #define __VIO_SENSOR_DATA__
 #include <Eigen/Core>
 #include <opencv2/opencv.hpp>
 
-namespace{
-    constexpr uint32_t kLeft = 0;
-    constexpr uint32_t kRight = 1;
-}
+namespace
+{
+constexpr uint32_t kLeft = 0;
+constexpr uint32_t kRight = 1;
+}  // namespace
 
 enum class KeyFrameStatus
 {
     kNone = 0,
     kLargeParallex = 1,
-    kFeatureLostTooMuch = 2
+    kFeatureLostTooMuch = 2,
+    kTooFewFeatureTracked = 3
 };
 
 struct ImuData
@@ -73,37 +80,29 @@ struct CameraObs
     int32_t feat_id = -1;
     bool valid = false;
     uint32_t obs_times_n = 0;
-
     std::map<int, Eigen::Vector2d> uv;
     std::map<int, Eigen::Vector2d> uv_norm;
 };
 
-class CamObsHash
-{
-   public:
-    std::size_t operator()(const CameraObs& camObs) const { return std::hash<uint32_t>()(camObs.feat_id); }
-};
-
 struct Feature
 {
-    Feature() = default;
-
-    void reset()
+    enum class FeatureType
     {
-        _id = -1;
-        _pwf.setZero();
-        _valid = false;
-        _is_triangulated = false;
-        parallex = 0.f;
-        _visual_obs_buffer.clear();
-    }
+        kUnknown = 0,
+        kMsckfPoint = 1,
+        kSlamPoint = 2
+    };
 
-    int _id = -1;
+    uint32_t _id = -1;
+    FeatureType _type = FeatureType::kUnknown;
     bool _valid = false;
     bool _is_triangulated = false;
-    double parallex = 0.f;
+    double _parallex = 0.f;
     Eigen::Vector3d _pwf = Eigen::Vector3d::Zero();
     std::map<double, CameraObs> _visual_obs_buffer;  // <ts_sec, obs>
+
+    // Reset feature to initial state
+    void reset() { *this = Feature{}; }
 };
 
 #endif

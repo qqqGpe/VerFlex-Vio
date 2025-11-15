@@ -243,8 +243,8 @@ void DynamicInitializer::assignImuState(const Eigen::VectorXd velocity_gravity_s
     const uint32_t kVId = state_->getImuState()->v()->id();
     const uint32_t kBgId = state_->getImuState()->bg()->id();
     const uint32_t kBaId = state_->getImuState()->ba()->id();
-    const uint32_t kRicLeftId = state_->enableEstimateRic() ? state_->Qic(LEFT_CAM)->id() : -1;
-    const uint32_t kRicRightId = state_->enableEstimateRic() && state_->CameraNum() == 2 ? state_->Qic(RIGHT_CAM)->id() : -1;
+    const uint32_t kRicLeftId = state_->enableEstimateRic() ? state_->mutable_Qic(LEFT_CAM)->id() : -1;
+    const uint32_t kRicRightId = state_->enableEstimateRic() && state_->CameraNum() == 2 ? state_->mutable_Qic(RIGHT_CAM)->id() : -1;
     const uint32_t kTdVisualId = state_->enableEstimateTdVisual() ? state_->td_visual().id() : -1;
 
     // Eigen::MatrixXd init_covariance = state_->getImuState().covariance();

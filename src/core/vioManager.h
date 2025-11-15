@@ -21,7 +21,7 @@
 #include "mathematical_tools.h"
 #include "parameter.h"
 #include "sensorType.h"
-#include "State.h"
+#include "vioState.h"
 #include "visualManager.h"
 
 enum class FrameOptions

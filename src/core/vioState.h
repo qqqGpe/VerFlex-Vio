@@ -97,15 +97,28 @@ class State
 
     std::shared_ptr<ImuState> getImuState() const { return _imu_state; }
 
-    std::shared_ptr<Quat> Qic(const int cam_id) const { return _vQic[cam_id]; }
+    std::shared_ptr<Quat> mutable_Qic(const int cam_id) const { return _vQic[cam_id]; }
 
-    std::shared_ptr<Vec> Pic(const int cam_id) const { return _vPic[cam_id]; }
+    const Eigen::Quaterniond Qic(const int cam_id) const { return _vQic[cam_id]->q(); }
+
+    std::shared_ptr<Vec> mutable_Pic(const int cam_id) const { return _vPic[cam_id]; }
+
+    const Eigen::Vector3d Pic(const int cam_id) const { return _vPic[cam_id]->vec(); }
+
+    Eigen::Quaterniond Qwi() const { return _imu_state->q()->q(); }
+
+    Eigen::Vector3d Pwi() const { return _imu_state->p()->vec(); }
+
+    Eigen::Vector3d Vwi() const { return _imu_state->v()->vec(); }
+
+    Eigen::Vector3d Bg() const { return _imu_state->bg()->vec(); }
+
+    Eigen::Vector3d Ba() const { return _imu_state->ba()->vec(); }
 
     Scalar td_visual() const { return *td_visual_; }
 
-    std::map<double, CameraPose> AccessClonePoseBuffer() const
+    void AccessClonePoseBuffer(std::map<double, CameraPose>& camera_clone_poses) const
     {
-        std::map<double, CameraPose> camera_clone_poses;
         for (auto it = _clone_pose.begin(); it != _clone_pose.end(); it++)
         {
             CameraPose camera_pose(_param.camera_num);
@@ -120,7 +133,6 @@ class State
             }
             camera_clone_poses.try_emplace(it->first, camera_pose);
         }
-        return camera_clone_poses;
     }
 
     void set_ts_sec(double ts_sec) { _imu_state->set_ts(ts_sec); }

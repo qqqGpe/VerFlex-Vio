@@ -3,7 +3,7 @@
 
 #include "parameter.h"
 #include "sensorType.h"
-#include "State.h"
+#include "vioState.h"
 #include "solver.h"
 
 class ImuManager {

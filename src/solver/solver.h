@@ -5,7 +5,7 @@
  */
 #ifndef __SOLVER__
 #define __SOLVER__
-#include "State.h"
+#include "vioState.h"
 #include "Type.h"
 #include "sensorType.h"
 #include "mathematical_tools.h"

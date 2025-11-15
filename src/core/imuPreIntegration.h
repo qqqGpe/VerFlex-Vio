@@ -4,7 +4,7 @@
 #include <Eigen/Geometry>
 #include <sophus/so3.hpp>
 
-#include "State.h"
+#include "vioState.h"
 #include "ImuState.h"
 #include "sensorType.h"
 #include "ImuManager.h"

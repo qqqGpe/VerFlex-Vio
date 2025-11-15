@@ -12,7 +12,7 @@
 #include "camModel.h"
 #include "parameter.h"
 #include "sensorType.h"
-#include "State.h"
+#include "vioState.h"
 #include "utils.h"
 #include "visualManager.h"
 

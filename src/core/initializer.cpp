@@ -164,7 +164,7 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     std::shared_ptr<ImuState>& imu_state = state_->_imu_state;
     assert(imu_state->ts() == ts_sec);
     Eigen::Matrix3d R_ItoG = imu_state->q()->Rot();
-    Eigen::Matrix3d R_CtoI = state_->Qic(LEFT_CAM)->q().toRotationMatrix();
+    Eigen::Matrix3d R_CtoI = state_->Qic(LEFT_CAM).toRotationMatrix();
     Eigen::Vector3d p_CpinG = -R_ItoG * R_CtoI * p_12;  // t_prev_in_G
     auto& [obs_prev, obs_cur] = stereo_obs_pairs[0];
     double delta_ts = abs(obs_cur.ts_sec - obs_prev.ts_sec);
@@ -187,8 +187,8 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     const uint32_t kVId = state_->getImuState()->v()->id();
     const uint32_t kBgId = state_->getImuState()->bg()->id();
     const uint32_t kBaId = state_->getImuState()->ba()->id();
-    const uint32_t kRicLeftId = state_->enableEstimateRic() ? state_->Qic(LEFT_CAM)->id() : -1;
-    const uint32_t kRicRightId = state_->enableEstimateRic() && state_->CameraNum() == 2 ? state_->Qic(RIGHT_CAM)->id() : -1;
+    const uint32_t kRicLeftId = state_->enableEstimateRic() ? state_->mutable_Qic(LEFT_CAM)->id() : -1;
+    const uint32_t kRicRightId = state_->enableEstimateRic() && state_->CameraNum() == 2 ? state_->mutable_Qic(RIGHT_CAM)->id() : -1;
     const uint32_t kTdVisualId = state_->enableEstimateTdVisual() ? state_->td_visual().id() : -1;
 
     Eigen::MatrixXd stereo_init_covariance = Eigen::MatrixXd::Identity(state_->dim(), state_->dim());
@@ -217,7 +217,7 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_obs_global;
     for (auto& [feature_id, stereo_obs] : stereo_obs_triangulated)
     {
-        Eigen::Vector3d feature_pwf = R_ItoG * (R_CtoI * stereo_obs.second + state_->Pic(LEFT_CAM)->vec());
+        Eigen::Vector3d feature_pwf = R_ItoG * (R_CtoI * stereo_obs.second + state_->Pic(LEFT_CAM));
         stereo_obs_global.try_emplace(feature_id, std::make_pair(stereo_obs.first, feature_pwf));
     }
     visual_manager_->ResetFeatureBase();

@@ -10,7 +10,7 @@
 #include "vioFrontend.h"
 #include "parameter.h"
 #include "sensorType.h"
-#include "State.h"
+#include "vioState.h"
 #include "solver.h"
 #include "eskf_solver.h"
 #include "sqrt_eskf_solver.h"
@@ -23,7 +23,7 @@ class VisualManager
 {
    public:
     static constexpr uint32_t kMaxFeatureForUpdate = 40;
-    static constexpr uint32_t kMinFeatureForUpdate = 5;
+    static constexpr uint32_t kMinFeatureForUpdate = 8;
 
     VisualManager() = default;
     VisualManager(std::shared_ptr<ros::NodeHandle>& nh,
@@ -33,7 +33,7 @@ class VisualManager
 
     ~VisualManager()
     {
-        for (int i = 0; i < max_feat_n_; i++)
+        for (int i = 0; i < param_.max_feat_n; i++)
         {
             delete feature_base_[i];
         }
@@ -51,7 +51,7 @@ class VisualManager
 
     void InitFeatureBase(std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_feature_triangulated);
 
-    void DropFeatureObsrvs(const double timestamp_to_drop);
+    void ClearOldFeatureObs(const double timestamp_to_drop);
 
     void FeatureTriangulation(const std::map<double, CameraPose> camera_pose_buffer, std::vector<Feature*>& feats);
 
@@ -69,17 +69,19 @@ class VisualManager
 
     bool ConstructFeatureJacobianFull(std::vector<Feature*> feats, Eigen::MatrixXd& Hx_full, Eigen::VectorXd& res);
 
-    bool SingleFeatureJacobian(Feature* feat, std::unordered_map<std::shared_ptr<Type>, size_t> map_hx, int total_hx, Eigen::MatrixXd& Hx_single);
+    bool SingleFeatureJacobian(Feature* feat, std::unordered_map<std::shared_ptr<Type>, size_t> map_hx, const int total_hx, Eigen::MatrixXd& Hx_single);
 
     bool PnpRansacToRejectOutliers(std::vector<Feature*> feats);
 
-    void CalculateFeatureParallex(std::vector<Feature*>& feats);
+    void CalculateMaxFeatureParallex(std::vector<Feature*>& feats);
 
-    std::vector<Feature*> SelectMsckfFeatures(const std::vector<Feature*> feats);
+    void SelectMsckfFeatures(const std::vector<Feature*> feats, std::vector<Feature*>& feat_msckf);
 
     void set_state(std::shared_ptr<State> state) { _state = state; }  // only for debug
 
     void FeedImages(const std::pair<double, std::vector<cv::Mat>> input);
+
+    bool MsckfFeatureUpdate(std::vector<Feature*> feats);
 
     void ClearExpiredMeasurements(const double timestamp);
 
@@ -98,7 +100,6 @@ class VisualManager
     void reset();
 
     uint32_t max_clone_pose_ = 6;
-    uint32_t max_feat_n_ = 0;
     uint32_t feature_mapping_success_ = 0;
     uint32_t feature_mapping_in_ = 0;
 
@@ -113,8 +114,8 @@ class VisualManager
     std::vector<Feature*> feature_lost_;
     std::vector<CameraObs> feature_new_;
     std::vector<Feature*> feat_msckf_;
-
-    boost::posix_time::ptime visual_rT, visual_rT1, visual_rT2, visual_rT3, visual_rT4;
+    std::vector<Feature*> feat_slam_old_;
+    std::vector<Feature*> feat_slam_new_;
 
     std::shared_ptr<KeyFrameStatus> _keyframe;
 
@@ -128,7 +129,6 @@ class VisualManager
     std::shared_ptr<State> _state;
     std::unordered_map<std::shared_ptr<Type>, size_t> _map_hx;
     std::vector<std::shared_ptr<Type>> _Hx_order;
-    int _origin_feature_tracked = 0.f;
     std::shared_ptr<MsckfSolverBase> solver_;
 };
 

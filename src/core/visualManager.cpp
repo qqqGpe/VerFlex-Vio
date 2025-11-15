@@ -34,29 +34,58 @@ VisualManager::VisualManager(std::shared_ptr<ros::NodeHandle>& nh,
     _keyframe = std::make_shared<KeyFrameStatus>(KeyFrameStatus::kNone);
     vio_frontend = std::make_shared<VioFrontend>(nh, params, _keyframe);
     max_clone_pose_ = params.max_clone_pose;
-    max_feat_n_ = params.max_feat_n;
     solver_ = solver;
-    for (int i = 0; i < max_feat_n_; i++)
+    for (int i = 0; i < param_.max_feat_n; i++)
     {
         Feature* feat = new Feature();
         feature_base_.push_back(feat);
     }
 }
 
+bool VisualManager::MsckfFeatureUpdate(std::vector<Feature*> feats_msckf)
+{
+    if (feats_msckf.size() < kMinFeatureForUpdate)
+    {
+        LOG(INFO) << fmt::format("Not enough features to update, features_tracked: {:d}, features_msckf: {:d}, feature mapping success: {:d}",
+                                 static_cast<int>(feature_tracked_.size()), static_cast<int>(feats_msckf.size()), feature_mapping_success_);
+        return false;
+    }
+
+    Eigen::MatrixXd Hx_msckf;
+    Eigen::VectorXd res;
+    ConstructFeatureJacobianFull(feats_msckf, Hx_msckf, res);
+    Eigen::MatrixXd R = Eigen::MatrixXd::Identity(Hx_msckf.rows(), Hx_msckf.rows()) * 4;
+
+    if (_state->_clone_pose.size() >= 2)
+    {
+        solver_->update(_state, Hx_msckf, res, _Hx_order, _map_hx, R);
+        return true;
+    }
+
+    return false;
+}
+
 bool VisualManager::VisualUpdate()
 {
     bool is_visual_updated = false;
-    std::map<double, CameraPose> camera_pose_buffer = _state->AccessClonePoseBuffer();
-    FeatureTriangulation(camera_pose_buffer, feature_tracked_);
-    CalculateFeatureParallex(feature_tracked_);
+    feat_msckf_.clear();
+    feat_slam_old_.clear();
+    feat_slam_new_.clear();
 
-    feat_msckf_ = SelectMsckfFeatures(feature_tracked_);
+    std::map<double, CameraPose> camera_pose_buffer;
+    _state->AccessClonePoseBuffer(camera_pose_buffer);
+
+    FeatureTriangulation(camera_pose_buffer, feature_tracked_);
+
+    CalculateMaxFeatureParallex(feature_tracked_);
+
+    // SelectSlamFeatures(feature_tracked_, feat_slam_old_, feat_slam_new_);
+
+    SelectMsckfFeatures(feature_tracked_, feat_msckf_);
 
     if (param_.use_pnp_ransac && feat_msckf_.size() > kMinFeatureForUpdate)
     {
-        int msckf_feature_num_before_pnp = feat_msckf_.size();
         PnpRansacToRejectOutliers(feat_msckf_);
-        int msckf_feature_num_after_pnp = feat_msckf_.size();
     }
 
 #if SHOW_CLONE_POSES
@@ -107,25 +136,17 @@ bool VisualManager::VisualUpdate()
     utils::ShowGridImages(images_to_show);
 #endif
 
-    _origin_feature_tracked = feat_msckf_.size();
-    if (feat_msckf_.size() > kMinFeatureForUpdate)
+    if (MsckfFeatureUpdate(feat_msckf_))
     {
-        Eigen::MatrixXd Hx_msckf;
-        Eigen::VectorXd res;
-        ConstructFeatureJacobianFull(feat_msckf_, Hx_msckf, res);
-        Eigen::MatrixXd R = Eigen::MatrixXd::Identity(Hx_msckf.rows(), Hx_msckf.rows()) * 4;
+        is_visual_updated = true;
+    }
 
-        if (_state->_clone_pose.size() >= 2)
-        {
-            solver_->update(_state, Hx_msckf, res, _Hx_order, _map_hx, R);
-            is_visual_updated = true;
-        }
-    }
-    else
-    {
-        LOG(INFO) << fmt::format("Not enough features to update, features_tracked: {:d}, features_msckf: {:d}, feature mapping success: {:d}",
-                                 static_cast<int>(feature_tracked_.size()), static_cast<int>(feat_msckf_.size()), feature_mapping_success_);
-    }
+    // if (is_visual_updated)
+    // {
+    //     InitializeNewSlamFeatures(feat_slam_new_);
+
+    //     SlamFeatureUpdate(feat_slam_old_);
+    // }
 
     std::shared_ptr<Type> state_to_marginalize = nullptr;
 
@@ -136,12 +157,12 @@ bool VisualManager::VisualUpdate()
         if (*_keyframe == KeyFrameStatus::kNone)
         {
             state_to_marginalize = _state->_clone_pose.rbegin()->second;
-            DropFeatureObsrvs(state_to_marginalize->ts());
+            ClearOldFeatureObs(state_to_marginalize->ts());
         }
         else  // marginalize lastest pose
         {
             state_to_marginalize = _state->_clone_pose.begin()->second;
-            DropFeatureObsrvs(state_to_marginalize->ts());
+            ClearOldFeatureObs(state_to_marginalize->ts());
             UpdateFeatureBase(_state->ts_sec());
         }
 
@@ -165,6 +186,7 @@ KeyFrameStatus VisualManager::MaybeSetKeyframe(std::shared_ptr<State> _state, st
         return KeyFrameStatus::kNone;
     }
 
+    // Calculate average parallex w.r.t the last keyframe
     uint32_t cnt = 0;
     double pixel_parallex = 0.f;
     double pixel_parallex_avg = 0.f;
@@ -175,12 +197,9 @@ KeyFrameStatus VisualManager::MaybeSetKeyframe(std::shared_ptr<State> _state, st
             continue;
         }
         auto last_it = x->_visual_obs_buffer.rbegin();
-        double last_ts = last_it->first;
         auto sub_last_it = x->_visual_obs_buffer.rbegin();
         ++sub_last_it;
-        double sub_last_ts = sub_last_it->first;
 
-        assert(sub_last_ts < last_ts);
         CameraObs curr_obs = last_it->second;
         CameraObs prev_obs = sub_last_it->second;
         Eigen::Vector2d uv_distance = curr_obs.uv[LEFT_CAM] - prev_obs.uv[LEFT_CAM];
@@ -189,20 +208,27 @@ KeyFrameStatus VisualManager::MaybeSetKeyframe(std::shared_ptr<State> _state, st
         cnt++;
     }
     pixel_parallex_avg = pixel_parallex_avg / cnt;
+
+    // Decide keyframe status
     if (pixel_parallex_avg > kLargeParallexThres)
     {
         return KeyFrameStatus::kLargeParallex;
     }
-    else if (_origin_feature_tracked < 20)
+    else if (feature_lost_.size() > 0.7 * param_.max_feat_n)
     {
-        // std::cout << "_origin_feature_tracked: " << _origin_feature_tracked << std::endl;
         return KeyFrameStatus::kFeatureLostTooMuch;
     }
-
-    return KeyFrameStatus::kNone;
+    else if (feature_tracked_.size() < 0.4 * param_.max_feat_n)
+    {
+        return KeyFrameStatus::kTooFewFeatureTracked;
+    }
+    else
+    {
+        return KeyFrameStatus::kNone;
+    }
 }
 
-void VisualManager::DropFeatureObsrvs(const double timestamp_to_drop)
+void VisualManager::ClearOldFeatureObs(const double timestamp_to_drop)
 {
     for (auto& feat_base : feature_base_)
     {
@@ -226,15 +252,6 @@ void VisualManager::UpdateFeatureBase(const double timestamp)
         feat_lost->reset();
     }
 
-    // int feature_valid_num = 0;
-    // for (auto x : feature_base_)
-    // {
-    //     if (x->_valid)
-    //     {
-    //         feature_valid_num++;
-    //     }
-    // }
-
     for (auto& feature : feature_new_)
     {
         for (int i = 0; i < feature_base_.size(); i++)
@@ -249,15 +266,6 @@ void VisualManager::UpdateFeatureBase(const double timestamp)
             }
         }
     }
-
-    // feature_valid_num = 0;
-    // for (auto x : feature_base_)
-    // {
-    //     if (x->_valid)
-    //     {
-    //         feature_valid_num++;
-    //     }
-    // }
 }
 
 void VisualManager::UpdateFeatureStatistic(const double timestamp, std::pair<double, std::vector<CameraObs>> feature_observes)
@@ -283,16 +291,6 @@ void VisualManager::UpdateFeatureStatistic(const double timestamp, std::pair<dou
         {
             continue;
         }
-
-        // if (abs(timestamp - 1.6673493385314941) < 1e-2)
-        // {
-        //     std::cout << "feature id: " << feature->_id << ", obs size: " << feature->_visual_obs_buffer.size() << std::endl;
-        // }
-
-        // if (feature->_id == 375)
-        // {
-        //     std::cout << "feature id: " << feature->_id << ", obs size: " << feature->_visual_obs_buffer.size() << std::endl;
-        // }
 
         if (feature_obsrv_umap.find(feature->_id) != feature_obsrv_umap.end())
         {
@@ -375,7 +373,7 @@ void VisualManager::InitFeatureBase(std::unordered_map<int32_t, std::pair<Camera
     int cnt = 0;
     for (auto& [feature_id, feature_obs] : stereo_feature_triangulated)
     {
-        if (cnt >= max_feat_n_)
+        if (cnt >= param_.max_feat_n)
         {
             break;
         }
@@ -608,7 +606,7 @@ void VisualManager::reset()
 
     std::queue<std::pair<double, std::vector<CameraObs>>>().swap(feature_obs_buffer);
     std::map<double, std::vector<cv::Mat>>().swap(stored_images_);
-    for (int i = 0; i < max_feat_n_; i++)
+    for (int i = 0; i < param_.max_feat_n; i++)
     {
         feature_base_[i]->reset();
     }
@@ -760,7 +758,6 @@ bool VisualManager::StereoTriangulation(CameraObs& cam_obs, Eigen::Vector3d& pcf
 
 void VisualManager::FeatureTriangulation(const std::map<double, CameraPose> camera_pose_buffer, std::vector<Feature*>& feats)
 {
-    // std::map<double, CameraPose> camera_pose_buffer = _state->AccessClonePoseBuffer();
     feature_mapping_success_ = 0;
     int origin_feats_size = feats.size();
     int less_obs_delete = 0;
@@ -779,7 +776,7 @@ void VisualManager::FeatureTriangulation(const std::map<double, CameraPose> came
         {
             if (false == least_square_triangulation(camera_pose_buffer, *it))
             {
-                (*it)->parallex = 0;
+                (*it)->_parallex = 0;
                 it = feats.erase(it);
                 triangulate_failed++;
                 continue;
@@ -806,29 +803,28 @@ void VisualManager::FeatureTriangulation(const std::map<double, CameraPose> came
     //                          feature_mapping_success_, feature_mapping_success_, triangulate_failed, gaussian_newton_failed);
 }
 
-void VisualManager::CalculateFeatureParallex(std::vector<Feature*>& feats)
+void VisualManager::CalculateMaxFeatureParallex(std::vector<Feature*>& feats)
 {
     for (auto it = feats.begin(); it != feats.end(); it++)
     {
         auto first_obv = (*it)->_visual_obs_buffer.begin();
-        auto last_obv = (*it)->_visual_obs_buffer.rbegin();
-        const Eigen::Vector2d dxy = last_obv->second.uv[LEFT_CAM] - first_obv->second.uv[LEFT_CAM];
+        auto lastest_obv = (*it)->_visual_obs_buffer.rbegin();
+        const Eigen::Vector2d dxy = lastest_obv->second.uv[LEFT_CAM] - first_obv->second.uv[LEFT_CAM];
         const double cur_parallex = dxy.norm();
-        if (cur_parallex > (*it)->parallex)
+        if (cur_parallex > (*it)->_parallex)
         {
-            (*it)->parallex = cur_parallex;
+            (*it)->_parallex = cur_parallex;
         }
     }
 }
 
-std::vector<Feature*> VisualManager::SelectMsckfFeatures(const std::vector<Feature*> feats)
+void VisualManager::SelectMsckfFeatures(const std::vector<Feature*> feats, std::vector<Feature*>& feat_msckf)
 {
     constexpr double kMinParallexForUse = -1.0;
 
-    std::vector<Feature*> feat_msckf;
     for (int i = 0; i < feats.size(); i++)
     {
-        if (feats[i]->_is_triangulated && feats[i]->parallex > kMinParallexForUse)
+        if (feats[i]->_is_triangulated && feats[i]->_parallex > kMinParallexForUse)
         {
             feat_msckf.push_back(feats[i]);
         }
@@ -836,11 +832,9 @@ std::vector<Feature*> VisualManager::SelectMsckfFeatures(const std::vector<Featu
 
     if (feat_msckf.size() > kMaxFeatureForUpdate)
     {
-        std::sort(feat_msckf.begin(), feat_msckf.end(), [](Feature* feat_a, Feature* feat_b) { return feat_a->parallex > feat_b->parallex; });
+        std::sort(feat_msckf.begin(), feat_msckf.end(), [](Feature* feat_a, Feature* feat_b) { return feat_a->_parallex > feat_b->_parallex; });
         feat_msckf.resize(kMaxFeatureForUpdate);
     }
-
-    return feat_msckf;
 }
 
 bool VisualManager::ConstructFeatureJacobianFull(std::vector<Feature*> feats, Eigen::MatrixXd& Hx_full, Eigen::VectorXd& res)
@@ -866,9 +860,9 @@ bool VisualManager::ConstructFeatureJacobianFull(std::vector<Feature*> feats, Ei
     {
         for (uint8_t i = 0; i < param_.camera_num; i++)
         {
-            _map_hx.emplace(_state->Qic(i), total_hx);
-            _Hx_order.push_back(_state->Qic(i));
-            total_hx += _state->Qic(i)->size();
+            _map_hx.emplace(_state->mutable_Qic(i), total_hx);
+            _Hx_order.push_back(_state->mutable_Qic(i));
+            total_hx += _state->mutable_Qic(i)->size();
         }
     }
 
@@ -913,7 +907,7 @@ bool VisualManager::ConstructFeatureJacobianFull(std::vector<Feature*> feats, Ei
 
 bool VisualManager::SingleFeatureJacobian(Feature* feat,
                                           std::unordered_map<std::shared_ptr<Type>, size_t> map_hx,
-                                          int total_hx,
+                                          const int total_hx,
                                           Eigen::MatrixXd& Hx_single)
 {
     constexpr uint32_t kPwfCols = 3;
@@ -936,8 +930,8 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
             Eigen::Vector3d p_CinI;
 
             focal_length = CamModel::getInstance().K(LEFT_CAM)(0, 0);
-            R_CtoI = _state->Qic(cam_id)->q().toRotationMatrix();
-            p_CinI = _state->Pic(cam_id)->vec();
+            R_CtoI = _state->Qic(cam_id).toRotationMatrix();
+            p_CinI = _state->Pic(cam_id);
 
             std::shared_ptr<Pose> obs_pose = _state->_clone_pose.at(obs_ts);
             Eigen::Matrix3d R_IitoG = obs_pose->quat().toRotationMatrix();
@@ -986,7 +980,7 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
             if (_state->enableEstimateRic())
             {
                 Eigen::Matrix3d dpcf_dqic = utils::math::skew(p_finCi);
-                Hfx.block<2, 3>(2 * cnt, kPwfCols + map_hx.at(_state->Qic(cam_id))) = dz_dpcf * dpcf_dqic;
+                Hfx.block<2, 3>(2 * cnt, kPwfCols + map_hx.at(_state->mutable_Qic(cam_id))) = dz_dpcf * dpcf_dqic;
             }
 
             // Get jacobian wrt clone pose
