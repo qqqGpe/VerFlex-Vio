@@ -1,3 +1,8 @@
+/*
+ * @Author: pengen.gao gaope.hb@gmail.com
+ * @Date: 2025-11-07 01:40:59
+ * Copyright (c) 2025 by gaope.hb@gmail.com, All Rights Reserved.
+ */
 #ifndef __IMU_MANAGER__
 #define __IMU_MANAGER__
 
@@ -28,7 +33,7 @@ public:
     void ZuptUpdate(std::shared_ptr<State> state);
 
     void ConstructZuptConstraint(std::shared_ptr<State> state, ImuData imu_data, Eigen::MatrixXd& Hx,
-        std::vector<std::shared_ptr<Type>>& _Hx_order, std::unordered_map<std::shared_ptr<Type>, size_t>& _map_hx, Eigen::VectorXd& res);
+        std::vector<std::shared_ptr<Type>>& Hx_order, std::unordered_map<std::shared_ptr<Type>, size_t>& map_hx, Eigen::VectorXd& res);
 
     bool IsStaticStatus();
 

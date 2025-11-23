@@ -102,48 +102,48 @@ std::vector<ImuData> ImuManager::AccessIntervalImuMeasurements(const double ts_s
 void ImuManager::ZuptUpdate(std::shared_ptr<State> state)
 {
     Eigen::MatrixXd Hx;
-    std::unordered_map<std::shared_ptr<Type>, size_t> _map_hx;
-    std::vector<std::shared_ptr<Type>> _Hx_order;
+    std::unordered_map<std::shared_ptr<Type>, size_t> map_hx;
+    std::vector<std::shared_ptr<Type>> Hx_order;
     Eigen::VectorXd res;
     ImuData imu_data = GetImuData(state->ts_sec());
-    ConstructZuptConstraint(state, imu_data, Hx, _Hx_order, _map_hx, res);
+    ConstructZuptConstraint(state, imu_data, Hx, Hx_order, map_hx, res);
     Eigen::MatrixXd R = Eigen::MatrixXd::Identity(res.rows(), res.rows());
-    solver_->update(state, Hx, res, _Hx_order, _map_hx, R);
+    solver_->update(state, Hx, res, Hx_order, map_hx, R);
 }
 
 void ImuManager::ConstructZuptConstraint(std::shared_ptr<State> state,
                                          ImuData imu_data,
                                          Eigen::MatrixXd& Hx,
-                                         std::vector<std::shared_ptr<Type>>& _Hx_order,
-                                         std::unordered_map<std::shared_ptr<Type>, size_t>& _map_hx,
+                                         std::vector<std::shared_ptr<Type>>& Hx_order,
+                                         std::unordered_map<std::shared_ptr<Type>, size_t>& map_hx,
                                          Eigen::VectorXd& res)
 {
     bool force_pos_equal_zero = false;
-    _Hx_order.push_back(state->_imu_state->q());
-    _Hx_order.push_back(state->_imu_state->bg());
-    _Hx_order.push_back(state->_imu_state->v());
+    Hx_order.push_back(state->_imu_state->q());
+    Hx_order.push_back(state->_imu_state->bg());
+    Hx_order.push_back(state->_imu_state->v());
     if (force_pos_equal_zero)
     {
-        _Hx_order.push_back(state->_imu_state->p());
+        Hx_order.push_back(state->_imu_state->p());
     }
 
     int total_hx = 0;
-    _map_hx.clear();
+    map_hx.clear();
     // insert R_ItoG
-    _map_hx.insert({state->_imu_state->q(), total_hx});
+    map_hx.insert({state->_imu_state->q(), total_hx});
     total_hx += state->_imu_state->q()->size();
 
     // insert bg
-    _map_hx.insert({state->_imu_state->bg(), total_hx});
+    map_hx.insert({state->_imu_state->bg(), total_hx});
     total_hx += state->_imu_state->bg()->size();
 
     // insert v
-    _map_hx.insert({state->_imu_state->v(), total_hx});
+    map_hx.insert({state->_imu_state->v(), total_hx});
     total_hx += state->_imu_state->v()->size();
 
     if (force_pos_equal_zero)
     {
-        _map_hx.insert({state->_imu_state->p(), total_hx});
+        map_hx.insert({state->_imu_state->p(), total_hx});
         total_hx += state->_imu_state->p()->size();
     }
 
@@ -164,18 +164,18 @@ void ImuManager::ConstructZuptConstraint(std::shared_ptr<State> state,
     }
 
     // jacobian for R_ItoG
-    Hx.block(0, _map_hx[state->_imu_state->q()], 3, 3) = -utils::math::skew(R_ItoG.transpose() * _gravity_magn);
+    Hx.block(0, map_hx[state->_imu_state->q()], 3, 3) = -utils::math::skew(R_ItoG.transpose() * _gravity_magn);
 
     // jacobian for bg
-    Hx.block(3, _map_hx[state->_imu_state->bg()], 3, 3) = -Eigen::Matrix3d::Identity();
+    Hx.block(3, map_hx[state->_imu_state->bg()], 3, 3) = -Eigen::Matrix3d::Identity();
 
     // jacobian for v
-    Hx.block(6, _map_hx[state->_imu_state->v()], 3, 3) = Eigen::Matrix3d::Identity();
+    Hx.block(6, map_hx[state->_imu_state->v()], 3, 3) = Eigen::Matrix3d::Identity();
 
     // jacobian for p
     if (force_pos_equal_zero)
     {
-        Hx.block(9, _map_hx[state->_imu_state->p()], 3, 3) = Eigen::Matrix3d::Identity();
+        Hx.block(9, map_hx[state->_imu_state->p()], 3, 3) = Eigen::Matrix3d::Identity();
     }
 
     Eigen::MatrixXd weight = Eigen::MatrixXd::Identity(Hx.rows(), Hx.rows());

@@ -23,6 +23,12 @@ enum class SolverType
     SQRT_ESKF = 1
 };
 
+enum class MarginalizeType
+{
+    ClonePose = 0,
+    SlamFeature = 1
+};
+
 class MsckfSolverBase
 {
    public:
@@ -40,7 +46,7 @@ class MsckfSolverBase
 
     virtual void StochasticClone(std::shared_ptr<State> state, std::vector<ImuData>* imu_data) = 0;
 
-    virtual void MarginalizeState(std::shared_ptr<State> state, std::shared_ptr<Type> state_to_marginalize) = 0;
+    virtual void MarginalizeState(MarginalizeType marge_type, std::shared_ptr<State> state, std::shared_ptr<Type> state_to_marginalize) = 0;
 
    protected:
     constexpr static uint32_t kImuOutputHz = 200;

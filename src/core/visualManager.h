@@ -21,6 +21,13 @@ namespace {
 
 class VisualManager
 {
+   protected:
+    enum class FeatureUpdateType
+    {
+        kMsckfUpdate = 0,
+        kSlamUpdate
+    };
+
    public:
     static constexpr uint32_t kMaxFeatureForUpdate = 40;
     static constexpr uint32_t kMinFeatureForUpdate = 8;
@@ -67,9 +74,17 @@ class VisualManager
 
     bool GaussianNewtonOptimization(const std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
 
-    bool ConstructFeatureJacobianFull(std::vector<Feature*> feats, Eigen::MatrixXd& Hx_full, Eigen::VectorXd& res);
+    bool ConstructFeatureJacobianFull(FeatureUpdateType update_type,
+                                      std::vector<Feature*> feats,
+                                      std::unordered_map<std::shared_ptr<Type>, size_t>& map_hx,
+                                      std::vector<std::shared_ptr<Type>>& Hx_order,
+                                      Eigen::MatrixXd& Hx_full,
+                                      Eigen::VectorXd& res);
 
-    bool SingleFeatureJacobian(Feature* feat, std::unordered_map<std::shared_ptr<Type>, size_t> map_hx, const int total_hx, Eigen::MatrixXd& Hx_single);
+    bool SingleFeatureJacobian(const Feature* feat,
+                               const std::unordered_map<std::shared_ptr<Type>, size_t> map_hx,
+                               const int total_hx,
+                               Eigen::MatrixXd& Hfx_single);
 
     bool PnpRansacToRejectOutliers(std::vector<Feature*> feats);
 
@@ -77,11 +92,19 @@ class VisualManager
 
     void SelectMsckfFeatures(const std::vector<Feature*> feats, std::vector<Feature*>& feat_msckf);
 
+    void SelectSlamFeatures(std::vector<Feature*>& feature_tracked, std::vector<Feature*>& feat_slam_old, std::vector<Feature*>& feat_slam_new);
+
+    void InitializeNewSlamFeatures(std::vector<Feature*>& feat_slam_new);
+
     void set_state(std::shared_ptr<State> state) { _state = state; }  // only for debug
 
     void FeedImages(const std::pair<double, std::vector<cv::Mat>> input);
 
     bool MsckfFeatureUpdate(std::vector<Feature*> feats);
+
+    bool SlamFeatureUpdate(std::vector<Feature*> feats);
+
+    void MarginalizeSlamFeatureLost();
 
     void ClearExpiredMeasurements(const double timestamp);
 
@@ -116,9 +139,7 @@ class VisualManager
     std::vector<Feature*> feat_msckf_;
     std::vector<Feature*> feat_slam_old_;
     std::vector<Feature*> feat_slam_new_;
-
     std::shared_ptr<KeyFrameStatus> _keyframe;
-
     std::shared_ptr<VioFrontend> vio_frontend;
 
     friend VioFrontend;
@@ -127,8 +148,6 @@ class VisualManager
     Param param_;
     std::shared_ptr<ros::NodeHandle> nh_;
     std::shared_ptr<State> _state;
-    std::unordered_map<std::shared_ptr<Type>, size_t> _map_hx;
-    std::vector<std::shared_ptr<Type>> _Hx_order;
     std::shared_ptr<MsckfSolverBase> solver_;
 };
 

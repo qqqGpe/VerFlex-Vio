@@ -20,7 +20,8 @@ WS_DIR = os.path.join(os.path.expanduser("~"), "ws/catkin_ws")
 LOG_DIR = os.path.join(WS_DIR, "src/vio_backend/log/vio_sim_" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M"))
 CODEBASE_DIR = os.path.join(WS_DIR, "src/vio_backend")
 # Define the list of cases to process
-CASE_LIST = ["MH_01_easy", "MH_02_easy", "MH_03_medium", "V1_01_easy", "V1_02_medium", "V2_01_easy", "V2_02_medium"]
+# CASE_LIST = ["MH_01_easy", "MH_02_easy", "MH_03_medium", "V1_01_easy", "V1_02_medium", "V2_01_easy", "V2_02_medium"]
+CASE_LIST = ["MH_01_easy"]
 
 logging.basicConfig(
     level=logging.INFO,
@@ -113,7 +114,7 @@ def extract_results(log_dir, case_name):
 def evaluate_results(log_dir, case_name):
     logger.info(f"Evaluating results for case: {case_name}")
     # Find groundtruth file in CODEBASE_DIR/data/euroc
-    ground_truth_data_dir = os.path.join(CODEBASE_DIR, "data/euroc")
+    ground_truth_data_dir = os.path.join(CODEBASE_DIR, "data/euroc/ground_truth")
     groundtruth_file = None
 
     # Look for matching case folder in ground truth data directory

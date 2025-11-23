@@ -1,3 +1,8 @@
+/*
+ * @Author: pengen.gao gaope.hb@gmail.com
+ * @Date: 2025-11-07 01:40:59
+ * Copyright (c) 2025 by gaope.hb@gmail.com, All Rights Reserved.
+ */
 #ifndef __VIO_VEC__
 #define __VIO_VEC__
 
@@ -11,6 +16,13 @@ class Vec : public Type
         state_name = "Vec";
         _value = Eigen::VectorXd::Zero(3);
         _fej = Eigen::VectorXd::Zero(3);
+    }
+
+    Vec(Eigen::VectorXd value) : Type(static_cast<uint32_t>(value.rows()))
+    {
+        state_name = "Vec";
+        _value = value;
+        _fej = value;
     }
 
     virtual void reset() override

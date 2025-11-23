@@ -59,7 +59,7 @@ class SqrtEskfSolver : public MsckfSolverBase
      * @param state_to_marginalize The state variable to be marginalized
      * @return void
      */
-    virtual void MarginalizeState(std::shared_ptr<State> state, std::shared_ptr<Type> state_to_marginalize) override
+    virtual void MarginalizeState(MarginalizeType marge_type, std::shared_ptr<State> state, std::shared_ptr<Type> state_to_marginalize) override
     {
         if (state_to_marginalize == nullptr)
         {
@@ -87,9 +87,26 @@ class SqrtEskfSolver : public MsckfSolverBase
             }
         }
 
-        if (state->_clone_pose.find(state_to_marginalize->ts()) != state->_clone_pose.end())
+        // Marginalize clone pose
+        if (marge_type == MarginalizeType::ClonePose)
         {
-            state->_clone_pose.erase(state_to_marginalize->ts());
+            if (state->_clone_pose.find(state_to_marginalize->ts()) != state->_clone_pose.end())
+            {
+                state->_clone_pose.erase(state_to_marginalize->ts());
+            }
+        }
+
+        // Marginalize slam feature
+        if (marge_type == MarginalizeType::SlamFeature)
+        {
+            for (auto&[id, feature] : state->mutable_slam_features())
+            {
+                if (feature._state_ptr == state_to_marginalize)
+                {
+                    state->mutable_slam_features().erase(id);
+                    break;
+                }
+            }
         }
 
         // Update marginalized covariance matrix

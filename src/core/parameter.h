@@ -26,6 +26,7 @@ public:
         _nh->param<bool>("save_full_log", save_full_log, true);
         _nh->param<bool>("save_tum_log", save_tum_log, true);
         _nh->param<bool>("use_pnp_ransac", use_pnp_ransac, true);
+        _nh->param<bool>("use_slam_feature", use_slam_feature, false);
         _nh->param<int>("camera_num", camera_num, 1);
         _nh->param<int>("running_rate", running_rate, 20);
         _nh->param<bool>("use_rate_limit", use_rate_limit, true);
@@ -33,12 +34,13 @@ public:
         _nh->param<int>("img_width", img_width, 752);
         _nh->param<int>("img_height", img_height, 480);
         _nh->param<double>("bag_start", bag_start, 0);
-        _nh->param<double>("bag_durration", bag_duration, -1);
+        _nh->param<double>("bag_duration", bag_duration, -1);
         _nh->param<int>("max_feat_n", max_feat_n, 225);
         _nh->param<int>("grid_w", grid_w, 15);
         _nh->param<int>("grid_h", grid_h, 15);
         _nh->param<bool>("use_census_transform", use_census_transform, true);
         _nh->param<int>("max_clone_pose", max_clone_pose, 6);
+        _nh->param<int>("max_slam_feature", max_slam_feature, 25);
         _nh->param<std::string>("bag_name", bag_name, "");
         _nh->param<std::string>("log_path", log_path, "");
         _nh->param<std::string>("bag_path", bag_path, "");
@@ -47,6 +49,7 @@ public:
         _nh->param<double>("sigma_nw", sigma_nw, 1.6968e-04);
         _nh->param<double>("sigma_ba", sigma_ba, 3.0000e-3);
         _nh->param<double>("sigma_bg", sigma_bg, 1.9393e-05);
+        _nh->param<double>("sigma_visual_pix", sigma_visual_pix, 1.0);
         _nh->param<double>("init_td_visual_sigma", init_td_visual_sigma, 1e-4);
         _nh->param<double>("init_ric_sigma", init_ric_sigma, 1e-3);
         _nh->param<double>("gravity_magn", gravity_magn, 9.81);
@@ -97,6 +100,7 @@ public:
     bool use_pnp_ransac = true;
     bool use_fej = false;
     bool use_rate_limit = true;
+    bool use_slam_feature = false;
 
     int running_rate; // Hz
     int log_level = 2;
@@ -104,6 +108,7 @@ public:
     int max_feat_n;
     int grid_h, grid_w;
     int max_clone_pose;
+    int max_slam_feature;
     int img_width, img_height;
     int solver_type = 0; // 0: ESKF, 1: SqrtESKF
     int initial_type = 0; // 0: static initialization, 1: dynamic initialization
@@ -112,6 +117,7 @@ public:
     double sigma_nw;
     double sigma_ba;
     double sigma_bg;
+    double sigma_visual_pix;
     double init_td_visual_sigma;
     double init_ric_sigma;
 

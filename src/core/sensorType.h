@@ -84,15 +84,15 @@ struct CameraObs
     std::map<int, Eigen::Vector2d> uv_norm;
 };
 
+enum class FeatureType
+{
+    kUnknown = 0,
+    kMsckfPoint = 1,
+    kSlamPoint = 2
+};
+
 struct Feature
 {
-    enum class FeatureType
-    {
-        kUnknown = 0,
-        kMsckfPoint = 1,
-        kSlamPoint = 2
-    };
-
     uint32_t _id = -1;
     FeatureType _type = FeatureType::kUnknown;
     bool _valid = false;

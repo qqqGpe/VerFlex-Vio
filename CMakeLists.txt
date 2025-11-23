@@ -10,6 +10,13 @@ add_compile_options(-std=c++17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_BUILD_TYPE RelWithDebInfo)  # Options: Debug, Release, RelWithDebInfo
 
+
+# Enable AddressSanitizer for memory leak detection
+# if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+#     add_compile_options(-fsanitize=address -fno-omit-frame-pointer -g)
+#     add_link_options(-fsanitize=address)
+# endif()
+
 # =============================================================================
 # Package Dependencies
 # =============================================================================

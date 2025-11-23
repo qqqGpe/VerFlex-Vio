@@ -35,29 +35,58 @@ class eskfSolver : public MsckfSolverBase
         const int new_rows = old_rows + pose_to_clone->size();
         const int new_cols = old_cols + pose_to_clone->size();
 
-        Eigen::MatrixXd Cov_new = Eigen::MatrixXd::Zero(new_rows, new_cols);
-        Cov_new.topLeftCorner(old_rows, old_cols) = Cov_old;
-        Cov_new.bottomRightCorner(clone_pose_size, clone_pose_size) = Cov_old.block(pose_to_clone->id(), pose_to_clone->id(), clone_pose_size, clone_pose_size);
-        Cov_new.topRightCorner(old_rows, clone_pose_size) = Cov_old.block(0, pose_to_clone->id(), old_rows, clone_pose_size);
-        Cov_new.bottomLeftCorner(clone_pose_size, old_cols) = Cov_old.block(pose_to_clone->id(), 0, clone_pose_size, old_cols);
-
+        std::shared_ptr<Pose> latest_clone_pose = nullptr;
         std::shared_ptr<Type> clone_pose = pose_to_clone->clone();
-        clone_pose->set_local_id(old_cols);
-        state->_clone_pose.insert(std::make_pair(clone_pose->ts(), std::dynamic_pointer_cast<Pose>(clone_pose)));
-        state->_variables.push_back(clone_pose);
-        state->_dim += clone_pose->size();
+        if (!state->clone_poses().empty())
+        {
+            latest_clone_pose = state->clone_poses().rbegin()->second;
+        }
+        state->insert_after(latest_clone_pose, clone_pose);
+        state->mutable_clone_poses().emplace(clone_pose->ts(), std::dynamic_pointer_cast<Pose>(clone_pose));
 
-        // Consider the time delay of visual measurement when agument the covariance
+        const int insert_idx = clone_pose->id();
+        const int suffix_size = old_rows - insert_idx;
+        const int src_idx = pose_to_clone->id();
+
+        Eigen::MatrixXd Cov_aug = Eigen::MatrixXd::Zero(new_rows, new_cols);
+        Cov_aug.topLeftCorner(insert_idx, insert_idx) = Cov_old.topLeftCorner(insert_idx, insert_idx);
+        Cov_aug.topRightCorner(insert_idx, suffix_size) = Cov_old.topRightCorner(insert_idx, suffix_size);
+        Cov_aug.bottomLeftCorner(suffix_size, insert_idx) = Cov_old.bottomLeftCorner(suffix_size, insert_idx);
+        Cov_aug.bottomRightCorner(suffix_size, suffix_size) = Cov_old.bottomRightCorner(suffix_size, suffix_size);
+
+        Cov_aug.block(0, insert_idx, Cov_aug.rows(), clone_pose_size) = Cov_aug.block(0, 0, Cov_aug.rows(), clone_pose_size);
+        Cov_aug.block(insert_idx, 0, clone_pose_size, Cov_aug.cols()) = Cov_aug.block(0, 0, clone_pose_size, Cov_aug.cols());
+        Cov_aug.block(insert_idx, insert_idx, clone_pose_size, clone_pose_size) = Cov_old.block(0, 0, clone_pose_size, clone_pose_size);
+
         if (state->enableEstimateTdVisual())
         {
             Eigen::Vector3d last_w = imu_data->back().wm;
             Eigen::MatrixXd J_td = Eigen::MatrixXd::Zero(clone_pose_size, 1);
             J_td << last_w, state->_imu_state->v()->vec();
-            Cov_new.rightCols(clone_pose_size) += Cov_new.block(0, state->td_visual().id(), new_rows, state->td_visual().size()) * J_td.transpose();
-            Cov_new.bottomRows(clone_pose_size) += J_td * Cov_new.block(state->td_visual().id(), 0, state->td_visual().size(), new_cols);
+            Cov_aug.block(0, insert_idx, new_rows, clone_pose_size) +=
+                Cov_aug.block(0, state->td_visual().id(), new_rows, state->td_visual().size()) * J_td.transpose();
+            Cov_aug.block(insert_idx, 0, clone_pose_size, new_cols) +=
+                J_td * Cov_aug.block(state->td_visual().id(), 0, state->td_visual().size(), new_cols);
         }
 
-        state->SetCovariance(Cov_new);
+        // Eigen::MatrixXd Cov_new = Eigen::MatrixXd::Zero(new_rows, new_cols);
+        // Cov_new.topLeftCorner(old_rows, old_cols) = Cov_old;
+        // Cov_new.bottomRightCorner(clone_pose_size, clone_pose_size) =
+        //     Cov_old.block(pose_to_clone->id(), pose_to_clone->id(), clone_pose_size, clone_pose_size);
+        // Cov_new.topRightCorner(old_rows, clone_pose_size) = Cov_old.block(0, pose_to_clone->id(), old_rows, clone_pose_size);
+        // Cov_new.bottomLeftCorner(clone_pose_size, old_cols) = Cov_old.block(pose_to_clone->id(), 0, clone_pose_size, old_cols);
+
+        // // Consider the time delay of visual measurement when agument the covariance
+        // if (state->enableEstimateTdVisual())
+        // {
+        //     Eigen::Vector3d last_w = imu_data->back().wm;
+        //     Eigen::MatrixXd J_td = Eigen::MatrixXd::Zero(clone_pose_size, 1);
+        //     J_td << last_w, state->_imu_state->v()->vec();
+        //     Cov_new.rightCols(clone_pose_size) += Cov_new.block(0, state->td_visual().id(), new_rows, state->td_visual().size()) * J_td.transpose();
+        //     Cov_new.bottomRows(clone_pose_size) += J_td * Cov_new.block(state->td_visual().id(), 0, state->td_visual().size(), new_cols);
+        // }
+
+        state->SetCovariance(Cov_aug);
     }
 
     /**
@@ -66,7 +95,7 @@ class eskfSolver : public MsckfSolverBase
      * @param state_to_marginalize The state variable to be marginalized
      * @return void
      */
-    virtual void MarginalizeState(std::shared_ptr<State> state, std::shared_ptr<Type> state_to_marginalize) override
+    virtual void MarginalizeState(MarginalizeType marge_type, std::shared_ptr<State> state, std::shared_ptr<Type> state_to_marginalize) override
     {
         if (state_to_marginalize == nullptr)
         {
@@ -94,9 +123,26 @@ class eskfSolver : public MsckfSolverBase
             }
         }
 
-        if (state->_clone_pose.find(state_to_marginalize->ts()) != state->_clone_pose.end())
+        // Marginalize clone pose
+        if (marge_type == MarginalizeType::ClonePose)
         {
-            state->_clone_pose.erase(state_to_marginalize->ts());
+            if (state->_clone_pose.find(state_to_marginalize->ts()) != state->_clone_pose.end())
+            {
+                state->_clone_pose.erase(state_to_marginalize->ts());
+            }
+        }
+
+        // Marginalize slam feature
+        if (marge_type == MarginalizeType::SlamFeature)
+        {
+            for (auto& [id, feature] : state->mutable_slam_features())
+            {
+                if (feature._state_ptr == state_to_marginalize)
+                {
+                    state->mutable_slam_features().erase(id);
+                    break;
+                }
+            }
         }
 
         // Update marginalized covariance matrix
@@ -176,7 +222,7 @@ class eskfSolver : public MsckfSolverBase
     {
         assert(R.rows() == res.rows());
         assert(Hx.rows() == res.rows());
-        Eigen::MatrixXd Cov_old = state->Covariance();
+        const Eigen::MatrixXd Cov_old = state->covariance();
         Eigen::MatrixXd M_all = Eigen::MatrixXd::Zero(Cov_old.rows(), res.rows());
 
         int32_t current_it = 0;
@@ -209,7 +255,7 @@ class eskfSolver : public MsckfSolverBase
         state->SetCovariance(0.5 * (Cov_update + Cov_update.transpose()));
 
         // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
-        Eigen::VectorXd diags = state->Covariance().diagonal();
+        Eigen::VectorXd diags = state->covariance().diagonal();
         for (int i = 0; i < diags.rows(); i++)
         {
             if (diags(i) < 0.0)
@@ -408,15 +454,15 @@ class eskfSolver : public MsckfSolverBase
         }
 
         state->_imu_state->set_covariance(Q_sum);
-        state->_covariance.block(state->_imu_state->id(), state->_imu_state->id(), state->_imu_state->size(), state->_imu_state->size()) = Q_sum;
+        state->mutable_covariance().block(state->_imu_state->id(), state->_imu_state->id(), state->_imu_state->size(), state->_imu_state->size()) = Q_sum;
 
-        const Eigen::MatrixXd Cov = state->Covariance();
+        const Eigen::MatrixXd Cov = state->covariance();
         const uint32_t imu_dim = state->_imu_state->size();
         if (Cov.rows() != imu_dim)
         {
-            Eigen::MatrixXd Cov_ic = state->Covariance().block(0, imu_dim, imu_dim, Cov.rows() - imu_dim);
-            state->_covariance.block(0, imu_dim, imu_dim, Cov.rows() - imu_dim) = Phi_sum * Cov_ic;
-            state->_covariance.block(imu_dim, 0, Cov.rows() - imu_dim, imu_dim) = Cov_ic.transpose() * Phi_sum.transpose();
+            const Eigen::MatrixXd Cov_ic = state->covariance().block(0, imu_dim, imu_dim, Cov.rows() - imu_dim);
+            state->mutable_covariance().block(0, imu_dim, imu_dim, Cov.rows() - imu_dim) = Phi_sum * Cov_ic;
+            state->mutable_covariance().block(imu_dim, 0, Cov.rows() - imu_dim, imu_dim) = Cov_ic.transpose() * Phi_sum.transpose();
         }
 
         return true;

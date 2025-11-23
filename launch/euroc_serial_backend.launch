@@ -11,9 +11,9 @@
 
     <!-- mono or stereo and what ros bag to play -->
     <arg name="bag_start"       default="0" />
-    <!-- <arg name="dataset"         default="MH_01_easy" /> -->
+    <arg name="dataset"         default="MH_01_easy" />
     <!-- <arg name="dataset"     default="MH_02_easy" /> -->
-    <arg name="dataset"     default="MH_03_medium" />
+    <!-- <arg name="dataset"     default="MH_03_medium" /> -->
     <!-- <arg name="dataset"     default="MH_04_difficult" /> -->
     <!-- <arg name="dataset"     default="MH_05_difficult" /> -->
 
@@ -27,7 +27,7 @@
 
     <!-- NN feature parameters -->
     <arg name="use_nn_feature"          default="false"/>
-    <arg name="max_keypoints"           default="1024" />
+    <arg name="max_keypoints"           default="300" />
     <arg name="use_gpu"                 default="true" />
     <arg name="confidence_threshold"    default="0.015" />
 
@@ -96,6 +96,7 @@
         <param name="sigma_nw"                  type="double"   value="1.6968e-03" />
         <param name="sigma_ba"                  type="double"   value="3.0000e-3" />
         <param name="sigma_bg"                  type="double"   value="1.9393e-03" />
+        <param name="sigma_visual_pix"          type="double"   value="1.0" />
         <param name="init_td_visual_sigma"      type="double"   value="1e-4" />
         <param name="init_ric_sigma"            type="double"   value="1e-3" />
 

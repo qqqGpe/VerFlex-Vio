@@ -1,0 +1,9 @@
+{
+	"algorithm_name": "openvins",
+	"topic_name": "/ov_msckf/poseimu",
+	"message_type": "geometry_msgs/PoseWithCovarianceStamped",
+	"output_directory": "~/ws/catkin_ws/src/vio_backend/data",
+	"dataset": "euroc",
+	"file_prefix": "MH_01_easy_slam",
+	"queue_size": 100
+}

@@ -9,6 +9,7 @@
 #include "Pose.h"
 #include "Scalar.h"
 #include "parameter.h"
+#include "sensorType.h"
 
 struct CameraPose
 {
@@ -27,59 +28,18 @@ struct CameraPose
     Eigen::Vector3d pwi_fej;
 };
 
+struct SlamFeature
+{
+    uint32_t _id = -1;
+    std::shared_ptr<Vec> _state_ptr;
+    Feature* _info;
+};
+
 class State
 {
    public:
-    explicit State(const Param& param)
-    {
-        _param = param;
-        enable_estimate_ric_ = param.estimate_ric;
-        enable_estimate_td_visual_ = param.estimate_td_visual;
-
-        _imu_state = std::make_shared<ImuState>();
-        _imu_state->set_local_id(_dim);
-        _variables.push_back(_imu_state->q());
-        _dim += _imu_state->q()->size();
-        _variables.push_back(_imu_state->p());
-        _dim += _imu_state->p()->size();
-        _variables.push_back(_imu_state->v());
-        _dim += _imu_state->v()->size();
-        _variables.push_back(_imu_state->bg());
-        _dim += _imu_state->bg()->size();
-        _variables.push_back(_imu_state->ba());
-        _dim += _imu_state->ba()->size();
-
-        _vQic.resize(param.camera_num);
-        _vPic.resize(param.camera_num);
-        for (int i = 0; i < param.camera_num; i++)
-        {
-            _vQic[i] = std::make_shared<Quat>();
-            _vPic[i] = std::make_shared<Vec>();
-            InitCamExtrinsic(i, Eigen::Quaterniond(param.Ric[i]), param.tic[i]);
-            if (enable_estimate_ric_)
-            {
-                _vQic[i]->set_local_id(_dim);
-                _variables.push_back(_vQic[i]);
-                _dim += _vQic[i]->size();
-
-                _vPic[i]->set_local_id(_dim);
-                _variables.push_back(_vPic[i]);
-                _dim += _vPic[i]->size();
-            }
-        }
-
-        if (enable_estimate_td_visual_)
-        {
-            td_visual_ = std::make_shared<Scalar>();
-            td_visual_->set_local_id(_dim);
-            _variables.push_back(td_visual_);
-            _dim += td_visual_->size();
-        }
-
-        SetCovariance(Eigen::MatrixXd::Identity(_dim, _dim));             // initialize covariance;
-        SetSqrtPt(Eigen::MatrixXd::Identity(_dim, _dim));                 // initialize sqrt-root covariance;
-    }
-    ~State() {}
+    State(const Param& param);
+    virtual ~State() = default;
 
     double ts_sec() const { return _imu_state->ts(); }
 
@@ -117,23 +77,7 @@ class State
 
     Scalar td_visual() const { return *td_visual_; }
 
-    void AccessClonePoseBuffer(std::map<double, CameraPose>& camera_clone_poses) const
-    {
-        for (auto it = _clone_pose.begin(); it != _clone_pose.end(); it++)
-        {
-            CameraPose camera_pose(_param.camera_num);
-            camera_pose.Rwi = it->second->quat().normalized().toRotationMatrix();
-            camera_pose.pwi = it->second->p();
-            for (int i_cam = 0; i_cam < _param.camera_num; i_cam++)
-            {
-                Eigen::Matrix3d R_CtoI = _vQic[i_cam]->q().toRotationMatrix();
-                Eigen::Vector3d p_CinI = _vPic[i_cam]->vec();
-                camera_pose.Rwc[i_cam] = camera_pose.Rwi * R_CtoI;
-                camera_pose.pwc[i_cam] = camera_pose.pwi + camera_pose.Rwi * p_CinI;
-            }
-            camera_clone_poses.try_emplace(it->first, camera_pose);
-        }
-    }
+    void AccessClonePoseBuffer(std::map<double, CameraPose>& camera_clone_poses) const;
 
     void set_ts_sec(double ts_sec) { _imu_state->set_ts(ts_sec); }
 
@@ -155,29 +99,34 @@ class State
         _vPic[cam_id]->set_value(tic);
     }
 
-    void reset()
+    void reset();
+
+    bool IsOldSlamFeature(const uint32_t feature_id)
     {
-        // Reset imu state
-        _imu_state->reset();
-
-        // Reset td_visual
-        if (enable_estimate_td_visual_)
-        {
-            td_visual_->reset();
-        }
-
-        // Clear all clone poses
-        for (auto it = _clone_pose.begin(); it != _clone_pose.end();)
-        {
-            _variables.erase(std::remove(_variables.begin(), _variables.end(), it->second), _variables.end());
-            _dim = _dim - it->second->size();
-            it = _clone_pose.erase(it);
-        }
-
-        // Reset covariance and sqrt_Pt
-        SetCovariance(Eigen::MatrixXd::Identity(_dim, _dim));
-        SetSqrtPt(Eigen::MatrixXd::Identity(_dim, _dim));
+        return _slam_features.find(feature_id) != _slam_features.end();
     }
+
+    void insert_after(const std::shared_ptr<Type>& pose_to_insert_after, const std::shared_ptr<Type>& new_variable);
+
+    void UpdateSlamFeatureAfterVisualUpdate();
+
+    std::map<uint32_t, SlamFeature>& mutable_slam_features() { return _slam_features; }
+
+    std::map<uint32_t, SlamFeature> slam_features() const { return _slam_features; }
+
+    std::map<double, std::shared_ptr<Pose>>& mutable_clone_poses() { return _clone_pose; }
+
+    std::map<double, std::shared_ptr<Pose>> clone_poses() const { return _clone_pose; }
+
+    Eigen::MatrixXd& mutable_covariance() { return _covariance; }
+
+    const Eigen::MatrixXd& covariance() const { return _covariance; }
+
+    bool AugumentSlamFeature(Feature* feature,
+                             const Eigen::MatrixXd& Hf,
+                             const Eigen::MatrixXd& Hx,
+                             const std::vector<std::shared_ptr<Type>>& Hx_order,
+                             std::unordered_map<std::shared_ptr<Type>, size_t>& map_hx);
 
     uint32_t _dim = 0;
     Param _param;
@@ -191,6 +140,7 @@ class State
    private:
     std::vector<std::shared_ptr<Quat>> _vQic;
     std::vector<std::shared_ptr<Vec>> _vPic;
+    std::map<uint32_t, SlamFeature> _slam_features;
     bool enable_estimate_ric_ = false;
     bool enable_estimate_td_visual_ = false;
 };
