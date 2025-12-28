@@ -39,6 +39,7 @@ public:
         _nh->param<int>("grid_w", grid_w, 15);
         _nh->param<int>("grid_h", grid_h, 15);
         _nh->param<bool>("use_census_transform", use_census_transform, true);
+        _nh->param<bool>("use_histogram_equal", use_histequal, true);
         _nh->param<int>("max_clone_pose", max_clone_pose, 6);
         _nh->param<int>("max_slam_feature", max_slam_feature, 25);
         _nh->param<std::string>("bag_name", bag_name, "");
@@ -101,6 +102,7 @@ public:
     bool use_fej = false;
     bool use_rate_limit = true;
     bool use_slam_feature = false;
+    bool use_histequal = true;
 
     int running_rate; // Hz
     int log_level = 2;

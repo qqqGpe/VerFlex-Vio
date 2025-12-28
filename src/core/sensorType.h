@@ -99,6 +99,7 @@ struct Feature
     bool _is_triangulated = false;
     double _parallex = 0.f;
     Eigen::Vector3d _pwf = Eigen::Vector3d::Zero();
+    double _theta_parallex = 0.f;
     std::map<double, CameraObs> _visual_obs_buffer;  // <ts_sec, obs>
 
     // Reset feature to initial state

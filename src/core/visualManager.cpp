@@ -148,7 +148,11 @@ void VisualManager::SelectMsckfFeatures(const std::vector<Feature*> feats, std::
 
     if (feat_msckf.size() > kMaxFeatureForUpdate)
     {
-        std::sort(feat_msckf.begin(), feat_msckf.end(), [](Feature* feat_a, Feature* feat_b) { return feat_a->_parallex > feat_b->_parallex; });
+        auto compare_feat_func = [](Feature* feat_a, Feature* feat_b) { return feat_a->_visual_obs_buffer.size() > feat_b->_visual_obs_buffer.size(); };
+
+        // auto compare_feat_func = [](Feature* feat_a, Feature* feat_b) { return feat_a->_theta_parallex > feat_b->_theta_parallex; };
+
+        std::sort(feat_msckf.begin(), feat_msckf.end(), compare_feat_func);
         feat_msckf.resize(kMaxFeatureForUpdate);
     }
 }
@@ -748,6 +752,26 @@ bool VisualManager::GaussianNewtonOptimization(const std::map<double, CameraPose
             std::cout << "iter_time is too large" << std::endl;
         }
         return false;
+    }
+
+    // Calcutate the max theta of poseA -> feature3d -> poseB
+    for (auto it = feat->_visual_obs_buffer.begin(); it != feat->_visual_obs_buffer.end(); it++)
+    {
+        for (int cam_id = 0; cam_id < param_.camera_num; cam_id++)
+        {
+            double feature_timestamp = (*it).first;
+            Eigen::Matrix3d R_CitoG = clone_pose_buffer.at(feature_timestamp).Rwc[cam_id];;
+            Eigen::Vector3d p_CiinG = clone_pose_buffer.at(feature_timestamp).pwc[cam_id];;
+
+            Eigen::Vector3d vec_a = (feat->_pwf - p_AinG).normalized();
+            Eigen::Vector3d vec_b = (feat->_pwf - p_CiinG).normalized();
+            double cos_theta = vec_a.dot(vec_b);
+            double theta = std::acos(cos_theta) * 180.0 / M_PI;
+            if (theta > feat->_theta_parallex)
+            {
+                feat->_theta_parallex = theta;
+            }
+        }
     }
 
     return true;

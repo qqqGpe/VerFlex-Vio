@@ -65,6 +65,7 @@
         <param name="img_width"                 type="int"      value="752" />
         <param name="img_height"                type="int"      value="480" />
         <param name="use_census_transform"      type="bool"     value="false" />
+        <param name="use_histogram_equal"       type="bool"     value="true" />
         <rosparam param="intrinsic_cam_0">      [458.654, 457.296, 367.215, 248.375]                    </rosparam>
         <rosparam param="distortion_cam_0">     [-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05]   </rosparam>
         <rosparam param="intrinsic_cam_1">      [457.587, 456.134, 379.999, 255.238]                    </rosparam>

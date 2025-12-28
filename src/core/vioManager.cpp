@@ -825,6 +825,11 @@ void VioManager::CameraCallback(const sensor_msgs::ImageConstPtr& msg0, const se
         cv::Mat image_l, image_l_rectify;
         utils::transfer_image(msg0, image_l);
         CamModel::getInstance().RectifyImage(0, image_l, &image_l_rectify);
+        if (params_.use_histequal)
+        {
+            cv::equalizeHist(image_l_rectify, image_l_rectify);
+        }
+
         images.push_back(image_l_rectify);
         _visual_manager->FeedImages(std::make_pair(ts_sec, images));
     }
@@ -837,6 +842,11 @@ void VioManager::CameraCallback(const sensor_msgs::ImageConstPtr& msg0, const se
         utils::transfer_image(msg1, image_r);
         CamModel::getInstance().RectifyImage(0, image_l, &image_l_rectify);
         CamModel::getInstance().RectifyImage(1, image_r, &image_r_rectify);
+        if (params_.use_histequal)
+        {
+            cv::equalizeHist(image_l_rectify, image_l_rectify);
+            cv::equalizeHist(image_r_rectify, image_r_rectify);
+        }
         images.push_back(image_l_rectify);
         images.push_back(image_r_rectify);
         _visual_manager->FeedImages(std::make_pair(ts_sec, images));
