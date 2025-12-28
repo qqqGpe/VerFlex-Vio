@@ -83,7 +83,6 @@ void project_to_camera()
             Eigen::Vector3d p_inC = R_wc.transpose() * (p3d - p_wc);
             Eigen::Vector3d p_norm = p_inC / p_inC.z();
             Eigen::Vector3d uv = K * p_norm;
-            // p_norm = back_project(uv);
             CameraObs obs(uv.x(), uv.y(), p_norm.x(), p_norm.y());
             feat->_visual_obs_buffer.insert(make_pair(camera_ts[j], obs));
             feat->_valid = true;

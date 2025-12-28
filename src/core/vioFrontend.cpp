@@ -577,14 +577,15 @@ bool VioFrontend::TrackStereo(const std::pair<double, std::vector<cv::Mat>> &inp
     feature_observes.second.clear();
     for (auto it = cur_feature_obs_umap.begin(); it != cur_feature_obs_umap.end();)
     {
-        if (!it->second.valid)
+        CameraObs &obs = it->second;
+        if (!obs.valid)
         {
             it = cur_feature_obs_umap.erase(it);
         }
         else
         {
-            CamModel::getInstance().back_project(it->second);
-            feature_observes.second.push_back(it->second);
+            CamModel::getInstance().back_project_undistort(obs);
+            feature_observes.second.push_back(obs);
             ++it;
         }
     }
@@ -792,7 +793,7 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>> &
     for (auto &obs : cur_features_to_track)
     {
         obs.ts_sec = ts_sec;
-        CamModel::getInstance().back_project(obs);
+        CamModel::getInstance().back_project_undistort(obs);
     }
 
     feature_observes = std::make_pair(ts_sec, cur_features_to_track);

@@ -237,4 +237,14 @@ if(CATKIN_ENABLE_TESTING)
             ${GTEST_LIBRARIES}
         )
     endif()
+
+    # Unit test for undistortPoints back-projection
+    catkin_add_gtest(test_undistort_points src/test/test_undistort_points.cpp)
+    if (TARGET test_undistort_points)
+        target_link_libraries(test_undistort_points
+            ${catkin_LIBRARIES}
+            ${thirdparty_libraries}
+            ${GTEST_LIBRARIES}
+        )
+    endif()
 endif()

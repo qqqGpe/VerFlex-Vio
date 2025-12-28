@@ -36,11 +36,13 @@ public:
 
     void SetCameraIntrinsicMatrix(const std::vector<double>& intrinsic_coeff); // For debug
 
-    void back_project(CameraObs& obs) const;
+    void compute_distort_jacobian(const int &cam_id, const Eigen::Vector2d &uv_norm, Eigen::MatrixXd &H_dz_dzn);
 
-    Eigen::Vector2d project(const uint32_t cam_id, const Eigen::Vector3d& p3d_norm) const;
+    void back_project_undistort(CameraObs& obs) const;
 
-    void RectifyImage(const int32_t cam_id, const cv::Mat& img_raw_ptr, cv::Mat* img_rectified_ptr);    // Convert raw image to rectified image
+    Eigen::Vector2d project_distort(const uint32_t cam_id, const Eigen::Vector3d& p3d) const;
+
+    void RectifyImage(const int32_t cam_id, const cv::Mat& img_raw_ptr, cv::Mat* img_rectified_ptr);
 
     void Init(const Param params);
 

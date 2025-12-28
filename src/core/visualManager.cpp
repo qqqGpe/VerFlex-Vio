@@ -531,6 +531,11 @@ void VisualManager::UpdateFeatureStatistic(const double timestamp, std::pair<dou
 void VisualManager::ResetFeatureBase()
 {
     // feature_base_.clear();
+    for (auto& feat : feature_base_)
+    {
+        feat->reset();
+    }
+
     feature_new_.clear();
     feature_lost_.clear();
     feature_tracked_.clear();
@@ -972,7 +977,6 @@ bool VisualManager::StereoTriangulation(CameraObs& cam_obs, Eigen::Vector3d& pcf
     const double diff_x = abs(cam_obs.uv[LEFT_CAM].x() - cam_obs.uv[RIGHT_CAM].x());
     const double diff_y = abs(cam_obs.uv[LEFT_CAM].y() - cam_obs.uv[RIGHT_CAM].y());
 
-    // camera_model->back_project_stereo(cam_obs);
     const double focal_length = CamModel::getInstance().K(LEFT_CAM)(0, 0);
     const double baseline = CamModel::getInstance().getBaseline();
     const double z_depth = focal_length * baseline / diff_x;
@@ -1197,8 +1201,8 @@ bool VisualManager::SingleFeatureJacobian(const Feature* feat,
 
             // // Compute visual observations and residuals
             Eigen::Vector2d zm = obs.second.uv.at(cam_id);
-            Eigen::Vector2d uv = CamModel::getInstance().project(cam_id, p_finCi);
-            Eigen::Vector2d res = zm - uv;
+            Eigen::Vector2d uv_dist = CamModel::getInstance().project_distort(cam_id, p_finCi);
+            Eigen::Vector2d res = zm - uv_dist;
             Hfx.block<2, 1>(2 * cnt, Hfx.cols() - kResidualCols) = res;
 
             if (param_.use_fej)
@@ -1211,11 +1215,14 @@ bool VisualManager::SingleFeatureJacobian(const Feature* feat,
             }
 
             // Pre-compute dz_dpcf
-            Eigen::MatrixXd dz_norm_dpcf = Eigen::MatrixXd::Zero(2, 3);
-            dz_norm_dpcf << 1 / p_finCi(2), 0, -p_finCi(0) / (p_finCi(2) * p_finCi(2)),
-                            0, 1 / p_finCi(2), -p_finCi(1) / (p_finCi(2) * p_finCi(2));
-            Eigen::MatrixXd dz_uv_dz_norm = CamModel::getInstance().K(cam_id).topLeftCorner<2, 2>();
-            Eigen::MatrixXd dz_dpcf = dz_uv_dz_norm * dz_norm_dpcf;
+            Eigen::MatrixXd dzn_dpcf = Eigen::MatrixXd::Zero(2, 3);
+            dzn_dpcf << 1 / p_finCi(2), 0, -p_finCi(0) / (p_finCi(2) * p_finCi(2)),
+                        0, 1 / p_finCi(2), -p_finCi(1) / (p_finCi(2) * p_finCi(2));
+
+            Eigen::MatrixXd dz_dzn;
+            Eigen::Vector2d uv_norm(p_finCi(0) / p_finCi(2), p_finCi(1) / p_finCi(2));
+            CamModel::getInstance().compute_distort_jacobian(cam_id, uv_norm, dz_dzn);
+            Eigen::MatrixXd dz_dpcf = dz_dzn * dzn_dpcf;
 
             // Get jacobian wrt pwf
             Eigen::Matrix3d dpcf_dpwf = R_CitoG.transpose();
@@ -1270,7 +1277,7 @@ bool VisualManager::SingleFeatureJacobian(const Feature* feat,
             // R_CitoG_hat = R_IitoG * R_CtoI_hat;
             // p_CiinG_hat = p_IiinG + R_IitoG * p_CinI_hat;
             // p_finCi_hat = R_CitoG_hat.transpose() * (p_finG - p_CiinG_hat);
-            // Eigen::Vector2d uv_hat = CamModel::getInstance().project(cam_id, p_finCi_hat);
+            // Eigen::Vector2d uv_hat = CamModel::getInstance().project_distort(cam_id, p_finCi_hat);
             // Eigen::Vector2d dis = uv_hat - uv - Hx_plus_dR_ItoC;
             // std::cout << cv::format("cam_id: %d, uv_hat: [%f, %f], uv: [%f, %f], Hx_plus_dR_ItoC: [%f, %f], distance: [%f, %f]",
             //                          cam_id, uv_hat(0),uv_hat(1), uv(0), uv(1), Hx_plus_dR_ItoC(0), Hx_plus_dR_ItoC(1), dis(0), dis(1))
