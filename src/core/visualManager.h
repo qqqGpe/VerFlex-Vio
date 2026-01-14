@@ -81,10 +81,23 @@ class VisualManager
                                       Eigen::MatrixXd& Hx_full,
                                       Eigen::VectorXd& res);
 
+    bool ConstructFeatureJacobianFullSlam(std::vector<Feature*> feats,
+                                          std::unordered_map<std::shared_ptr<Type>, size_t>& Hx_mapping,
+                                          std::vector<std::shared_ptr<Type>>& Hx_order,
+                                          Eigen::MatrixXd& Hxf_full,
+                                          Eigen::VectorXd& residual_full);
+
     bool SingleFeatureJacobian(const Feature* feat,
-                               const std::unordered_map<std::shared_ptr<Type>, size_t> map_hx,
+                               const std::unordered_map<std::shared_ptr<Type>, size_t> Hx_mapping,
                                const int total_hx,
                                Eigen::MatrixXd& Hfx_single);
+
+    bool SingleFeatureJacobianSlam(const Feature* feat,
+                                   const std::unordered_map<std::shared_ptr<Type>, size_t> Hx_mapping,
+                                   const int total_hx,
+                                   Eigen::MatrixXd& Hf,
+                                   Eigen::MatrixXd& Hx,
+                                   Eigen::VectorXd& res);
 
     bool PnpRansacToRejectOutliers(std::vector<Feature*> feats);
 

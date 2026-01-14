@@ -138,6 +138,7 @@ bool State::AugumentSlamFeature(Feature* feature,
                                 const Eigen::MatrixXd& Hf,
                                 const Eigen::MatrixXd& Hx,
                                 const std::vector<std::shared_ptr<Type>>& Hx_order,
+                                const Eigen::MatrixXd& R,
                                 std::unordered_map<std::shared_ptr<Type>, size_t>& map_hx)
 {
     // Create SlamFeature
@@ -157,13 +158,14 @@ bool State::AugumentSlamFeature(Feature* feature,
     }
 
     Eigen::MatrixXd Hf_inv = Hf.inverse();
-    Eigen::MatrixXd Pff = Hf_inv * (Hx_all * old_covariance * Hx_all.transpose()) * Hf_inv.transpose();
+    Eigen::MatrixXd Pff = Hf_inv * (Hx_all * old_covariance * Hx_all.transpose() + R) * Hf_inv.transpose();
     Eigen::MatrixXd Pxf = -old_covariance * Hx_all.transpose() * Hf_inv.transpose();
 
     // Set local id and augument state vector
-    new_feature._state_ptr->set_local_id(_dim);
-    _variables.push_back(new_feature._state_ptr);
-    _dim += new_feature._state_ptr->size();
+    std::shared_ptr<Vec>& landmark_state = new_feature._state_ptr;
+    landmark_state->set_local_id(_dim);
+    _variables.push_back(landmark_state);
+    _dim += landmark_state->size();
 
     // Augument covariance
     Eigen::MatrixXd new_covariance = Eigen::MatrixXd::Zero(_dim, _dim);

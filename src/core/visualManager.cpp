@@ -80,12 +80,12 @@ bool VisualManager::SlamFeatureUpdate(std::vector<Feature*> feats_slam)
         LOG(INFO) << "No slam features to update.";
         return false;
     }
-    std::unordered_map<std::shared_ptr<Type>, size_t> map_hx;
+    std::unordered_map<std::shared_ptr<Type>, size_t> Hx_mapping;
     std::vector<std::shared_ptr<Type>> Hx_order;
     Eigen::MatrixXd Hx_slam;
     Eigen::VectorXd res;
 
-    if (!ConstructFeatureJacobianFull(FeatureUpdateType::kSlamUpdate, feats_slam, map_hx, Hx_order, Hx_slam, res))
+    if (!ConstructFeatureJacobianFullSlam(feats_slam, Hx_mapping, Hx_order, Hx_slam, res))
     {
         LOG(WARNING) << "Failed to construct feature jacobian for slam update.";
         return false;
@@ -95,7 +95,7 @@ bool VisualManager::SlamFeatureUpdate(std::vector<Feature*> feats_slam)
 
     if (_state->_clone_pose.size() == param_.max_clone_pose)
     {
-        solver_->update(_state, Hx_slam, res, Hx_order, map_hx, R);
+        solver_->update(_state, Hx_slam, res, Hx_order, Hx_mapping, R);
         _state->UpdateSlamFeatureAfterVisualUpdate();
         return true;
     }
@@ -121,15 +121,23 @@ void VisualManager::SelectSlamFeatures(std::vector<Feature*>& feature_tracked, s
             it = feature_tracked.erase(it);
             continue;
         }
-        else if (feature->_visual_obs_buffer.size() == param_.max_clone_pose &&
-                 feature->_parallex > kMinParallexForSlam &&
-                 _state->slam_features().size() + feat_slam_new.size() < param_.max_slam_feature)
+        else if (feature->_visual_obs_buffer.size() == param_.max_clone_pose && feature->_parallex > kMinParallexForSlam)
         {
             // Temporarily set as msckf point for jacobian calculation
             // feature->_type = FeatureType::kMsckfPoint;
             feat_slam_new.push_back(feature);
         }
         it++;
+    }
+
+    if (feat_slam_new.size() > 0)
+    {
+        // auto compare_feat_func = [](Feature* feat_a, Feature* feat_b) { return feat_a->_visual_obs_buffer.size() > feat_b->_visual_obs_buffer.size(); };
+
+        auto compare_feat_func = [](Feature* feat_a, Feature* feat_b) { return feat_a->_theta_parallex > feat_b->_theta_parallex; };
+
+        std::sort(feat_slam_new.begin(), feat_slam_new.end(), compare_feat_func);
+        feat_slam_new.resize(std::min(static_cast<size_t>(param_.max_slam_feature - _state->slam_features().size()), feat_slam_new.size()));
     }
 }
 
@@ -216,6 +224,7 @@ void VisualManager::InitializeNewSlamFeatures(std::vector<Feature*>& feat_slam_n
         Eigen::MatrixXd Hf = Hfx_qr.topLeftCorner(3, 3);
         Eigen::MatrixXd Hx1 = Hfx_qr.topRightCorner(3, Hfx_qr.cols() - 3);
         Eigen::MatrixXd Hx2 = Hfx_qr.bottomRightCorner(Hfx_qr.rows() - 3, Hfx_qr.cols() - 3);
+        Eigen::MatrixXd R = Eigen::MatrixXd::Identity(3, 3) * std::pow(param_.sigma_visual_pix, 2);
 
         // Eigen::MatrixXd Pxx = _state->GetInvolvedCovarianceMatrix(Hx_order);
         // Eigen::MatrixXd Pff = Hf.inverse() * (Hx1 * Pxx * Hx1.transpose() + R) * Hf.inverse().transpose();
@@ -223,12 +232,15 @@ void VisualManager::InitializeNewSlamFeatures(std::vector<Feature*>& feat_slam_n
         feature->_pwf += Hf.inverse() * r1;
         feature->_type = FeatureType::kSlamPoint;
 
-        if (!_state->AugumentSlamFeature(feature, Hf, Hx1, Hx_order, map_hx))
+        if (!_state->AugumentSlamFeature(feature, Hf, Hx1, Hx_order, R, map_hx))
         {
             LOG(WARNING) << fmt::format("Failed to augment slam feature {:d}", feature->_id);
             it = feat_slam_new.erase(it);
             continue;
         }
+
+        R = Eigen::MatrixXd::Identity(Hx2.rows(), Hx2.rows()) * std::pow(param_.sigma_visual_pix, 2);
+        solver_->update(_state, Hx2, r2, Hx_order, map_hx, R);
 
         it++;
     }
@@ -360,7 +372,7 @@ bool VisualManager::VisualUpdate()
 
 KeyFrameStatus VisualManager::MaybeSetKeyframe(std::shared_ptr<State> _state, std::vector<Feature*> feats)
 {
-    constexpr double kLargeParallexThres = 15.f;
+    constexpr double kLargeParallexThres = 10.f;
 
     if (_state->_clone_pose.size() < max_clone_pose_)
     {
@@ -373,17 +385,38 @@ KeyFrameStatus VisualManager::MaybeSetKeyframe(std::shared_ptr<State> _state, st
     double pixel_parallex_avg = 0.f;
     for (auto x : feats)
     {
-        if (x->_visual_obs_buffer.size() < 1)
+        if (x->_visual_obs_buffer.size() < 2)
         {
             continue;
         }
-        auto last_it = x->_visual_obs_buffer.rbegin();
-        auto sub_last_it = x->_visual_obs_buffer.rbegin();
-        ++sub_last_it;
+        auto lastest_iter = x->_visual_obs_buffer.rbegin();
+        auto sub_lastest_iter = x->_visual_obs_buffer.rbegin();
+        ++sub_lastest_iter;
 
-        CameraObs curr_obs = last_it->second;
-        CameraObs prev_obs = sub_last_it->second;
-        Eigen::Vector2d uv_distance = curr_obs.uv[LEFT_CAM] - prev_obs.uv[LEFT_CAM];
+        double curr_ts = lastest_iter->first;
+        double prev_ts = sub_lastest_iter->first;
+        CameraObs curr_obs = lastest_iter->second;
+        CameraObs prev_obs = sub_lastest_iter->second;
+
+        // Get rotation matrices for both poses
+        Eigen::Matrix3d R_curr = _state->_clone_pose.at(curr_ts)->quat().toRotationMatrix();
+        Eigen::Matrix3d R_prev = _state->_clone_pose.at(prev_ts)->quat().toRotationMatrix();
+
+        // Compute relative rotation from prev to curr
+        Eigen::Matrix3d R_prev_to_curr = R_curr.transpose() * R_prev;
+
+        // Get normalized coordinates of previous observation
+        Eigen::Vector3d prev_ray(prev_obs.uv_norm[LEFT_CAM].x(), prev_obs.uv_norm[LEFT_CAM].y(), 1.0);
+
+        // Rotate the previous ray to current frame (removing rotation effect)
+        Eigen::Vector3d prev_ray_rotated = R_prev_to_curr * prev_ray;
+        prev_ray_rotated /= prev_ray_rotated.z();
+
+        // Project rotated ray to pixel coordinates
+        Eigen::Vector2d prev_uv_rotated = CamModel::getInstance().project_distort(LEFT_CAM, prev_ray_rotated);
+
+        // Calculate pixel distance after rotation compensation
+        Eigen::Vector2d uv_distance = curr_obs.uv[LEFT_CAM] - prev_uv_rotated;
         pixel_parallex = uv_distance.norm();
         pixel_parallex_avg += pixel_parallex;
         cnt++;
@@ -393,13 +426,13 @@ KeyFrameStatus VisualManager::MaybeSetKeyframe(std::shared_ptr<State> _state, st
     // Decide keyframe status
     if (pixel_parallex_avg > kLargeParallexThres)
     {
-        return KeyFrameStatus::kLargeParallex;
+        return KeyFrameStatus::kLargeParallex;  // TODO：这里要优化一下
     }
     else if (feature_lost_.size() > 0.7 * param_.max_feat_n)
     {
         return KeyFrameStatus::kFeatureLostTooMuch;
     }
-    else if (feature_tracked_.size() < 0.3 * param_.max_feat_n)
+    else if (feature_tracked_.size() < 20)
     {
         return KeyFrameStatus::kTooFewFeatureTracked;
     }
@@ -433,8 +466,12 @@ void VisualManager::MarginalizeSlamFeatureLost()
         return;
     }
 
+    assert(_state->slam_features().size() <= param_.max_slam_feature);
+    std::cout << "total slam features: " << _state->slam_features().size() << std::endl;
+    uint32_t cnt = 0;
     for (auto &[id, feat_slam] : _state->slam_features())
     {
+        std::cout << "marge cnt" << cnt++ << ", feature id: " << id << std::endl;
         // Check if this SLAM feature needs to be marginalized
         bool should_marginalize = false;
         for (auto& feat_lost : feature_lost_)
@@ -1057,6 +1094,96 @@ void VisualManager::CalculateMaxFeatureParallex(std::vector<Feature*>& feats)
     }
 }
 
+bool VisualManager::ConstructFeatureJacobianFullSlam(std::vector<Feature*> feats,
+                                                     std::unordered_map<std::shared_ptr<Type>, size_t>& Hx_mapping,
+                                                     std::vector<std::shared_ptr<Type>>& Hx_order,
+                                                     Eigen::MatrixXd& Hxf_full,
+                                                     Eigen::VectorXd& residual_full)
+{
+    Hx_mapping.clear();
+    Hx_order.clear();
+    uint32_t total_hx = 0;
+
+    // Add clone poses to Hx map
+    for (auto x : _state->_clone_pose)
+    {
+        Hx_mapping.emplace(x.second, total_hx);
+        Hx_order.push_back(x.second);
+        total_hx += x.second->size();
+    }
+
+    // Add extrinsic to Hx map
+    if (_state->enableEstimateRic())
+    {
+        for (uint8_t i = 0; i < param_.camera_num; i++)
+        {
+            Hx_mapping.emplace(_state->mutable_Qic(i), total_hx);
+            Hx_order.push_back(_state->mutable_Qic(i));
+            total_hx += _state->mutable_Qic(i)->size();
+        }
+    }
+
+    std::vector<SlamFeature> slam_features;
+    for (auto& feat : feats)
+    {
+        slam_features.push_back(_state->slam_features().at(feat->_id));
+    }
+    uint32_t max_hx_cols = _state->Covariance().cols();
+
+    Hxf_full.resize(4 * slam_features.size() * _state->_clone_pose.size(), max_hx_cols);
+    residual_full.resize(4 * slam_features.size() * _state->_clone_pose.size(), 1);
+    Hxf_full.setZero();
+    residual_full.setZero();
+
+    uint32_t Hxf_rows = 0;
+    // for (int i = 0; i < slam_features.size(); i++)
+    for (auto& f : slam_features)
+    {
+        Eigen::MatrixXd Hf;
+        Eigen::MatrixXd Hx;
+        Eigen::VectorXd res;
+        Feature* feat = f._info;
+        std::shared_ptr<Type> feat_ptr = f._state_ptr;
+        if (feat->_is_triangulated)
+        {
+            if (!SingleFeatureJacobianSlam(feat, Hx_mapping, total_hx, Hf, Hx, res))
+            {
+                continue;
+            }
+            Hx_mapping.emplace(feat_ptr, total_hx);
+            Hx_order.push_back(feat_ptr);
+            total_hx += feat_ptr->size();
+
+            Hxf_full.block(Hxf_rows, 0, Hx.rows(), Hx.cols()) = Hx;
+            Hxf_full.block(Hxf_rows, Hx_mapping.at(feat_ptr), Hf.rows(), Hf.cols()) = Hf;
+            residual_full.segment(Hxf_rows, res.rows()) = res;
+            Hxf_rows += Hx.rows();
+            // Hx_full.block(Hxf_rows, 0, Hx.rows(), Hx.cols()) = Hx;
+            // Hxf_rows += Hx.rows();
+        }
+    }
+    Hxf_full.conservativeResize(Hxf_rows, total_hx);
+
+    if(Hxf_rows == 0)
+    {
+        LOG(WARNING) << "No valid feature jacobian constructed.";
+        return false;
+    }
+
+    // 创建临时矩阵Hxfr用于压缩观测矩阵Hxf
+    Eigen::MatrixXd Hxfr_full = Eigen::MatrixXd::Zero(Hxf_full.rows(), Hxf_full.cols() + 1);
+    Hxfr_full.leftCols(Hxf_full.cols()) = Hxf_full;
+    Hxfr_full.rightCols(1) = residual_full;
+
+    // 压缩观测矩阵Hxf
+    Hxfr_full = utils::math::GivensRotation(Hxfr_full, Hxfr_full.cols() - 1);
+    uint32_t final_hx_rows = Hxfr_full.cols() - 1;
+    Hxf_full = Hxfr_full.block(0, 0, final_hx_rows, Hxfr_full.cols() - 1);
+    residual_full = Hxfr_full.block(0, Hxfr_full.cols() - 1, final_hx_rows, 1);
+
+    return true;
+}
+
 bool VisualManager::ConstructFeatureJacobianFull(FeatureUpdateType update_type,
                                                  std::vector<Feature*> feats,
                                                  std::unordered_map<std::shared_ptr<Type>, size_t>& map_hx,
@@ -1330,6 +1457,109 @@ bool VisualManager::SingleFeatureJacobian(const Feature* feat,
     // Hx.noalias() = Hfx.block(3, 3, Hfx.rows() - 3, Hfx.cols() - 3);
 
     Hfx_single = Hfx;
+
+    return true;
+}
+
+bool VisualManager::SingleFeatureJacobianSlam(const Feature* feat,
+                                              const std::unordered_map<std::shared_ptr<Type>, size_t> Hx_mapping,
+                                              const int total_hx,
+                                              Eigen::MatrixXd& Hf,
+                                              Eigen::MatrixXd& Hx,
+                                              Eigen::VectorXd& residual)
+{
+    uint32_t total_meas = 0;
+    for (auto& obs : feat->_visual_obs_buffer)
+    {
+        total_meas += CamModel::getInstance().camera_num(); // 双目的每个clonepose有两个观测，单目只有一个观测
+    }
+    Hf = Eigen::MatrixXd::Zero(2 * total_meas, 3);
+    Hx = Eigen::MatrixXd::Zero(2 * total_meas, total_hx);
+    residual = Eigen::VectorXd::Zero(2 * total_meas);
+
+    Eigen::Vector3d p_finG = feat->_pwf;
+    Eigen::Vector2d res_total = Eigen::Vector2d::Zero();
+    uint32_t cnt = 0;
+
+    for (auto& obs : feat->_visual_obs_buffer)
+    {
+        double obs_ts = obs.first;
+        for (int cam_id = 0; cam_id < param_.camera_num; cam_id++)
+        {
+            double focal_length;
+            Eigen::Matrix3d R_CtoI;
+            Eigen::Vector3d p_CinI;
+
+            focal_length = CamModel::getInstance().K(LEFT_CAM)(0, 0);
+            R_CtoI = _state->Qic(cam_id).toRotationMatrix();
+            p_CinI = _state->Pic(cam_id);
+
+            std::shared_ptr<Pose> obs_pose = _state->_clone_pose.at(obs_ts);
+            Eigen::Matrix3d R_IitoG = obs_pose->quat().toRotationMatrix();
+            Eigen::Vector3d p_IiinG = obs_pose->p();
+
+            Eigen::Matrix3d R_CitoG = R_IitoG * R_CtoI;
+            Eigen::Vector3d p_CiinG = p_IiinG + R_IitoG * p_CinI;
+
+            Eigen::Vector3d p_finCi = R_CitoG.transpose() * (p_finG - p_CiinG);
+
+            // // Compute visual observations and residuals
+            Eigen::Vector2d zm = obs.second.uv.at(cam_id);
+            Eigen::Vector2d uv_dist = CamModel::getInstance().project_distort(cam_id, p_finCi);
+            Eigen::Vector2d res = zm - uv_dist;
+            residual.segment<2>(2 * cnt) = res;
+            // Hfx.block<2, 1>(2 * cnt, Hfx.cols() - kResidualCols) = res;
+
+            if (param_.use_fej)
+            {
+                R_IitoG = obs_pose->quat_fej().toRotationMatrix();
+                p_IiinG = obs_pose->p_fej();
+                R_CitoG = R_IitoG * R_CtoI;
+                p_CiinG = p_IiinG + R_IitoG * p_CinI;
+                p_finCi = R_CitoG.transpose() * (p_finG - p_CiinG);
+            }
+
+            // Pre-compute dz_dpcf
+            Eigen::MatrixXd dzn_dpcf = Eigen::MatrixXd::Zero(2, 3);
+            dzn_dpcf << 1 / p_finCi(2), 0, -p_finCi(0) / (p_finCi(2) * p_finCi(2)),
+                        0, 1 / p_finCi(2), -p_finCi(1) / (p_finCi(2) * p_finCi(2));
+
+            Eigen::MatrixXd dz_dzn;
+            Eigen::Vector2d uv_norm(p_finCi(0) / p_finCi(2), p_finCi(1) / p_finCi(2));
+            CamModel::getInstance().compute_distort_jacobian(cam_id, uv_norm, dz_dzn);
+            Eigen::MatrixXd dz_dpcf = dz_dzn * dzn_dpcf;
+
+            // Get jacobian wrt pwf
+            Eigen::Matrix3d dpcf_dpwf = R_CitoG.transpose();
+            Hf.block<2, 3>(2 * cnt, 0) = dz_dpcf * dpcf_dpwf;
+            // Hfx.block<2, 3>(2 * cnt, pwf_id) = dz_dpcf * dpcf_dpwf;
+
+            // Get jacobian wrt extrinsic parameters
+            if (_state->enableEstimateRic())
+            {
+                Eigen::Matrix3d dpcf_dqic = utils::math::skew(p_finCi);
+                // Hfx.block<2, 3>(2 * cnt, reserve_cols + Hx_mapping.at(_state->mutable_Qic(cam_id))) = dz_dpcf * dpcf_dqic;
+                Hx.block<2, 3>(2 * cnt, Hx_mapping.at(_state->mutable_Qic(cam_id))) = dz_dpcf * dpcf_dqic;
+            }
+
+            // Get jacobian wrt clone pose
+            Eigen::MatrixXd dpcf_dclone = Eigen::MatrixXd::Zero(3, 6);
+            dpcf_dclone.block<3, 3>(0, 0) = R_CtoI.transpose() * utils::math::skew(R_IitoG.transpose() * (p_finG - p_IiinG));
+            dpcf_dclone.block<3, 3>(0, 3) = -R_CitoG.transpose();
+            // Hfx.block<2, 6>(2 * cnt, reserve_cols + Hx_mapping.at(obs_pose)) = dz_dpcf * dpcf_dclone;
+            Hx.block<2, 6>(2 * cnt, Hx_mapping.at(obs_pose)) = dz_dpcf * dpcf_dclone;
+
+            res_total += res;
+            cnt++;
+        }
+    }
+
+    double threshold = 4.0f;
+    if (res_total.norm() / cnt > threshold)
+    {
+        std::cout << "residual is too large: " << res_total.norm() / cnt << ", threashold is: " << threshold << std::endl;
+        return false;
+    }
 
     return true;
 }

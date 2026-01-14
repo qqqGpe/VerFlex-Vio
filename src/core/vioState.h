@@ -112,11 +112,11 @@ class State
 
     std::map<uint32_t, SlamFeature>& mutable_slam_features() { return _slam_features; }
 
-    std::map<uint32_t, SlamFeature> slam_features() const { return _slam_features; }
+    const std::map<uint32_t, SlamFeature> slam_features() const { return _slam_features; }
 
     std::map<double, std::shared_ptr<Pose>>& mutable_clone_poses() { return _clone_pose; }
 
-    std::map<double, std::shared_ptr<Pose>> clone_poses() const { return _clone_pose; }
+    const std::map<double, std::shared_ptr<Pose>> clone_poses() const { return _clone_pose; }
 
     Eigen::MatrixXd& mutable_covariance() { return _covariance; }
 
@@ -126,6 +126,7 @@ class State
                              const Eigen::MatrixXd& Hf,
                              const Eigen::MatrixXd& Hx,
                              const std::vector<std::shared_ptr<Type>>& Hx_order,
+                             const Eigen::MatrixXd& R,
                              std::unordered_map<std::shared_ptr<Type>, size_t>& map_hx);
 
     uint32_t _dim = 0;

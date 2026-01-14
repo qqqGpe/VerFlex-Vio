@@ -9,8 +9,8 @@
 # Default file paths (can be configured here)
 DATA_CASE="MH_01_easy"
 GT_FILE="$HOME/ws/catkin_ws/src/vio_backend/data/euroc/ground_truth/$DATA_CASE/${DATA_CASE}_groundtruth.csv"
-RESULT_FILE="/home/gao/ws/catkin_ws/src/vio_backend/data/euroc/openvins/MH_01_easy.csv"
-# RESULT_FILE="/home/gao/ws/catkin_ws/src/vio_backend/data/euroc/openvins/MH_01_easy_slam.csv"
+# RESULT_FILE="/home/gao/ws/catkin_ws/src/vio_backend/data/euroc/openvins/MH_01_easy.csv"
+RESULT_FILE="/home/gao/ws/catkin_ws/src/vio_backend/data/euroc/openvins/MH_01_easy_slam.csv"
 
 # Use command line arguments if provided, otherwise use defaults
 if [ $# -eq 2 ]; then
