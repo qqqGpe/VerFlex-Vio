@@ -9,6 +9,7 @@
 #include <Eigen/Dense>
 #include <opencv2/core/core.hpp>
 #include <sophus/so3.hpp>
+#include <fmt/format.h>
 
 using namespace Sophus;
 

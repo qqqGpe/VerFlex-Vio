@@ -18,8 +18,8 @@
     <!-- <arg name="dataset"     default="MH_05_difficult" /> -->
 
     <!-- <arg name="bag"         default="/media/gao/samsung/dataset/euroc_mav/$(arg dataset).bag" /> -->
-    <!-- <arg name="bag"         default="/mnt/d/euroc_mav/MH_01_easy/$(arg dataset).bag" /> -->
-    <arg name="bag_path"        default="/home/gao/dataset/euroc_mav/$(arg dataset).bag" />
+    <arg name="bag_path"         default="/mnt/d/euroc_mav/MH_01_easy/$(arg dataset).bag" />
+    <!-- <arg name="bag_path"        default="/home/gao/dataset/euroc_mav/$(arg dataset).bag" /> -->
 
     <!-- if show rviz -->
     <arg name="use_rviz"        default="false"/>

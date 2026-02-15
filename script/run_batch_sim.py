@@ -14,14 +14,14 @@ import argparse
 import csv
 from tabulate import tabulate
 
-# Substitute with your dataset path
-DATA_DIR = os.path.join(os.path.expanduser("~"), "dataset/euroc_mav")
-WS_DIR = os.path.join(os.path.expanduser("~"), "ws/catkin_ws")
-LOG_DIR = os.path.join(WS_DIR, "src/vio_backend/log/vio_sim_" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M"))
-CODEBASE_DIR = os.path.join(WS_DIR, "src/vio_backend")
-# Define the list of cases to process
-# CASE_LIST = ["MH_01_easy", "MH_02_easy", "MH_03_medium", "V1_01_easy", "V1_02_medium", "V2_01_easy", "V2_02_medium"]
-CASE_LIST = ["MH_01_easy"]
+# Auto-detect workspace from script location:
+#   script is at <ws>/src/<pkg>/script/run_batch_sim.py
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PACKAGE_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))           # <ws>/src/<pkg>
+DEFAULT_WS_DIR = os.path.abspath(os.path.join(PACKAGE_DIR, "..", ".."))  # <ws>
+DEFAULT_PKG_NAME = os.path.basename(PACKAGE_DIR)                        # e.g. vio_msckf
+
+ALL_CASES = ["MH_01_easy", "MH_02_easy", "MH_03_medium", "V1_01_easy", "V1_02_medium", "V2_01_easy", "V2_02_medium"]
 
 logging.basicConfig(
     level=logging.INFO,
@@ -111,10 +111,10 @@ def extract_results(log_dir, case_name):
         return None
 
 
-def evaluate_results(log_dir, case_name):
+def evaluate_results(log_dir, case_name, codebase_dir):
     logger.info(f"Evaluating results for case: {case_name}")
-    # Find groundtruth file in CODEBASE_DIR/data/euroc
-    ground_truth_data_dir = os.path.join(CODEBASE_DIR, "data/euroc/ground_truth")
+    # Find groundtruth file in codebase_dir/data/euroc
+    ground_truth_data_dir = os.path.join(codebase_dir, "data/euroc/ground_truth")
     groundtruth_file = None
 
     # Look for matching case folder in ground truth data directory
@@ -224,44 +224,95 @@ def save_and_show_results(log_dir, result_list):
         print("="*80 + "\n")
 
 
-def run_slam_and_rosbag(data_dir, case_name, ros_node_name, roslaunch_name, log_dir):
+def run_slam_and_rosbag(data_dir, case_name, ros_node_name, roslaunch_name, log_dir, codebase_dir):
     logger.info(f"Launching SLAM system: {roslaunch_name}")
-    dataset_name = os.path.splitext(os.path.basename(rosbag_file))[0]
     cmd_disbale_rviz = "use_rviz:=false"
     cmd_disable_full_log = "save_full_log:=false"
-    cmd_set_bag_path = f"bag_path:={os.path.join(data_dir, case_name + '.bag')}"
+    cmd_set_bag_path = f"bag_path:={os.path.join(data_dir, case_name, case_name + '.bag')}"
     cmd_set_log_path = f"log_path:={log_dir}"
     cmd_set_dataset = f"dataset:={case_name}"
     cmd_use_limit = f"use_rate_limit:={False}"
     command_list = ' '.join(["roslaunch", ros_node_name, roslaunch_name, cmd_disbale_rviz, cmd_disable_full_log, cmd_set_bag_path, cmd_set_log_path, cmd_set_dataset, cmd_use_limit])
     run_command(command_list)
-    result = evaluate_results(log_dir, case_name)
+    result = evaluate_results(log_dir, case_name, codebase_dir)
     return result
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Batch VIO Simulation Script")
+    parser = argparse.ArgumentParser(
+        description="Batch VIO Simulation Script",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Examples:
+  # Run from catkin_ws with defaults (auto-detect workspace):
+  python3 src/vio_msckf/script/run_batch_sim.py --dataset_dir /mnt/d/euroc_mav
+
+  # Specify workspace explicitly + run multiple cases:
+  python3 run_batch_sim.py --ws_dir ~/ws/catkin_ws --dataset_dir ~/dataset/euroc_mav --cases MH_01_easy,MH_02_easy
+
+  # Run all EuRoC cases:
+  python3 run_batch_sim.py --dataset_dir /mnt/d/euroc_mav --cases all
+""")
+    parser.add_argument("--ws_dir", type=str, default="",
+                        help="Catkin workspace root (default: auto-detect from script location or cwd)")
+    parser.add_argument("--dataset_dir", type=str, required=True,
+                        help="EuRoC dataset directory containing .bag files")
+    parser.add_argument("--cases", type=str, default="MH_01_easy",
+                        help="Comma-separated case names, or 'all' for all EuRoC cases (default: MH_01_easy)")
     parser.add_argument("--ros_node", type=str, default="vio", help="Name of the ROS node")
     parser.add_argument("--launch_file", type=str, default="euroc_serial_backend.launch", help="ROS launch file to use")
     args = parser.parse_args()
 
-    logger.info(f"Found {len(CASE_LIST)} rosbag files for simulation:")
-    for i, rosbag_file in enumerate(CASE_LIST, 1):
-        logger.info(f"{i}. {rosbag_file}")
+    # Resolve workspace directory
+    if args.ws_dir:
+        ws_dir = os.path.abspath(os.path.expanduser(args.ws_dir))
+    else:
+        # Try cwd first (user runs from catkin_ws), then fall back to script-relative detection
+        cwd = os.getcwd()
+        if os.path.isfile(os.path.join(cwd, "src", "CMakeLists.txt")):
+            ws_dir = cwd
+        else:
+            ws_dir = DEFAULT_WS_DIR
+    logger.info(f"Workspace: {ws_dir}")
 
-    os.chdir(WS_DIR)
-    os.makedirs(LOG_DIR, exist_ok=True)
+    # Resolve package (codebase) directory
+    codebase_dir = os.path.join(ws_dir, "src", DEFAULT_PKG_NAME)
+    if not os.path.isdir(codebase_dir):
+        codebase_dir = PACKAGE_DIR  # fallback to script's own package
+    logger.info(f"Package dir: {codebase_dir}")
 
-    # Process each rosbag file
+    # Resolve dataset directory
+    data_dir = os.path.abspath(os.path.expanduser(args.dataset_dir))
+    if not os.path.isdir(data_dir):
+        logger.error(f"Dataset directory does not exist: {data_dir}")
+        exit(1)
+    logger.info(f"Dataset dir: {data_dir}")
+
+    # Resolve case list
+    if args.cases.lower() == "all":
+        case_list = ALL_CASES
+    else:
+        case_list = [c.strip() for c in args.cases.split(",") if c.strip()]
+
+    # Log directory
+    log_dir = os.path.join(codebase_dir, "log", "vio_sim_" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M"))
+
+    logger.info(f"Cases to run ({len(case_list)}):")
+    for i, name in enumerate(case_list, 1):
+        logger.info(f"  {i}. {name}")
+
+    os.chdir(ws_dir)
+    os.makedirs(log_dir, exist_ok=True)
+
+    # Process each case
     result_list = list()
-    for case_name in CASE_LIST:
+    for case_name in case_list:
         logger.info(f"\n=== Processing rosbag: {case_name} ===")
-        result = run_slam_and_rosbag(DATA_DIR, case_name, args.ros_node, args.launch_file, LOG_DIR)
+        result = run_slam_and_rosbag(data_dir, case_name, args.ros_node, args.launch_file, log_dir, codebase_dir)
         result_list.append(result)
         logger.info(f"=== Finished processing {case_name} ===\n")
         # Short pause to ensure system is fully cleaned up
         time.sleep(1)
 
-    save_and_show_results(LOG_DIR, result_list)
+    save_and_show_results(log_dir, result_list)
 
 
