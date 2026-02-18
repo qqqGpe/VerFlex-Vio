@@ -62,17 +62,6 @@ VioManager::VioManager(std::shared_ptr<ros::NodeHandle>& nh, const Param& params
         exit(1);
     }
 
-    // Loggers configuration
-    if (params.save_full_log)
-    {
-        vio_logger = std::make_shared<utils::LoggerFull>(params.log_path, params.bag_name);
-    }
-
-    if (params.save_tum_log)
-    {
-        vio_logger_tum = std::make_shared<utils::LoggerTUM>(params.log_path, params.bag_name);
-    }
-
     lazy_time_ = params.lazy_time;
     use_zupt_ = params.use_zupt;
 }
@@ -134,10 +123,12 @@ GroundTruth VioManager::InterpolateGroundTruth(const double ts) const
  * @param images Pair of timestamp and vector of images
  * @param feature_observes Output pair of timestamp and vector of camera observations
  */
-bool VioManager::TryFrontendTrack(const std::pair<double, std::vector<cv::Mat>>& images, std::pair<double, std::vector<CameraObs>>& feature_observes)
+bool VioManager::TryFrontendTrack(const std::pair<double, std::vector<cv::Mat>> &images,
+                                  std::pair<double, std::vector<CameraObs>> &feature_observes)
 {
     const double td_visual = state->enableEstimateTdVisual() ? state->td_visual().data() : 0.0;
-    std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(state->ts_sec(), images.first + td_visual);
+    std::vector<ImuData> imu_data =
+        _imu_manager->AccessIntervalImuMeasurements(state->ts_sec(), images.first + td_visual);
     bool do_prediction_flag = params_.frontend_prediction && initializer->IsInitialized();
 
     Eigen::Matrix3d Rwc = Eigen::Matrix3d::Identity();
@@ -181,7 +172,8 @@ bool VioManager::TryDynamicInitialization(const std::pair<double, std::vector<cv
 {
     if (!initializer->IsInitialized())
     {
-        std::shared_ptr<DynamicInitializer> dynamic_initializer = std::dynamic_pointer_cast<DynamicInitializer>(initializer);
+        std::shared_ptr<DynamicInitializer> dynamic_initializer =
+            std::dynamic_pointer_cast<DynamicInitializer>(initializer);
 
         std::optional<double> lastest_obv_ts = dynamic_initializer->getLastestFeatureMeasurementTimestamp();
         std::pair<double, cv::Mat> mono_image = std::make_pair(feature_observes.first, image.second[LEFT_CAM]);
@@ -189,7 +181,8 @@ bool VioManager::TryDynamicInitialization(const std::pair<double, std::vector<cv
         {
             if (feature_observes.second.size() < Sfm::kMinRequiredFeaturesPerFrame)
             {
-                _visual_manager->SetKeyframeState(KeyFrameStatus::kFeatureLostTooMuch);  // Switch keyframe if too few features
+                _visual_manager->SetKeyframeState(
+                    KeyFrameStatus::kFeatureLostTooMuch); // Switch keyframe if too few features
                 LOG(INFO) << fmt::format("Switch visual frontend keyframe for dynamic initialization");
             }
             return false;
@@ -202,7 +195,8 @@ bool VioManager::TryDynamicInitialization(const std::pair<double, std::vector<cv
             imu_data = _imu_manager->AccessIntervalImuMeasurements(lastest_obv_ts.value(), feature_observes.first);
             if (imu_data.empty())
             {
-                LOG(WARNING) << fmt::format("No IMU data available for dynamic initialization at {:f}s", feature_observes.first);
+                LOG(WARNING) << fmt::format("No IMU data available for dynamic initialization at {:f}s",
+                                            feature_observes.first);
                 initializer->reset();
                 return false;
             }
@@ -252,11 +246,13 @@ bool VioManager::TryStaticInitialization(const std::pair<double, std::vector<cv:
 
         if (feature_observes.second.size() < Sfm::kMinRequiredFeaturesPerFrame)
         {
-            _visual_manager->SetKeyframeState(KeyFrameStatus::kFeatureLostTooMuch);  // Switch keyframe if too few features
+            _visual_manager->SetKeyframeState(
+                KeyFrameStatus::kFeatureLostTooMuch); // Switch keyframe if too few features
             LOG(INFO) << fmt::format("Switch visual frontend keyframe for dynamic initialization");
         }
 
-        std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(state->_imu_state->ts(), feature_observes.first);
+        std::vector<ImuData> imu_data =
+            _imu_manager->AccessIntervalImuMeasurements(state->_imu_state->ts(), feature_observes.first);
         solver->PropagateStateAndCovariance(imu_data, feature_observes.first, state);
         if (initializer->StereoVisualInitialize(feature_observes))
         {
@@ -286,7 +282,8 @@ bool VioManager::TryZuptUpdate(const double ts_sec)
     {
         if (_imu_manager->IsStaticStatus())
         {
-            std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(state->_imu_state->ts(), ts_sec);
+            std::vector<ImuData> imu_data =
+                _imu_manager->AccessIntervalImuMeasurements(state->_imu_state->ts(), ts_sec);
             if (imu_data.empty())
             {
                 LOG(WARNING) << fmt::format("No IMU data available for ZUPT update at {:f}s", ts_sec);
@@ -318,8 +315,8 @@ bool VioManager::TryVisualUpdate(const std::pair<double, std::vector<CameraObs>>
     std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(time0, time_comp);
     if (imu_data.empty())
     {
-        LOG(WARNING) << fmt::format("No IMU data available for visual update at {:f}s, time0: {:f}s, time_comp: {:f}s", feature_observes.first, time0,
-                                    time_comp);
+        LOG(WARNING) << fmt::format("No IMU data available for visual update at {:f}s, time0: {:f}s, time_comp: {:f}s",
+                                    feature_observes.first, time0, time_comp);
         return false;
     }
 
@@ -331,10 +328,11 @@ bool VioManager::TryVisualUpdate(const std::pair<double, std::vector<CameraObs>>
 
     if (_visual_manager->VisualUpdate())
     {
-        LOG(INFO) << fmt::format("\033[32mVIO updated, current state ts: {:f}, pos: [{:.3f}, {:.3f}, {:.3f}], vel: [{:.3f}, {:.3f}, {:.3f}]\033[0m",
+        LOG(INFO) << fmt::format(GREEN "VIO updated, current state ts: {:f}, pos: [{:.3f}, {:.3f}, {:.3f}], vel: "
+                                 "[{:.3f}, {:.3f}, {:.3f}]" RESET,
                                  state->ts_sec(), state->_imu_state->p()->vec().x(), state->_imu_state->p()->vec().y(),
-                                 state->_imu_state->p()->vec().z(), state->_imu_state->v()->vec().x(), state->_imu_state->v()->vec().y(),
-                                 state->_imu_state->v()->vec().z());
+                                 state->_imu_state->p()->vec().z(), state->_imu_state->v()->vec().x(),
+                                 state->_imu_state->v()->vec().y(), state->_imu_state->v()->vec().z());
 
         // if (params_.estimate_td_visual)
         // {
@@ -400,18 +398,21 @@ FrameOptions VioManager::CheckMeasurements() const
         return FrameOptions::kStatusError;
     }
 
-    if (_imu_manager->_imu_latest_timestamp - lazy_time_ < _visual_manager->_input_image_buffer.front().first + td_visual)
+    if (_imu_manager->_imu_latest_timestamp - lazy_time_ <
+        _visual_manager->_input_image_buffer.front().first + td_visual)
     {
         // LOG(WARNING) << fmt::format(
-        //     "IMU latest timestamp: {:f}s, lazy_time: {:f}, (imu_time - lazy_time) is slower than the input image timestamp: {:f}s, waiting for IMU data",
-        //     _imu_manager->_imu_latest_timestamp, lazy_time_, _visual_manager->_input_image_buffer.front().first + td_visual);
+        //     "IMU latest timestamp: {:f}s, lazy_time: {:f}, (imu_time - lazy_time) is slower than the input image
+        //     timestamp: {:f}s, waiting for IMU data", _imu_manager->_imu_latest_timestamp, lazy_time_,
+        //     _visual_manager->_input_image_buffer.front().first + td_visual);
         return FrameOptions::kWaitForImu;
     }
 
     if (_visual_manager->_input_image_buffer.front().first + td_visual < state->ts_sec())
     {
-        LOG(WARNING) << fmt::format("Input image timestamp: {:f} is older than the current state timestamp: {:f}, skipping measurement processing",
-                                   _visual_manager->_input_image_buffer.front().first + td_visual, state->ts_sec());
+        LOG(WARNING) << fmt::format("Input image timestamp: {:f} is older than the current state timestamp: {:f}, "
+                                    "skipping measurement processing",
+                                    _visual_manager->_input_image_buffer.front().first + td_visual, state->ts_sec());
         return FrameOptions::kSkipFrame;
     }
 
@@ -436,8 +437,8 @@ void VioManager::ClearExpiredMeasurements()
 
 /**
  * @brief Process a single measurement from the input buffer
- * @note This function handles the entire VIO processing pipeline for a single measurement, including feature tracking, initialization, state updates,
- *       and publishing results
+ * @note This function handles the entire VIO processing pipeline for a single measurement, including feature tracking,
+ * initialization, state updates, and publishing results
  */
 void VioManager::ProcessMeasurementOnce()
 {
@@ -679,6 +680,14 @@ void VioManager::SaveResultsToFile()
 {
     if (params_.save_full_log)
     {
+        static std::string full_filename = [this]()
+        {
+            char time_str[100];
+            std::time_t now = std::time(nullptr);
+            std::strftime(time_str, sizeof(time_str), "%Y-%m-%d_%H-%M-%S", std::localtime(&now));
+            return params_.log_path + "/" + params_.bag_name + "_" + std::string(time_str) + "_full.csv";
+        }();
+
         utils::LogValueFull log_value;
         log_value.timestamp = state->_imu_state->ts();
         log_value.px = state->_imu_state->p()->vec().x();
@@ -702,30 +711,56 @@ void VioManager::SaveResultsToFile()
         log_value.bias_acc_z = state->_imu_state->ba()->vec().z();
 
         log_value.sigma_px = std::sqrt(state->Covariance()(state->_imu_state->p()->id(), state->_imu_state->p()->id()));
-        log_value.sigma_py = std::sqrt(state->Covariance()(state->_imu_state->p()->id() + 1, state->_imu_state->p()->id() + 1));
-        log_value.sigma_pz = std::sqrt(state->Covariance()(state->_imu_state->p()->id() + 2, state->_imu_state->p()->id() + 2));
+        log_value.sigma_py =
+            std::sqrt(state->Covariance()(state->_imu_state->p()->id() + 1, state->_imu_state->p()->id() + 1));
+        log_value.sigma_pz =
+            std::sqrt(state->Covariance()(state->_imu_state->p()->id() + 2, state->_imu_state->p()->id() + 2));
 
         log_value.sigma_vx = std::sqrt(state->Covariance()(state->_imu_state->v()->id(), state->_imu_state->v()->id()));
-        log_value.sigma_vy = std::sqrt(state->Covariance()(state->_imu_state->v()->id() + 1, state->_imu_state->v()->id() + 1));
-        log_value.sigma_vz = std::sqrt(state->Covariance()(state->_imu_state->v()->id() + 2, state->_imu_state->v()->id() + 2));
+        log_value.sigma_vy =
+            std::sqrt(state->Covariance()(state->_imu_state->v()->id() + 1, state->_imu_state->v()->id() + 1));
+        log_value.sigma_vz =
+            std::sqrt(state->Covariance()(state->_imu_state->v()->id() + 2, state->_imu_state->v()->id() + 2));
 
-        log_value.sigma_bias_acc_x = std::sqrt(state->Covariance()(state->_imu_state->ba()->id(), state->_imu_state->ba()->id()));
-        log_value.sigma_bias_acc_y = std::sqrt(state->Covariance()(state->_imu_state->ba()->id() + 1, state->_imu_state->ba()->id() + 1));
-        log_value.sigma_bias_acc_z = std::sqrt(state->Covariance()(state->_imu_state->ba()->id() + 2, state->_imu_state->ba()->id() + 2));
+        log_value.sigma_bias_acc_x =
+            std::sqrt(state->Covariance()(state->_imu_state->ba()->id(), state->_imu_state->ba()->id()));
+        log_value.sigma_bias_acc_y =
+            std::sqrt(state->Covariance()(state->_imu_state->ba()->id() + 1, state->_imu_state->ba()->id() + 1));
+        log_value.sigma_bias_acc_z =
+            std::sqrt(state->Covariance()(state->_imu_state->ba()->id() + 2, state->_imu_state->ba()->id() + 2));
 
-        log_value.sigma_bias_gyro_x = std::sqrt(state->Covariance()(state->_imu_state->bg()->id(), state->_imu_state->bg()->id()));
-        log_value.sigma_bias_gyro_y = std::sqrt(state->Covariance()(state->_imu_state->bg()->id() + 1, state->_imu_state->bg()->id() + 1));
-        log_value.sigma_bias_gyro_z = std::sqrt(state->Covariance()(state->_imu_state->bg()->id() + 2, state->_imu_state->bg()->id() + 2));
+        log_value.sigma_bias_gyro_x =
+            std::sqrt(state->Covariance()(state->_imu_state->bg()->id(), state->_imu_state->bg()->id()));
+        log_value.sigma_bias_gyro_y =
+            std::sqrt(state->Covariance()(state->_imu_state->bg()->id() + 1, state->_imu_state->bg()->id() + 1));
+        log_value.sigma_bias_gyro_z =
+            std::sqrt(state->Covariance()(state->_imu_state->bg()->id() + 2, state->_imu_state->bg()->id() + 2));
 
         log_value.visual_updated = visual_updated_this_tick_;
-        log_value.ZuptUpdated = zupt_updated_this_tick_;
+        log_value.zupt_updated = zupt_updated_this_tick_;
         log_value.keyframe = int(_visual_manager->GetKeyframeState());
-        vio_logger->SaveValues(log_value);
+
+        utils::Logger *full_logger = utils::Logger::GetInstance(full_filename);
+        if (full_logger)
+        {
+            full_logger->SaveValues(log_value);
+        }
+        else
+        {
+            LOG(WARNING) << "Failed to get Full logger for: " << full_filename;
+        }
     }
 
     /* Assign extracted log values in TUM format */
     if (params_.save_tum_log)
     {
+        static std::string tum_filename = [this]() {
+            char time_str[100];
+            std::time_t now = std::time(nullptr);
+            std::strftime(time_str, sizeof(time_str), "%Y-%m-%d_%H-%M-%S", std::localtime(&now));
+            return params_.log_path + "/" + params_.bag_name + "_" + std::string(time_str) + "_tum.csv";
+        }();
+
         utils::LogValueTUM log_value_tum;
         log_value_tum.timestamp = state->_imu_state->ts();
         log_value_tum.px = state->_imu_state->p()->vec().x();
@@ -735,7 +770,16 @@ void VioManager::SaveResultsToFile()
         log_value_tum.qx = state->_imu_state->q()->q().x();
         log_value_tum.qy = state->_imu_state->q()->q().y();
         log_value_tum.qz = state->_imu_state->q()->q().z();
-        vio_logger_tum->SaveValues(log_value_tum);
+
+        utils::Logger* tum_logger = utils::Logger::GetInstance(tum_filename);
+        if (tum_logger)
+        {
+            tum_logger->SaveValues(log_value_tum);
+        }
+        else
+        {
+            LOG(WARNING) << "Failed to get TUM logger for: " << tum_filename;
+        }
     }
 }
 

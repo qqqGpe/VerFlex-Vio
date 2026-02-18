@@ -112,7 +112,7 @@ class State
 
     std::map<uint32_t, SlamFeature>& mutable_slam_features() { return _slam_features; }
 
-    const std::map<uint32_t, SlamFeature> slam_features() const { return _slam_features; }
+    const std::map<uint32_t, SlamFeature>& slam_features() const { return _slam_features; }
 
     std::map<double, std::shared_ptr<Pose>>& mutable_clone_poses() { return _clone_pose; }
 

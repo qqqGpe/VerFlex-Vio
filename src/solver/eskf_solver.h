@@ -70,23 +70,6 @@ class eskfSolver : public MsckfSolverBase
                 J_td * Cov_aug.block(state->td_visual().id(), 0, state->td_visual().size(), new_cols);
         }
 
-        // Eigen::MatrixXd Cov_new = Eigen::MatrixXd::Zero(new_rows, new_cols);
-        // Cov_new.topLeftCorner(old_rows, old_cols) = Cov_old;
-        // Cov_new.bottomRightCorner(clone_pose_size, clone_pose_size) =
-        //     Cov_old.block(pose_to_clone->id(), pose_to_clone->id(), clone_pose_size, clone_pose_size);
-        // Cov_new.topRightCorner(old_rows, clone_pose_size) = Cov_old.block(0, pose_to_clone->id(), old_rows, clone_pose_size);
-        // Cov_new.bottomLeftCorner(clone_pose_size, old_cols) = Cov_old.block(pose_to_clone->id(), 0, clone_pose_size, old_cols);
-
-        // // Consider the time delay of visual measurement when agument the covariance
-        // if (state->enableEstimateTdVisual())
-        // {
-        //     Eigen::Vector3d last_w = imu_data->back().wm;
-        //     Eigen::MatrixXd J_td = Eigen::MatrixXd::Zero(clone_pose_size, 1);
-        //     J_td << last_w, state->_imu_state->v()->vec();
-        //     Cov_new.rightCols(clone_pose_size) += Cov_new.block(0, state->td_visual().id(), new_rows, state->td_visual().size()) * J_td.transpose();
-        //     Cov_new.bottomRows(clone_pose_size) += J_td * Cov_new.block(state->td_visual().id(), 0, state->td_visual().size(), new_cols);
-        // }
-
         state->SetCovariance(Cov_aug);
     }
 
@@ -136,7 +119,7 @@ class eskfSolver : public MsckfSolverBase
         // Marginalize slam feature
         if (marge_type == MarginalizeType::SlamFeature)
         {
-            for (auto& [id, feature] : state->mutable_slam_features())
+            for (auto &[id, feature] : state->slam_features())
             {
                 if (feature._state_ptr == state_to_marginalize)
                 {
@@ -261,7 +244,7 @@ class eskfSolver : public MsckfSolverBase
         {
             if (diags(i) < 0.0)
             {
-                LOG(ERROR) << "\033[31m" << fmt::format("Diagonal is negative when update, diags") << "\033[0m";
+                LOG(ERROR) << fmt::format(RED "Diagonal is negative when update, diags") << RESET;
                 LOG(ERROR) << "diags: " << diags.transpose();
                 std::exit(EXIT_FAILURE);
             }
@@ -449,7 +432,7 @@ class eskfSolver : public MsckfSolverBase
             }
             else
             {
-                LOG(WARNING) << "\033[31m" << fmt::format("Imu delayed for {}s", dt) << "\033[0m";
+                LOG(WARNING) << fmt::format(RED "Imu delayed for {}s" RESET, dt);
                 exit(0);
             }
         }

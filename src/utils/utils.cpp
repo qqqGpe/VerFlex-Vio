@@ -2,14 +2,14 @@
 
 namespace utils
 {
-bool transfer_image(const sensor_msgs::ImageConstPtr& msg, cv::Mat& output)
+bool transfer_image(const sensor_msgs::ImageConstPtr &msg, cv::Mat &output)
 {
     cv_bridge::CvImageConstPtr cv_ptr;
     try
     {
         cv_ptr = cv_bridge::toCvShare(msg, sensor_msgs::image_encodings::MONO8);
     }
-    catch (cv_bridge::Exception& e)
+    catch (cv_bridge::Exception &e)
     {
         std::cerr << e.what() << std::endl;
         return false;
@@ -19,10 +19,9 @@ bool transfer_image(const sensor_msgs::ImageConstPtr& msg, cv::Mat& output)
     return true;
 }
 
-void visualize_feature_tracking_results(const cv::Mat& image,
-                                        const std::vector<std::pair<int32_t, cv::Point2f>>& points,
-                                        const int32_t wait_key_time_ms,
-                                        cv::Mat* out_image)
+void visualize_feature_tracking_results(const cv::Mat &image,
+                                        const std::vector<std::pair<int32_t, cv::Point2f>> &points,
+                                        const int32_t wait_key_time_ms, cv::Mat *out_image)
 {
     double fr = 11.333;
     double fg = 22.333;
@@ -30,7 +29,7 @@ void visualize_feature_tracking_results(const cv::Mat& image,
 
     cv::Mat image_to_show;
     cv::cvtColor(image, image_to_show, cv::COLOR_GRAY2BGR);
-    for (auto& p : points)
+    for (auto &p : points)
     {
         cv::Point2f point(p.second.x, p.second.y);
         std::ostringstream os;
@@ -112,7 +111,7 @@ void show_eigen_matrix(const Eigen::MatrixXd matrix, const std::string win_name)
     cv::waitKey(show_eigen_wait_sec);
 }
 
-void ShowGridImages(const std::vector<cv::Mat>& images, const std::string win_name)
+void ShowGridImages(const std::vector<cv::Mat> &images, const std::string win_name)
 {
     if (images.size() != 6)
     {
@@ -167,10 +166,8 @@ void ShowGridImages(const std::vector<cv::Mat>& images, const std::string win_na
 }
 
 // Function to draw matches between two images in one image
-void visualizeStereoMatches(const cv::Mat& img1,
-                            const cv::Mat& img2,
-                            const std::vector<cv::Point2f>& points1,
-                            const std::vector<cv::Point2f>& points2)
+void visualizeStereoMatches(const cv::Mat &img1, const cv::Mat &img2, const std::vector<cv::Point2f> &points1,
+                            const std::vector<cv::Point2f> &points2)
 {
     // Create an output image to display matches
     cv::Mat outImg;
@@ -182,7 +179,7 @@ void visualizeStereoMatches(const cv::Mat& img1,
     {
         cv::Point2f pt1 = points1[i];
         cv::Point2f pt2 = points2[i];
-        pt2.x += img1.cols;  // Offset the x-coordinate for the second image
+        pt2.x += img1.cols; // Offset the x-coordinate for the second image
 
         cv::line(outImg, pt1, pt2, cv::Scalar(0, 255, 0), 2);
         cv::circle(outImg, pt1, 5, cv::Scalar(0, 0, 255), -1);
@@ -194,7 +191,8 @@ void visualizeStereoMatches(const cv::Mat& img1,
     cv::waitKey(0);
 }
 
-void DisplayFeaturePoints(const cv::Mat& img, const std::vector<cv::Point2d>& points, const std::vector<double>& depths, const std::vector<int>& ids)
+void DisplayFeaturePoints(const cv::Mat &img, const std::vector<cv::Point2d> &points, const std::vector<double> &depths,
+                          const std::vector<int> &ids)
 {
     // Create a copy of the input image to draw points on
     double fr = 13.3;
@@ -211,7 +209,7 @@ void DisplayFeaturePoints(const cv::Mat& img, const std::vector<cv::Point2d>& po
         os << std::fixed << std::setprecision(2) << depths[i];
         std::string depth_text = os.str();
         cv::Scalar color = cv::Scalar(int(fb * ids[i]) % 255, int(fg * ids[i]) % 255, int(fr * ids[i]) % 255);
-        cv::circle(img_with_points, point, 5, color, -1);  // Red color for points
+        cv::circle(img_with_points, point, 5, color, -1); // Red color for points
         cv::putText(img_with_points, depth_text, point, cv::FONT_HERSHEY_SIMPLEX, 0.5, color, 1);
     }
 
@@ -219,4 +217,4 @@ void DisplayFeaturePoints(const cv::Mat& img, const std::vector<cv::Point2d>& po
     cv::imshow("Feature Points", img_with_points);
     cv::waitKey(1);
 }
-};  // namespace utils
+}; // namespace utils

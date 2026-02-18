@@ -21,11 +21,9 @@ constexpr double kMinTriangDist = 0.05;
 constexpr double kMaxTriangDist = 20.0;
 constexpr uint32_t kMaxIterationTimes = 5;
 constexpr uint32_t kMinFeatNumToUpdate = 15;
-}  // namespace
+} // namespace
 
-VisualManager::VisualManager(std::shared_ptr<ros::NodeHandle>& nh,
-                             const Param& params,
-                             std::shared_ptr<State>& state,
+VisualManager::VisualManager(std::shared_ptr<ros::NodeHandle> &nh, const Param &params, std::shared_ptr<State> &state,
                              std::shared_ptr<MsckfSolverBase> solver)
 {
     nh_ = nh;
@@ -37,35 +35,48 @@ VisualManager::VisualManager(std::shared_ptr<ros::NodeHandle>& nh,
     solver_ = solver;
     for (int i = 0; i < param_.max_feat_n; i++)
     {
-        Feature* feat = new Feature();
+        Feature *feat = new Feature();
         feature_base_.push_back(feat);
     }
 }
 
-bool VisualManager::MsckfFeatureUpdate(std::vector<Feature*> feats_msckf)
+bool VisualManager::MsckfFeatureUpdate(std::vector<Feature *> feats_msckf)
 {
     if (feats_msckf.size() < kMinFeatureForUpdate)
     {
-        LOG(INFO) << fmt::format("Not enough features to update, features_tracked: {:d}, features_msckf: {:d}, feature mapping success: {:d}",
-                                 static_cast<int>(feature_tracked_.size()), static_cast<int>(feats_msckf.size()), feature_mapping_success_);
+        LOG(INFO) << fmt::format("Not enough features to update, features_tracked: {:d}, features_msckf: {:d}, feature "
+                                 "mapping success: {:d}",
+                                 static_cast<int>(feature_tracked_.size()), static_cast<int>(feats_msckf.size()),
+                                 feature_mapping_success_);
         return false;
     }
     std::unordered_map<std::shared_ptr<Type>, size_t> map_hx;
     std::vector<std::shared_ptr<Type>> Hx_order;
     Eigen::MatrixXd Hx_msckf;
     Eigen::VectorXd res;
-    ConstructFeatureJacobianFull(FeatureUpdateType::kMsckfUpdate, feats_msckf, map_hx, Hx_order, Hx_msckf, res);
-    Eigen::MatrixXd R = Eigen::MatrixXd::Identity(Hx_msckf.rows(), Hx_msckf.rows()) * std::pow(param_.sigma_visual_pix, 2);
-
-    if (_state->_clone_pose.size() >= 2)
+    for (auto &feat : feats_msckf)
     {
-        std::cout << "Msckf update with " << feats_msckf.size() << " features." << std::endl;
+        if (feat->_type != FeatureType::kMsckfPoint)
+        {
+            LOG(WARNING) << fmt::format("Feature {:d} is not msckf point, but type {:d}, skip it for msckf update.",
+                                        feat->_id, static_cast<int>(feat->_type));
+            exit(1);
+        }
+    }
+    ConstructFeatureJacobianFull(FeatureUpdateType::kMsckfUpdate, feats_msckf, map_hx, Hx_order, Hx_msckf, res);
+    Eigen::MatrixXd R =
+        Eigen::MatrixXd::Identity(Hx_msckf.rows(), Hx_msckf.rows()) * std::pow(param_.sigma_visual_pix, 2);
+
+    if (_state->_clone_pose.size() >= 2 && Hx_msckf.rows() > 0)
+    {
+        // std::cout << "Msckf update with " << feats_msckf.size() << " features." << std::endl;
         solver_->update(_state, Hx_msckf, res, Hx_order, map_hx, R);
         return true;
     }
     else
     {
-        LOG(WARNING) << fmt::format("Not enough clone poses to update, clone poses: {:d}", static_cast<int>(_state->_clone_pose.size()));
+        LOG(WARNING) << fmt::format("Not enough clone poses to update, clone poses: {:d}",
+                                    static_cast<int>(_state->_clone_pose.size()));
         return false;
     }
 }
@@ -73,7 +84,7 @@ bool VisualManager::MsckfFeatureUpdate(std::vector<Feature*> feats_msckf)
 /**
  * @brief Slam feature update
  */
-bool VisualManager::SlamFeatureUpdate(std::vector<Feature*> feats_slam)
+bool VisualManager::SlamFeatureUpdate(std::vector<Feature *> feats_slam)
 {
     if (feats_slam.empty())
     {
@@ -91,7 +102,8 @@ bool VisualManager::SlamFeatureUpdate(std::vector<Feature*> feats_slam)
         return false;
     }
 
-    Eigen::MatrixXd R = Eigen::MatrixXd::Identity(Hx_slam.rows(), Hx_slam.rows()) * std::pow(param_.sigma_visual_pix, 2);
+    Eigen::MatrixXd R =
+        Eigen::MatrixXd::Identity(Hx_slam.rows(), Hx_slam.rows()) * std::pow(param_.sigma_visual_pix, 2);
 
     if (_state->_clone_pose.size() == param_.max_clone_pose)
     {
@@ -102,12 +114,14 @@ bool VisualManager::SlamFeatureUpdate(std::vector<Feature*> feats_slam)
     else
     {
         LOG(WARNING) << fmt::format("Not enough clone poses to update slam features, clone poses: {:d}, required: {:d}",
-                                    static_cast<int>(_state->_clone_pose.size()), static_cast<int>(param_.max_clone_pose));
+                                    static_cast<int>(_state->_clone_pose.size()),
+                                    static_cast<int>(param_.max_clone_pose));
         return false;
     }
 }
 
-void VisualManager::SelectSlamFeatures(std::vector<Feature*>& feature_tracked, std::vector<Feature*>& feat_slam_old, std::vector<Feature*>& feat_slam_new)
+void VisualManager::SelectSlamFeatures(std::vector<Feature *> &feature_tracked, std::vector<Feature *> &feat_slam_old,
+                                       std::vector<Feature *> &feat_slam_new)
 {
     constexpr double kMinParallexForSlam = 5.0; // In pixel
     for (auto it = feature_tracked.begin(); it != feature_tracked.end();)
@@ -121,23 +135,27 @@ void VisualManager::SelectSlamFeatures(std::vector<Feature*>& feature_tracked, s
             it = feature_tracked.erase(it);
             continue;
         }
-        else if (feature->_visual_obs_buffer.size() == param_.max_clone_pose && feature->_parallex > kMinParallexForSlam)
+        else if (feature->_visual_obs_buffer.size() >= param_.max_clone_pose &&
+                 feature->_parallex > kMinParallexForSlam)
         {
-            // Temporarily set as msckf point for jacobian calculation
-            // feature->_type = FeatureType::kMsckfPoint;
             feat_slam_new.push_back(feature);
+            it = feature_tracked.erase(it);
+            continue;
         }
         it++;
     }
 
     if (feat_slam_new.size() > 0)
     {
-        // auto compare_feat_func = [](Feature* feat_a, Feature* feat_b) { return feat_a->_visual_obs_buffer.size() > feat_b->_visual_obs_buffer.size(); };
+        // auto compare_feat_func = [](Feature* feat_a, Feature* feat_b) { return feat_a->_visual_obs_buffer.size() >
+        // feat_b->_visual_obs_buffer.size(); };
 
-        auto compare_feat_func = [](Feature* feat_a, Feature* feat_b) { return feat_a->_theta_parallex > feat_b->_theta_parallex; };
+        auto compare_feat_func = [](Feature *feat_a, Feature *feat_b)
+        { return feat_a->_theta_parallex > feat_b->_theta_parallex; };
 
         std::sort(feat_slam_new.begin(), feat_slam_new.end(), compare_feat_func);
-        feat_slam_new.resize(std::min(static_cast<size_t>(param_.max_slam_feature - _state->slam_features().size()), feat_slam_new.size()));
+        feat_slam_new.resize(std::min(static_cast<size_t>(param_.max_slam_feature - _state->slam_features().size()),
+                                      feat_slam_new.size()));
     }
 }
 
@@ -156,9 +174,11 @@ void VisualManager::SelectMsckfFeatures(const std::vector<Feature*> feats, std::
 
     if (feat_msckf.size() > kMaxFeatureForUpdate)
     {
-        auto compare_feat_func = [](Feature* feat_a, Feature* feat_b) { return feat_a->_visual_obs_buffer.size() > feat_b->_visual_obs_buffer.size(); };
+        auto compare_feat_func = [](Feature *feat_a, Feature *feat_b)
+        { return feat_a->_visual_obs_buffer.size() > feat_b->_visual_obs_buffer.size(); };
 
-        // auto compare_feat_func = [](Feature* feat_a, Feature* feat_b) { return feat_a->_theta_parallex > feat_b->_theta_parallex; };
+        // auto compare_feat_func = [](Feature* feat_a, Feature* feat_b) { return feat_a->_theta_parallex >
+        // feat_b->_theta_parallex; };
 
         std::sort(feat_msckf.begin(), feat_msckf.end(), compare_feat_func);
         feat_msckf.resize(kMaxFeatureForUpdate);
@@ -219,6 +239,9 @@ void VisualManager::InitializeNewSlamFeatures(std::vector<Feature*>& feat_slam_n
         Eigen::VectorXd res = Hfx.rightCols(1);
         Hfx_qr.conservativeResize(Hfx_qr.rows(), Hfx_qr.cols() - 1);
 
+        //        [  Hf(3x3)  |  Hx1(3xn)  |  r1(3x1)  ]
+        // Hfx_qr=[-----------+------------+-----------]
+        //        [    0      |  Hx2(mxn)  |  r2(mx1)  ]
         Eigen::VectorXd r1 = res.head(3);
         Eigen::VectorXd r2 = res.tail(res.rows() - 3);
         Eigen::MatrixXd Hf = Hfx_qr.topLeftCorner(3, 3);
@@ -226,9 +249,6 @@ void VisualManager::InitializeNewSlamFeatures(std::vector<Feature*>& feat_slam_n
         Eigen::MatrixXd Hx2 = Hfx_qr.bottomRightCorner(Hfx_qr.rows() - 3, Hfx_qr.cols() - 3);
         Eigen::MatrixXd R = Eigen::MatrixXd::Identity(3, 3) * std::pow(param_.sigma_visual_pix, 2);
 
-        // Eigen::MatrixXd Pxx = _state->GetInvolvedCovarianceMatrix(Hx_order);
-        // Eigen::MatrixXd Pff = Hf.inverse() * (Hx1 * Pxx * Hx1.transpose() + R) * Hf.inverse().transpose();
-        // Eigen::MatrixXd Pxf = -Pxx * Hx1.transpose() * Hf.inverse().transpose();
         feature->_pwf += Hf.inverse() * r1;
         feature->_type = FeatureType::kSlamPoint;
 
@@ -306,7 +326,8 @@ bool VisualManager::VisualUpdate()
             std::ostringstream os;
             os << std::fixed << feat_id;
             std::string depth_text = os.str();
-            cv::putText(clone_image_map.at(timestamp), depth_text, point, cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 255), 1);
+            cv::putText(clone_image_map.at(timestamp), depth_text, point, cv::FONT_HERSHEY_SIMPLEX, 0.5,
+                        cv::Scalar(0, 0, 255), 1);
             cv::Scalar color = cv::Scalar(int(fb * feat_id) % 255, int(fg * feat_id) % 255, int(fr * feat_id) % 255);
             cv::circle(clone_image_map.at(timestamp), point, 4, color, -1);
             cv::circle(clone_image_map.at(timestamp), cv::Point2f(uv.x(), uv.y()), 5, color, 1);
@@ -321,19 +342,18 @@ bool VisualManager::VisualUpdate()
     utils::ShowGridImages(images_to_show);
 #endif
 
-    if (MsckfFeatureUpdate(feat_msckf_))
-    {
-        is_msckf_updated = true;
-    }
-
     if (param_.use_slam_feature)
     {
-        InitializeNewSlamFeatures(feat_slam_new_);
-
         if (SlamFeatureUpdate(feat_slam_old_))
         {
             is_slam_updated = true;
         }
+        InitializeNewSlamFeatures(feat_slam_new_);
+    }
+
+    if (MsckfFeatureUpdate(feat_msckf_))
+    {
+        is_msckf_updated = true;
     }
 
     std::shared_ptr<Type> state_to_marginalize = nullptr;
@@ -381,7 +401,6 @@ KeyFrameStatus VisualManager::MaybeSetKeyframe(std::shared_ptr<State> _state, st
 
     // Calculate average parallex w.r.t the last keyframe
     uint32_t cnt = 0;
-    double pixel_parallex = 0.f;
     double pixel_parallex_avg = 0.f;
     for (auto x : feats)
     {
@@ -390,35 +409,11 @@ KeyFrameStatus VisualManager::MaybeSetKeyframe(std::shared_ptr<State> _state, st
             continue;
         }
         auto lastest_iter = x->_visual_obs_buffer.rbegin();
-        auto sub_lastest_iter = x->_visual_obs_buffer.rbegin();
-        ++sub_lastest_iter;
+        auto sub_lastest_iter = std::next(lastest_iter);
 
-        double curr_ts = lastest_iter->first;
-        double prev_ts = sub_lastest_iter->first;
-        CameraObs curr_obs = lastest_iter->second;
-        CameraObs prev_obs = sub_lastest_iter->second;
-
-        // Get rotation matrices for both poses
-        Eigen::Matrix3d R_curr = _state->_clone_pose.at(curr_ts)->quat().toRotationMatrix();
-        Eigen::Matrix3d R_prev = _state->_clone_pose.at(prev_ts)->quat().toRotationMatrix();
-
-        // Compute relative rotation from prev to curr
-        Eigen::Matrix3d R_prev_to_curr = R_curr.transpose() * R_prev;
-
-        // Get normalized coordinates of previous observation
-        Eigen::Vector3d prev_ray(prev_obs.uv_norm[LEFT_CAM].x(), prev_obs.uv_norm[LEFT_CAM].y(), 1.0);
-
-        // Rotate the previous ray to current frame (removing rotation effect)
-        Eigen::Vector3d prev_ray_rotated = R_prev_to_curr * prev_ray;
-        prev_ray_rotated /= prev_ray_rotated.z();
-
-        // Project rotated ray to pixel coordinates
-        Eigen::Vector2d prev_uv_rotated = CamModel::getInstance().project_distort(LEFT_CAM, prev_ray_rotated);
-
-        // Calculate pixel distance after rotation compensation
-        Eigen::Vector2d uv_distance = curr_obs.uv[LEFT_CAM] - prev_uv_rotated;
-        pixel_parallex = uv_distance.norm();
-        pixel_parallex_avg += pixel_parallex;
+        pixel_parallex_avg += RotationCompensatedParallex(
+            sub_lastest_iter->first, sub_lastest_iter->second,
+            lastest_iter->first, lastest_iter->second);
         cnt++;
     }
     pixel_parallex_avg = pixel_parallex_avg / cnt;
@@ -467,26 +462,25 @@ void VisualManager::MarginalizeSlamFeatureLost()
     }
 
     assert(_state->slam_features().size() <= param_.max_slam_feature);
-    std::cout << "total slam features: " << _state->slam_features().size() << std::endl;
-    uint32_t cnt = 0;
+    // std::cout << "total slam features: " << _state->slam_features().size() << std::endl;
+
+    // Collect features to marginalize first to avoid modifying the map during iteration
+    std::vector<std::shared_ptr<Type>> feats_to_marginalize;
     for (auto &[id, feat_slam] : _state->slam_features())
     {
-        std::cout << "marge cnt" << cnt++ << ", feature id: " << id << std::endl;
-        // Check if this SLAM feature needs to be marginalized
-        bool should_marginalize = false;
         for (auto& feat_lost : feature_lost_)
         {
             if (feat_lost->_id == id)
             {
-                should_marginalize = true;
+                feats_to_marginalize.push_back(feat_slam._state_ptr);
                 break;
             }
         }
+    }
 
-        if (should_marginalize)
-        {
-            solver_->MarginalizeState(MarginalizeType::SlamFeature, _state, feat_slam._state_ptr);
-        }
+    for (auto& state_ptr : feats_to_marginalize)
+    {
+        solver_->MarginalizeState(MarginalizeType::SlamFeature, _state, state_ptr);
     }
 }
 
@@ -514,7 +508,8 @@ void VisualManager::UpdateFeatureBase(const double timestamp)
     }
 }
 
-void VisualManager::UpdateFeatureStatistic(const double timestamp, std::pair<double, std::vector<CameraObs>> feature_observes)
+void VisualManager::UpdateFeatureStatistic(const double timestamp,
+                                           std::pair<double, std::vector<CameraObs>> feature_observes)
 {
     // double ts_sec = feature_observes.first;
     std::vector<CameraObs> feature_obs = feature_observes.second;
@@ -605,11 +600,12 @@ double VisualManager::calcVisualObsParallex(const std::unordered_map<uint32_t, C
     return average_parallex;
 }
 
-std::map<uint32_t, CameraObs> VisualManager::covisibleFeatures(const std::unordered_map<uint32_t, CameraObs>& visual_obs_a,
-                                                               const std::unordered_map<uint32_t, CameraObs>& visual_obs_b)
+std::map<uint32_t, CameraObs>
+VisualManager::covisibleFeatures(const std::unordered_map<uint32_t, CameraObs> &visual_obs_a,
+                                 const std::unordered_map<uint32_t, CameraObs> &visual_obs_b)
 {
     std::map<uint32_t, CameraObs> covisible_features;
-    for (const auto& [feature_id, obs_a] : visual_obs_a)
+    for (const auto &[feature_id, obs_a] : visual_obs_a)
     {
         if (visual_obs_b.find(feature_id) != visual_obs_b.end())
         {
@@ -619,7 +615,8 @@ std::map<uint32_t, CameraObs> VisualManager::covisibleFeatures(const std::unorde
     return covisible_features;
 }
 
-void VisualManager::InitFeatureBase(std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_feature_triangulated)
+void VisualManager::InitFeatureBase(
+    std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_feature_triangulated)
 {
     int cnt = 0;
     for (auto& [feature_id, feature_obs] : stereo_feature_triangulated)
@@ -1079,25 +1076,65 @@ void VisualManager::FeatureTriangulation(const std::map<double, CameraPose> came
     //                          feature_mapping_success_, feature_mapping_success_, triangulate_failed, gaussian_newton_failed);
 }
 
-void VisualManager::CalculateMaxFeatureParallex(std::vector<Feature*>& feats)
+double VisualManager::RotationCompensatedParallex(double ts_a, const CameraObs& obs_a,
+                                                   double ts_b, const CameraObs& obs_b)
 {
-    for (auto it = feats.begin(); it != feats.end(); it++)
+    // Get rotation matrices for both poses
+    Eigen::Matrix3d R_a = _state->_clone_pose.at(ts_a)->quat().toRotationMatrix();
+    Eigen::Matrix3d R_b = _state->_clone_pose.at(ts_b)->quat().toRotationMatrix();
+
+    // Compute relative rotation from frame a to frame b
+    Eigen::Matrix3d R_a_to_b = R_b.transpose() * R_a;
+
+    // Get normalized coordinates of observation a
+    Eigen::Vector3d ray_a(obs_a.uv_norm.at(LEFT_CAM).x(), obs_a.uv_norm.at(LEFT_CAM).y(), 1.0);
+
+    // Rotate ray a to frame b (removing rotation effect)
+    Eigen::Vector3d ray_a_rotated = R_a_to_b * ray_a;
+    ray_a_rotated /= ray_a_rotated.z();
+
+    // Project rotated ray to pixel coordinates
+    Eigen::Vector2d uv_a_rotated = CamModel::getInstance().project_distort(LEFT_CAM, ray_a_rotated);
+
+    // Calculate pixel distance after rotation compensation
+    return (obs_b.uv.at(LEFT_CAM) - uv_a_rotated).norm();
+}
+
+void VisualManager::CalculateMaxFeatureParallex(std::vector<Feature *> &feats)
+{
+    for (auto *feat : feats)
     {
-        auto first_obv = (*it)->_visual_obs_buffer.begin();
-        auto lastest_obv = (*it)->_visual_obs_buffer.rbegin();
-        const Eigen::Vector2d dxy = lastest_obv->second.uv[LEFT_CAM] - first_obv->second.uv[LEFT_CAM];
-        const double cur_parallex = dxy.norm();
-        if (cur_parallex > (*it)->_parallex)
+        const auto &obs_buf = feat->_visual_obs_buffer;
+        if (obs_buf.size() < 2)
         {
-            (*it)->_parallex = cur_parallex;
+            feat->_parallex = 0.0;
+            continue;
         }
+
+        double max_parallex = 0.0;
+        for (auto it_i = obs_buf.begin(); it_i != obs_buf.end(); ++it_i)
+        {
+            auto it_j = it_i;
+            ++it_j;
+            for (; it_j != obs_buf.end(); ++it_j)
+            {
+                const double cur_parallex =
+                    RotationCompensatedParallex(it_i->first, it_i->second, it_j->first, it_j->second);
+                if (cur_parallex > max_parallex)
+                {
+                    max_parallex = cur_parallex;
+                }
+            }
+        }
+
+        feat->_parallex = max_parallex;
     }
 }
 
 bool VisualManager::ConstructFeatureJacobianFullSlam(std::vector<Feature*> feats,
                                                      std::unordered_map<std::shared_ptr<Type>, size_t>& Hx_mapping,
                                                      std::vector<std::shared_ptr<Type>>& Hx_order,
-                                                     Eigen::MatrixXd& Hxf_full,
+                                                     Eigen::MatrixXd& H_full,
                                                      Eigen::VectorXd& residual_full)
 {
     Hx_mapping.clear();
@@ -1130,9 +1167,9 @@ bool VisualManager::ConstructFeatureJacobianFullSlam(std::vector<Feature*> feats
     }
     uint32_t max_hx_cols = _state->Covariance().cols();
 
-    Hxf_full.resize(4 * slam_features.size() * _state->_clone_pose.size(), max_hx_cols);
+    H_full.resize(4 * slam_features.size() * _state->_clone_pose.size(), max_hx_cols);
     residual_full.resize(4 * slam_features.size() * _state->_clone_pose.size(), 1);
-    Hxf_full.setZero();
+    H_full.setZero();
     residual_full.setZero();
 
     uint32_t Hxf_rows = 0;
@@ -1154,15 +1191,16 @@ bool VisualManager::ConstructFeatureJacobianFullSlam(std::vector<Feature*> feats
             Hx_order.push_back(feat_ptr);
             total_hx += feat_ptr->size();
 
-            Hxf_full.block(Hxf_rows, 0, Hx.rows(), Hx.cols()) = Hx;
-            Hxf_full.block(Hxf_rows, Hx_mapping.at(feat_ptr), Hf.rows(), Hf.cols()) = Hf;
+            H_full.block(Hxf_rows, 0, Hx.rows(), Hx.cols()) = Hx;
+            H_full.block(Hxf_rows, Hx_mapping.at(feat_ptr), Hf.rows(), Hf.cols()) = Hf;
             residual_full.segment(Hxf_rows, res.rows()) = res;
             Hxf_rows += Hx.rows();
             // Hx_full.block(Hxf_rows, 0, Hx.rows(), Hx.cols()) = Hx;
             // Hxf_rows += Hx.rows();
         }
     }
-    Hxf_full.conservativeResize(Hxf_rows, total_hx);
+    H_full.conservativeResize(Hxf_rows, total_hx);
+    residual_full.conservativeResize(Hxf_rows, 1);
 
     if(Hxf_rows == 0)
     {
@@ -1170,16 +1208,16 @@ bool VisualManager::ConstructFeatureJacobianFullSlam(std::vector<Feature*> feats
         return false;
     }
 
-    // 创建临时矩阵Hxfr用于压缩观测矩阵Hxf
-    Eigen::MatrixXd Hxfr_full = Eigen::MatrixXd::Zero(Hxf_full.rows(), Hxf_full.cols() + 1);
-    Hxfr_full.leftCols(Hxf_full.cols()) = Hxf_full;
-    Hxfr_full.rightCols(1) = residual_full;
+    // // 创建临时矩阵Hxfr用于压缩观测矩阵Hxf
+    // Eigen::MatrixXd Hxfr_full = Eigen::MatrixXd::Zero(H_full.rows(), H_full.cols() + 1);
+    // Hxfr_full.leftCols(H_full.cols()) = H_full;
+    // Hxfr_full.rightCols(1) = residual_full;
 
-    // 压缩观测矩阵Hxf
-    Hxfr_full = utils::math::GivensRotation(Hxfr_full, Hxfr_full.cols() - 1);
-    uint32_t final_hx_rows = Hxfr_full.cols() - 1;
-    Hxf_full = Hxfr_full.block(0, 0, final_hx_rows, Hxfr_full.cols() - 1);
-    residual_full = Hxfr_full.block(0, Hxfr_full.cols() - 1, final_hx_rows, 1);
+    // // 压缩观测矩阵Hxf
+    // Hxfr_full = utils::math::GivensRotation(Hxfr_full, Hxfr_full.cols() - 1);
+    // uint32_t final_hx_rows = Hxfr_full.cols() - 1;
+    // H_full = Hxfr_full.block(0, 0, final_hx_rows, Hxfr_full.cols() - 1);
+    // residual_full = Hxfr_full.block(0, Hxfr_full.cols() - 1, final_hx_rows, 1);
 
     return true;
 }
@@ -1294,7 +1332,7 @@ bool VisualManager::SingleFeatureJacobian(const Feature* feat,
     constexpr uint32_t kResidualCols = 1;
 
     assert(feat->_valid);
-    assert(feat->_type != FeatureType::kUnknown);
+    // assert(feat->_type != FeatureType::kUnknown);
 
     const uint32_t obs_size = 4 * feat->_visual_obs_buffer.size();
     const uint32_t reserve_cols = (feat->_type == FeatureType::kSlamPoint) ? 0 : 3;
@@ -1452,9 +1490,9 @@ bool VisualManager::SingleFeatureJacobian(const Feature* feat,
 
     /* project Hfx to feature left null space */
     // utils::math::NullSpaceProjectInplace(Hfx, 3);
-    // Hfx = utils::math::GivensRotation(Hfx, 3);
-    // Eigen::MatrixXd Hx = Eigen::MatrixXd::Zero(Hfx.rows() - 3, Hfx.cols() - 3);
-    // Hx.noalias() = Hfx.block(3, 3, Hfx.rows() - 3, Hfx.cols() - 3);
+    Hfx = utils::math::GivensRotation(Hfx, 3);
+    Eigen::MatrixXd Hx = Eigen::MatrixXd::Zero(Hfx.rows() - 3, Hfx.cols() - 3);
+    Hx.noalias() = Hfx.block(3, 3, Hfx.rows() - 3, Hfx.cols() - 3);
 
     Hfx_single = Hfx;
 
@@ -1471,7 +1509,9 @@ bool VisualManager::SingleFeatureJacobianSlam(const Feature* feat,
     uint32_t total_meas = 0;
     for (auto& obs : feat->_visual_obs_buffer)
     {
-        total_meas += CamModel::getInstance().camera_num(); // 双目的每个clonepose有两个观测，单目只有一个观测
+        // Mono and Stereo have different measurement dimension, but we can simply use camera_num() to represent it
+        // since the right camera will not contribute to the residual if it's mono
+        total_meas += CamModel::getInstance().camera_num();
     }
     Hf = Eigen::MatrixXd::Zero(2 * total_meas, 3);
     Hx = Eigen::MatrixXd::Zero(2 * total_meas, total_hx);
@@ -1508,7 +1548,6 @@ bool VisualManager::SingleFeatureJacobianSlam(const Feature* feat,
             Eigen::Vector2d uv_dist = CamModel::getInstance().project_distort(cam_id, p_finCi);
             Eigen::Vector2d res = zm - uv_dist;
             residual.segment<2>(2 * cnt) = res;
-            // Hfx.block<2, 1>(2 * cnt, Hfx.cols() - kResidualCols) = res;
 
             if (param_.use_fej)
             {
@@ -1532,13 +1571,11 @@ bool VisualManager::SingleFeatureJacobianSlam(const Feature* feat,
             // Get jacobian wrt pwf
             Eigen::Matrix3d dpcf_dpwf = R_CitoG.transpose();
             Hf.block<2, 3>(2 * cnt, 0) = dz_dpcf * dpcf_dpwf;
-            // Hfx.block<2, 3>(2 * cnt, pwf_id) = dz_dpcf * dpcf_dpwf;
 
             // Get jacobian wrt extrinsic parameters
             if (_state->enableEstimateRic())
             {
                 Eigen::Matrix3d dpcf_dqic = utils::math::skew(p_finCi);
-                // Hfx.block<2, 3>(2 * cnt, reserve_cols + Hx_mapping.at(_state->mutable_Qic(cam_id))) = dz_dpcf * dpcf_dqic;
                 Hx.block<2, 3>(2 * cnt, Hx_mapping.at(_state->mutable_Qic(cam_id))) = dz_dpcf * dpcf_dqic;
             }
 
@@ -1546,7 +1583,6 @@ bool VisualManager::SingleFeatureJacobianSlam(const Feature* feat,
             Eigen::MatrixXd dpcf_dclone = Eigen::MatrixXd::Zero(3, 6);
             dpcf_dclone.block<3, 3>(0, 0) = R_CtoI.transpose() * utils::math::skew(R_IitoG.transpose() * (p_finG - p_IiinG));
             dpcf_dclone.block<3, 3>(0, 3) = -R_CitoG.transpose();
-            // Hfx.block<2, 6>(2 * cnt, reserve_cols + Hx_mapping.at(obs_pose)) = dz_dpcf * dpcf_dclone;
             Hx.block<2, 6>(2 * cnt, Hx_mapping.at(obs_pose)) = dz_dpcf * dpcf_dclone;
 
             res_total += res;
@@ -1560,6 +1596,11 @@ bool VisualManager::SingleFeatureJacobianSlam(const Feature* feat,
         std::cout << "residual is too large: " << res_total.norm() / cnt << ", threashold is: " << threshold << std::endl;
         return false;
     }
+
+    // utils::math::NullSpaceProjectInplace(Hfx, 3);
+    // // Hfx = utils::math::GivensRotation(Hfx, 3);
+    // Eigen::MatrixXd Hx = Eigen::MatrixXd::Zero(Hfx.rows() - 3, Hfx.cols() - 3);
+    // Hx.noalias() = Hfx.block(3, 3, Hfx.rows() - 3, Hfx.cols() - 3);
 
     return true;
 }

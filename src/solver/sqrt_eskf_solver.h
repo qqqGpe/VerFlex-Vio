@@ -99,7 +99,7 @@ class SqrtEskfSolver : public MsckfSolverBase
         // Marginalize slam feature
         if (marge_type == MarginalizeType::SlamFeature)
         {
-            for (auto&[id, feature] : state->mutable_slam_features())
+            for (auto &[id, feature] : state->slam_features())
             {
                 if (feature._state_ptr == state_to_marginalize)
                 {
@@ -190,7 +190,7 @@ class SqrtEskfSolver : public MsckfSolverBase
         {
             if (diags(i) < 0.0)
             {
-                LOG(ERROR) << "\033[31m" << fmt::format("Diagonal is negative when update, diags") << "\033[0m";
+                LOG(ERROR) << fmt::format(RED "Diagonal is negative when update, diags" RESET);
                 LOG(ERROR) << "diags: " << diags.transpose();
                 std::exit(EXIT_FAILURE);
             }

@@ -107,4 +107,20 @@ if(CATKIN_ENABLE_TESTING)
         )
     endif()
 
+    # Unit test for Logger singleton (TDD RED Phase)
+    catkin_add_gtest(test_logger test_logger.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../utils/logger.cpp
+    )
+    if (TARGET test_logger)
+        target_include_directories(test_logger PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/../utils
+        )
+        target_link_libraries(test_logger
+            ${catkin_LIBRARIES}
+            ${thirdparty_libraries}
+            ${GTEST_LIBRARIES}
+            pthread  # Required for std::thread
+        )
+    endif()
+
 endif()

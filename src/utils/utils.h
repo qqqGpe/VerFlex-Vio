@@ -6,33 +6,42 @@
 #ifndef __UTILS__
 #define __UTILS__
 
+#include <Eigen/Core>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
-#include <Eigen/Core>
 
 #define RAD2DEG 180 / M_PI
 #define DEG2RAD M_PI / 180
 
+// Terminal color macros
+#define RESET "\033[0m"
+#define RED "\033[31m"
+#define GREEN "\033[32m"
+#define YELLOW "\033[33m"
+#define BLUE "\033[34m"
+#define MAGENTA "\033[35m"
+#define CYAN "\033[36m"
+#define WHITE "\033[37m"
+#define BOLD "\033[1m"
+
 namespace utils
 {
-bool transfer_image(const sensor_msgs::ImageConstPtr& msg, cv::Mat& output);
+bool transfer_image(const sensor_msgs::ImageConstPtr &msg, cv::Mat &output);
 
-void visualize_feature_tracking_results(const cv::Mat& image,
-                                        const std::vector<std::pair<int32_t, cv::Point2f>>& points,
-                                        const int32_t wait_key_time_ms,
-                                        cv::Mat* out_image);
+void visualize_feature_tracking_results(const cv::Mat &image,
+                                        const std::vector<std::pair<int32_t, cv::Point2f>> &points,
+                                        const int32_t wait_key_time_ms, cv::Mat *out_image);
 
 void show_eigen_matrix(const Eigen::MatrixXd matrix, const std::string win_name);
 
-void ShowGridImages(const std::vector<cv::Mat>& images, const std::string win_name = "default");
+void ShowGridImages(const std::vector<cv::Mat> &images, const std::string win_name = "default");
 
 // Function to draw matches between two images in one image
-void visualizeStereoMatches(const cv::Mat& img1,
-                            const cv::Mat& img2,
-                            const std::vector<cv::Point2f>& points1,
-                            const std::vector<cv::Point2f>& points2);
+void visualizeStereoMatches(const cv::Mat &img1, const cv::Mat &img2, const std::vector<cv::Point2f> &points1,
+                            const std::vector<cv::Point2f> &points2);
 
-void DisplayFeaturePoints(const cv::Mat& img, const std::vector<cv::Point2d>& points, const std::vector<double>& depths, const std::vector<int>& ids);
-};  // namespace utils
+void DisplayFeaturePoints(const cv::Mat &img, const std::vector<cv::Point2d> &points, const std::vector<double> &depths,
+                          const std::vector<int> &ids);
+}; // namespace utils
 
 #endif

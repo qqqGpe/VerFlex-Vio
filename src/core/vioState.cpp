@@ -143,7 +143,7 @@ bool State::AugumentSlamFeature(Feature* feature,
 {
     // Create SlamFeature
     std::shared_ptr<Vec> feature_state = std::make_shared<Vec>(feature->_pwf);
-    SlamFeature new_feature{
+    SlamFeature new_feature {
         ._id = feature->_id,
         ._state_ptr = feature_state,
         ._info = feature
@@ -174,16 +174,6 @@ bool State::AugumentSlamFeature(Feature* feature,
     new_covariance.block(0, new_feature._state_ptr->id(), old_covariance.rows(), new_feature._state_ptr->size()) = Pxf;
     new_covariance.block(new_feature._state_ptr->id(), 0, new_feature._state_ptr->size(), old_covariance.rows()) = Pxf.transpose();
 
-    // Cross covariance
-    // uint32_t row_start = 0;
-    // for (const auto& var : Hx_order)
-    // {
-    //     new_covariance.block(var->id(), new_feature._state_ptr->id(), var->size(), new_feature._state_ptr->size()) =
-    //         Pxf.block(row_start, 0, var->size(), new_feature._state_ptr->size());
-    //     new_covariance.block(new_feature._state_ptr->id(), var->id(), new_feature._state_ptr->size(), var->size()) =
-    //         Pxf.block(row_start, 0, var->size(), new_feature._state_ptr->size()).transpose();
-    //     row_start += var->size();
-    // }
     SetCovariance(new_covariance);
     // SetSqrtPt(Eigen::MatrixXd::Identity(_dim, _dim));    // TODO: move augument part to solver
 

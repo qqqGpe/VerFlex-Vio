@@ -219,7 +219,7 @@ void DynamicInitializer::assignImuState(const Eigen::VectorXd velocity_gravity_s
 
         Eigen::Vector3d rpy = utils::math::R2rpy(R_bitoG) * 180.0 / M_PI;  // Convert to degrees
         LOG(INFO) << fmt::format(
-            "\033[32mDynamic initialized imu state at {:f}: RPY: [{:f}, {:f}, {:f}], Position: [{:f}, {:f}, {:f}], Velocity: [{:f}, {:f}, {:f}]\033[0m",
+            GREEN "Dynamic initialized imu state at {:f}: RPY: [{:f}, {:f}, {:f}], Position: [{:f}, {:f}, {:f}], Velocity: [{:f}, {:f}, {:f}]" RESET,
             imu_state_i->ts(), rpy.x(), rpy.y(), rpy.z(), p_biinG.x(), p_biinG.y(), p_biinG.z(), v_biinG.x(), v_biinG.y(), v_biinG.z());
     }
 

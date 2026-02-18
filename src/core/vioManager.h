@@ -92,8 +92,6 @@ class VioManager
     std::shared_ptr<Initializer> initializer;
     std::shared_ptr<ImuManager> _imu_manager;
     std::shared_ptr<VisualManager> _visual_manager;
-    std::shared_ptr<utils::LoggerFull> vio_logger;
-    std::shared_ptr<utils::LoggerTUM> vio_logger_tum;
     std::shared_ptr<MsckfSolverBase> solver;
     std::map<double, std::pair<cv::Mat, cv::Mat>> image_bak;
     std::map<double, GroundTruth> ground_truth_;

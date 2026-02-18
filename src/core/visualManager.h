@@ -1,41 +1,40 @@
 #ifndef __VISUAL_MANAGER__
 #define __VISUAL_MANAGER__
 
-#include <map>
-#include <vector>
-#include <mutex>
-#include <queue>
 #include "ImuState.h"
 #include "camModel.h"
-#include "vioFrontend.h"
+#include "eskf_solver.h"
 #include "parameter.h"
 #include "sensorType.h"
-#include "vioState.h"
 #include "solver.h"
-#include "eskf_solver.h"
 #include "sqrt_eskf_solver.h"
+#include "vioFrontend.h"
+#include "vioState.h"
+#include <map>
+#include <mutex>
+#include <queue>
+#include <vector>
 
-namespace {
-    constexpr int kMaxImageBufferSize = 10000;
+namespace
+{
+constexpr int kMaxImageBufferSize = 10000;
 }
 
 class VisualManager
 {
-   protected:
+  protected:
     enum class FeatureUpdateType
     {
         kMsckfUpdate = 0,
         kSlamUpdate
     };
 
-   public:
+  public:
     static constexpr uint32_t kMaxFeatureForUpdate = 40;
     static constexpr uint32_t kMinFeatureForUpdate = 8;
 
     VisualManager() = default;
-    VisualManager(std::shared_ptr<ros::NodeHandle>& nh,
-                  const Param& params,
-                  std::shared_ptr<State>& state,
+    VisualManager(std::shared_ptr<ros::NodeHandle> &nh, const Param &params, std::shared_ptr<State> &state,
                   std::shared_ptr<MsckfSolverBase> solver = nullptr);
 
     ~VisualManager()
@@ -50,88 +49,83 @@ class VisualManager
 
     bool VisualUpdate();
 
-    KeyFrameStatus MaybeSetKeyframe(std::shared_ptr<State> _state, std::vector<Feature*> feats);
+    KeyFrameStatus MaybeSetKeyframe(std::shared_ptr<State> _state, std::vector<Feature *> feats);
 
     void UpdateFeatureBase(const double timestamp);
 
     void ResetFeatureBase();
 
-    void InitFeatureBase(std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_feature_triangulated);
+    void
+    InitFeatureBase(std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_feature_triangulated);
 
     void ClearOldFeatureObs(const double timestamp_to_drop);
 
-    void FeatureTriangulation(const std::map<double, CameraPose> camera_pose_buffer, std::vector<Feature*>& feats);
+    void FeatureTriangulation(const std::map<double, CameraPose> camera_pose_buffer, std::vector<Feature *> &feats);
 
-    bool StereoTriangulation(CameraObs& cam_obs, Eigen::Vector3d& pcf) const;
+    bool StereoTriangulation(CameraObs &cam_obs, Eigen::Vector3d &pcf) const;
 
-    bool PnpRansac(Eigen::Matrix3d& R_12,
-                   Eigen::Vector3d& p_12,
+    bool PnpRansac(Eigen::Matrix3d &R_12, Eigen::Vector3d &p_12,
                    std::unordered_map<int32_t, std::pair<CameraObs, Eigen::Vector3d>> stereo_obs_triangulated) const;
 
-    bool least_square_triangulation(const std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
+    bool least_square_triangulation(const std::map<double, CameraPose> &clone_pose_buffer, Feature *feat);
 
-    bool StereoLeastSqureTriangulation(CameraObs& cam_obs, Eigen::Vector3d& pcf) const;
+    bool StereoLeastSqureTriangulation(CameraObs &cam_obs, Eigen::Vector3d &pcf) const;
 
-    bool GaussianNewtonOptimization(const std::map<double, CameraPose>& clone_pose_buffer, Feature* feat);
+    bool GaussianNewtonOptimization(const std::map<double, CameraPose> &clone_pose_buffer, Feature *feat);
 
-    bool ConstructFeatureJacobianFull(FeatureUpdateType update_type,
-                                      std::vector<Feature*> feats,
-                                      std::unordered_map<std::shared_ptr<Type>, size_t>& map_hx,
-                                      std::vector<std::shared_ptr<Type>>& Hx_order,
-                                      Eigen::MatrixXd& Hx_full,
-                                      Eigen::VectorXd& res);
+    bool ConstructFeatureJacobianFull(FeatureUpdateType update_type, std::vector<Feature *> feats,
+                                      std::unordered_map<std::shared_ptr<Type>, size_t> &map_hx,
+                                      std::vector<std::shared_ptr<Type>> &Hx_order, Eigen::MatrixXd &Hx_full,
+                                      Eigen::VectorXd &res);
 
-    bool ConstructFeatureJacobianFullSlam(std::vector<Feature*> feats,
-                                          std::unordered_map<std::shared_ptr<Type>, size_t>& Hx_mapping,
-                                          std::vector<std::shared_ptr<Type>>& Hx_order,
-                                          Eigen::MatrixXd& Hxf_full,
-                                          Eigen::VectorXd& residual_full);
+    bool ConstructFeatureJacobianFullSlam(std::vector<Feature *> feats,
+                                          std::unordered_map<std::shared_ptr<Type>, size_t> &Hx_mapping,
+                                          std::vector<std::shared_ptr<Type>> &Hx_order, Eigen::MatrixXd &H_full,
+                                          Eigen::VectorXd &residual_full);
 
-    bool SingleFeatureJacobian(const Feature* feat,
-                               const std::unordered_map<std::shared_ptr<Type>, size_t> Hx_mapping,
-                               const int total_hx,
-                               Eigen::MatrixXd& Hfx_single);
+    bool SingleFeatureJacobian(const Feature *feat, const std::unordered_map<std::shared_ptr<Type>, size_t> Hx_mapping,
+                               const int total_hx, Eigen::MatrixXd &Hfx_single);
 
-    bool SingleFeatureJacobianSlam(const Feature* feat,
+    bool SingleFeatureJacobianSlam(const Feature *feat,
                                    const std::unordered_map<std::shared_ptr<Type>, size_t> Hx_mapping,
-                                   const int total_hx,
-                                   Eigen::MatrixXd& Hf,
-                                   Eigen::MatrixXd& Hx,
-                                   Eigen::VectorXd& res);
+                                   const int total_hx, Eigen::MatrixXd &Hf, Eigen::MatrixXd &Hx, Eigen::VectorXd &res);
 
-    bool PnpRansacToRejectOutliers(std::vector<Feature*> feats);
+    bool PnpRansacToRejectOutliers(std::vector<Feature *> feats);
 
-    void CalculateMaxFeatureParallex(std::vector<Feature*>& feats);
+    double RotationCompensatedParallex(double ts_a, const CameraObs &obs_a, double ts_b, const CameraObs &obs_b);
 
-    void SelectMsckfFeatures(const std::vector<Feature*> feats, std::vector<Feature*>& feat_msckf);
+    void CalculateMaxFeatureParallex(std::vector<Feature *> &feats);
 
-    void SelectSlamFeatures(std::vector<Feature*>& feature_tracked, std::vector<Feature*>& feat_slam_old, std::vector<Feature*>& feat_slam_new);
+    void SelectMsckfFeatures(const std::vector<Feature *> feats, std::vector<Feature *> &feat_msckf);
 
-    void InitializeNewSlamFeatures(std::vector<Feature*>& feat_slam_new);
+    void SelectSlamFeatures(std::vector<Feature *> &feature_tracked, std::vector<Feature *> &feat_slam_old,
+                            std::vector<Feature *> &feat_slam_new);
 
-    void set_state(std::shared_ptr<State> state) { _state = state; }  // only for debug
+    void InitializeNewSlamFeatures(std::vector<Feature *> &feat_slam_new);
+
+    void set_state(std::shared_ptr<State> state) { _state = state; } // only for debug
 
     void FeedImages(const std::pair<double, std::vector<cv::Mat>> input);
 
-    bool MsckfFeatureUpdate(std::vector<Feature*> feats);
+    bool MsckfFeatureUpdate(std::vector<Feature *> feats);
 
-    bool SlamFeatureUpdate(std::vector<Feature*> feats);
+    bool SlamFeatureUpdate(std::vector<Feature *> feats);
 
     void MarginalizeSlamFeatureLost();
 
     void ClearExpiredMeasurements(const double timestamp);
 
-    static double calcVisualObsParallex(const std::unordered_map<uint32_t, CameraObs>& visual_obs_a,
-                                        const std::unordered_map<uint32_t, CameraObs>& visual_obs_b);
+    static double calcVisualObsParallex(const std::unordered_map<uint32_t, CameraObs> &visual_obs_a,
+                                        const std::unordered_map<uint32_t, CameraObs> &visual_obs_b);
 
-    static std::map<uint32_t, CameraObs> covisibleFeatures(const std::unordered_map<uint32_t, CameraObs>& visual_obs_a,
-                                                           const std::unordered_map<uint32_t, CameraObs>& visual_obs_b);
+    static std::map<uint32_t, CameraObs> covisibleFeatures(const std::unordered_map<uint32_t, CameraObs> &visual_obs_a,
+                                                           const std::unordered_map<uint32_t, CameraObs> &visual_obs_b);
 
     KeyFrameStatus GetKeyframeState() { return *_keyframe; }
 
     void SetKeyframeState(const KeyFrameStatus state) { *_keyframe = state; }
 
-    std::vector<Feature*> GetFeatureBase() { return feature_base_; }
+    std::vector<Feature *> GetFeatureBase() { return feature_base_; }
 
     void reset();
 
@@ -145,19 +139,19 @@ class VisualManager
 
     std::map<double, std::vector<cv::Mat>> stored_images_;
 
-    std::vector<Feature*> feature_base_;
-    std::vector<Feature*> feature_tracked_;
-    std::vector<Feature*> feature_lost_;
+    std::vector<Feature *> feature_base_;
+    std::vector<Feature *> feature_tracked_;
+    std::vector<Feature *> feature_lost_;
     std::vector<CameraObs> feature_new_;
-    std::vector<Feature*> feat_msckf_;
-    std::vector<Feature*> feat_slam_old_;
-    std::vector<Feature*> feat_slam_new_;
+    std::vector<Feature *> feat_msckf_;
+    std::vector<Feature *> feat_slam_old_;
+    std::vector<Feature *> feat_slam_new_;
     std::shared_ptr<KeyFrameStatus> _keyframe;
     std::shared_ptr<VioFrontend> vio_frontend;
 
     friend VioFrontend;
 
-   protected:
+  protected:
     Param param_;
     std::shared_ptr<ros::NodeHandle> nh_;
     std::shared_ptr<State> _state;

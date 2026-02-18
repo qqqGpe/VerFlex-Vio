@@ -4,244 +4,175 @@
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#include <map>
+#include <memory>
+#include <mutex>
 #include <sstream>
+#include <vector>
 
 namespace utils
 {
+// Macro to declare a field and register its name
+// Defined outside structs to enable reuse across different logging structures.
+// The inner struct's constructor is templated to accept any class pointer type (T*),
+// allowing it to work with LogValueTUM, LogValueFull, or any other class that has
+// a 'value_name' member (e.g., std::vector<std::string>).
+#define LOG_FIELD(type, name, default_val) \
+    type name = default_val;               \
+    struct _reg_##name {                   \
+        template <typename T>              \
+        _reg_##name(T* self) { self->value_name.push_back(#name); } \
+    } _reg_inst_##name{this}
 
-class LogValueTUM
+/**
+ * @brief TUM format data structure for logging
+ * Simple struct with position and quaternion data
+ */
+struct LogValueTUM
 {
-   public:
-    void Reset()
-    {
-        *this = std::move(LogValueTUM());
-    }
-
-    std::vector<std::string> value_name{"#timestamp" "px" "py" "pz" "qx" "qy" "qz" "qw"};
+    std::vector<std::string> value_name = {"#timestamp"};
     double timestamp = 0;
-    double px = 0;
-    double py = 0;
-    double pz = 0;
-    double qx = 0;
-    double qy = 0;
-    double qz = 0;
-    double qw = 0;
+    LOG_FIELD(double, px, 0);
+    LOG_FIELD(double, py, 0);
+    LOG_FIELD(double, pz, 0);
+    LOG_FIELD(double, qx, 0);
+    LOG_FIELD(double, qy, 0);
+    LOG_FIELD(double, qz, 0);
+    LOG_FIELD(double, qw, 1.0);
 };
 
-class LogValueFull
+/**
+ * @brief Full format data structure for logging
+ * Contains complete state information including biases and uncertainties
+ */
+struct LogValueFull
 {
-   public:
-    void Reset()
-    {
-        *this = std::move(LogValueFull());
-    }
-
-    std::vector<std::string> value_name = {"#timestamp",
-                                           "px",
-                                           "py",
-                                           "pz",
-                                           "vx",
-                                           "vy",
-                                           "vz",
-                                           "roll",
-                                           "pitch",
-                                           "yaw",
-
-                                           "bias_acc_x",
-                                           "bias_acc_y",
-                                           "bias_acc_z",
-                                           "bias_gyro_x",
-                                           "bias_gyro_y",
-                                           "bias_gyro_z",
-
-                                           "sigma_px",
-                                           "sigma_py",
-                                           "sigma_pz",
-                                           "sigma_vx",
-                                           "sigma_vy",
-                                           "sigma_vz",
-
-                                           "sigma_roll",
-                                           "sigma_pitch",
-                                           "sigma_yaw",
-
-                                           "sigma_bias_acc_x",
-                                           "sigma_bias_acc_y",
-                                           "sigma_bias_acc_z",
-                                           "sigma_bias_gyro_x",
-                                           "sigma_bias_gyro_y",
-                                           "sigma_bias_gyro_z",
-
-                                           "visual_updated",
-                                           "ZuptUpdated",
-                                           "keyframe",
-
-                                           "diff_px",
-                                           "diff_py",
-                                           "diff_pz",
-                                           "init_vnorm",
-                                           "ground_truth_vnorm"};
+    std::vector<std::string> value_name = {"#timestamp"};
 
     double timestamp = 0;
+    // Position, velocity, orientation
+    LOG_FIELD(double, px, 0);
+    LOG_FIELD(double, py, 0);
+    LOG_FIELD(double, pz, 0);
+    LOG_FIELD(double, vx, 0);
+    LOG_FIELD(double, vy, 0);
+    LOG_FIELD(double, vz, 0);
+    LOG_FIELD(double, roll, 0);
+    LOG_FIELD(double, pitch, 0);
+    LOG_FIELD(double, yaw, 0);
 
-    double px = 0;
-    double py = 0;
-    double pz = 0;
-    double vx = 0;
-    double vy = 0;
-    double vz = 0;
-    double roll = 0;
-    double pitch = 0;
-    double yaw = 0;
-    double bias_acc_x = 0;
-    double bias_acc_y = 0;
-    double bias_acc_z = 0;
-    double bias_gyro_x = 0;
-    double bias_gyro_y = 0;
-    double bias_gyro_z = 0;
+    // IMU biases
+    LOG_FIELD(double, bias_acc_x, 0);
+    LOG_FIELD(double, bias_acc_y, 0);
+    LOG_FIELD(double, bias_acc_z, 0);
+    LOG_FIELD(double, bias_gyro_x, 0);
+    LOG_FIELD(double, bias_gyro_y, 0);
+    LOG_FIELD(double, bias_gyro_z, 0);
 
-    double sigma_px = 0;
-    double sigma_py = 0;
-    double sigma_pz = 0;
-    double sigma_vx = 0;
-    double sigma_vy = 0;
-    double sigma_vz = 0;
-    double sigma_roll = 0;
-    double sigma_pitch = 0;
-    double sigma_yaw = 0;
-    double sigma_bias_acc_x = 0;
-    double sigma_bias_acc_y = 0;
-    double sigma_bias_acc_z = 0;
-    double sigma_bias_gyro_x = 0;
-    double sigma_bias_gyro_y = 0;
-    double sigma_bias_gyro_z = 0;
+    // Uncertainties (1-sigma)
+    LOG_FIELD(double, sigma_px, 0);
+    LOG_FIELD(double, sigma_py, 0);
+    LOG_FIELD(double, sigma_pz, 0);
+    LOG_FIELD(double, sigma_vx, 0);
+    LOG_FIELD(double, sigma_vy, 0);
+    LOG_FIELD(double, sigma_vz, 0);
+    LOG_FIELD(double, sigma_roll, 0);
+    LOG_FIELD(double, sigma_pitch, 0);
+    LOG_FIELD(double, sigma_yaw, 0);
+    LOG_FIELD(double, sigma_bias_acc_x, 0);
+    LOG_FIELD(double, sigma_bias_acc_y, 0);
+    LOG_FIELD(double, sigma_bias_acc_z, 0);
+    LOG_FIELD(double, sigma_bias_gyro_x, 0);
+    LOG_FIELD(double, sigma_bias_gyro_y, 0);
+    LOG_FIELD(double, sigma_bias_gyro_z, 0);
 
-    int visual_updated = 0;
-    int ZuptUpdated = 0;
-    int keyframe = 0;
+    // Update flags
+    LOG_FIELD(int, visual_updated, 0);
+    LOG_FIELD(int, zupt_updated, 0);
+    LOG_FIELD(int, keyframe, 0);
 
-    // posiiton-velocity difference
-    double diff_px = 0;
-    double diff_py = 0;
-    double diff_pz = 0;
+    // Position difference & velocity norms
+    LOG_FIELD(double, diff_px, 0);
+    LOG_FIELD(double, diff_py, 0);
+    LOG_FIELD(double, diff_pz, 0);
+    LOG_FIELD(double, init_vnorm, 0);
+    LOG_FIELD(double, groundtruth_vnorm, 0);
 
-    double init_vnorm = 0;
-    double groundtruth_vnorm = 0;
+#undef LOG_FIELD
 };
 
-template <typename Derived>
-class LoggerBase
+
+/**
+ * @brief Thread-safe multi-instance singleton Logger
+ *
+ * Features:
+ * - Multi-instance singleton by filename (GetInstance returns same instance for same filename)
+ * - Thread-safe writes using mutex
+ * - Supports both TUM and Full format (auto-detected by SaveValues overload)
+ * - Writes header on first write
+ * - Keeps file stream open for performance
+ */
+class Logger
 {
    public:
-    LoggerBase(const std::string& dirname, const std::string bag_name, const std::string log_type = "default", const bool use_title = true)
+    /**
+     * @brief Get singleton instance for a specific filename
+     * @param filename Full path to log file
+     * @return Pointer to Logger instance, nullptr on failure
+     */
+    static Logger* GetInstance(const std::string& filename);
+
+    /**
+     * @brief Save a TUM format value to the log file
+     * @param value The value to log
+     * @return true on success, false on failure
+     */
+    bool SaveValues(const LogValueTUM& value);
+
+    /**
+     * @brief Save a Full format value to the log file
+     * @param value The value to log
+     * @return true on success, false on failure
+     */
+    bool SaveValues(const LogValueFull& value);
+
+    /**
+     * @brief Close the log file and cleanup
+     */
+    void Close();
+
+    /**
+     * @brief Destructor - public for unique_ptr compatibility
+     */
+    ~Logger();
+
+   private:
+    Logger(const std::string& filename);
+
+    Logger(const Logger&) = delete;
+    Logger& operator=(const Logger&) = delete;
+
+    template <typename T> void WriteHeader()
     {
-        if (!InitLogFile(dirname, bag_name, log_type, use_title))
+        T temp;
+        for (size_t i = 0; i < temp.value_name.size(); ++i)
         {
-            LOG(ERROR) << "Failed to make logging file";
-            std::exit(1);
+            if (i > 0)
+                file_ << " ";
+            file_ << temp.value_name[i];
         }
-    }
-
-    virtual void SaveValues(const Derived log_value) const = 0;
-
-   protected:
-
-    void Reset()
-    {
-        *this = std::move(LoggerBase());
-    }
-
-    bool InitLogFile(const std::string dirname, const std::string bag_name, const std::string log_type, const bool use_title)
-    {
-      char time_str[100];
-      std::time_t now = std::time(nullptr);
-      std::strftime(time_str, sizeof(time_str), "%Y-%m-%d_%H-%M-%S", std::localtime(&now));
-      filename_ = dirname + "/" + bag_name + "_" + std::string(time_str) + "_" + log_type + ".csv";
-
-      Derived value_temp;
-      std::string log_title = value_temp.value_name[0];
-      for (int i = 1; i < value_temp.value_name.size(); i++) {
-        log_title = log_title + " " + value_temp.value_name[i];
-      }
-
-        std::ofstream file(filename_);
-        if (file.is_open())
-        {
-            if (use_title)
-            {
-                file << log_title << std::endl;
-                file.close();
-            }
-        }
-        else
-        {
-            std::cerr << "Failed to create file" << filename_ << std::endl;
-            return false;
-        }
-        return true;
+        file_ << "\n";
     }
 
     std::string filename_;
-};
+    std::ofstream file_;
+    bool header_written_;
+    bool is_tum_format_;  // true = TUM, false = Full
+    std::mutex file_mutex_;
 
-/* Save Vio state values as TUM format */
-class LoggerTUM : public LoggerBase<LogValueTUM>
-{
-   public:
-    LoggerTUM(const std::string& dirname, const std::string& bag_name) : LoggerBase<LogValueTUM>(dirname, bag_name, "tum", false) {}
-
-    virtual void SaveValues(const LogValueTUM log_value) const override
-    {
-        std::ofstream file(filename_, std::ios::app);
-        file.setf(std::ios::scientific);
-        file.precision(10);
-        if (file.is_open())
-        {
-            file << log_value.timestamp << " " << log_value.px << " " << log_value.py << " " << log_value.pz << " " << log_value.qx << " "
-                 << log_value.qy << " " << log_value.qz << " " << log_value.qw << "\n";
-        }
-        else
-        {
-            std::cerr << "Can not save TUM data to: " << filename_ << std::endl;
-        }
-        file.close();
-    }
-};
-
-/* Save full log values for analysis */
-class LoggerFull : public LoggerBase<LogValueFull>
-{
-   public:
-    LoggerFull(const std::string& dirname, const std::string& bag_name) : LoggerBase<LogValueFull>(dirname, bag_name, "full", true) {}
-
-    virtual void SaveValues(const LogValueFull log_value) const override
-    {
-        std::ofstream file(filename_, std::ios::app);
-        file.setf(std::ios::scientific);
-        file.precision(10);
-        if (file.is_open())
-        {
-            file << log_value.timestamp << " " << log_value.px << " " << log_value.py << " " << log_value.pz << " " << log_value.vx << " "
-                 << log_value.vy << " " << log_value.vz << " " << log_value.roll << " " << log_value.pitch << " " << log_value.yaw << " "
-                 << log_value.bias_acc_x << " " << log_value.bias_acc_y << " " << log_value.bias_acc_z << " " << log_value.bias_gyro_x << " "
-                 << log_value.bias_gyro_y << " " << log_value.bias_gyro_z << " " << log_value.sigma_px << " " << log_value.sigma_py << " "
-                 << log_value.sigma_pz << " " << log_value.sigma_vx << " " << log_value.sigma_vy << " " << log_value.sigma_vz << " "
-                 << log_value.sigma_roll << " " << log_value.sigma_pitch << " " << log_value.sigma_yaw << " " << log_value.sigma_bias_acc_x << " "
-                 << log_value.sigma_bias_acc_y << " " << log_value.sigma_bias_acc_z << " " << log_value.sigma_bias_gyro_x << " "
-                 << log_value.sigma_bias_gyro_y << " " << log_value.sigma_bias_gyro_z << " " << log_value.visual_updated << " "
-                 << log_value.ZuptUpdated << " " << log_value.keyframe << " " << log_value.diff_px << " " << log_value.diff_py << " "
-                 << log_value.diff_pz << " " << log_value.init_vnorm << " " << log_value.groundtruth_vnorm << std::endl;
-            // last_log_value = log_value;  // backup current log value
-        }
-        else
-        {
-            std::cerr << "Can not save vio state to: " << filename_ << std::endl;
-        }
-
-        file.close();
-    }
-
-    // LogValueFull last_log_value;
+    // Static members for multi-instance singleton
+    static std::map<std::string, std::unique_ptr<Logger>> instances_;
+    static std::mutex instances_mutex_;
 };
 
 }  // namespace utils
