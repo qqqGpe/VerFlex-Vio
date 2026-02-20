@@ -14,6 +14,9 @@ A high-performance Visual Inertial Odometry (VIO) system implemented in C++ with
 - **Multiple estimators**: support ESKF, Sqrt-ESKF solvers
 - **Multiple frontends**: traditional KLT-based tracking & NN descriptor-based tracking
 - **Threading options**: multi-threaded/single-threaded execution
+- **Schmidt ESKF**: First clone pose anchoring to reduce trajectory drift
+- **Numerically stable**: Joseph form covariance update for improved robustness
+- **Dual feature support**: MSCKF features for batch updates & SLAM features for landmark-based updates
 
 
 ## 🛠️ Installation
@@ -88,7 +91,7 @@ python3 ${basedir}/script/run_batch_sim.py --ros_node "vio" --launch_file "euroc
 # +--------------+----------+----------+----------+----------+----------+----------+----------+
 # | Dataset      |     RMSE |     Mean |   Median |      Std |      Min |      Max |      SSE |
 # +==============+==========+==========+==========+==========+==========+==========+==========+
-# | MH_01_easy   | 0.284176 | 0.256443 | 0.252405 | 0.122446 | 0.072402 | 0.724794 | 292.417  |
+# | MH_01_easy   | 0.121111 | 0.105462 | 0.085949 | 0.059545 | 0.015374 | 0.355678 | 53.0098  |
 # +--------------+----------+----------+----------+----------+----------+----------+----------+
 # | MH_02_easy   | 0.261663 | 0.22578  | 0.198678 | 0.132252 | 0.026258 | 0.753107 | 203.485  |
 # +--------------+----------+----------+----------+----------+----------+----------+----------+
@@ -105,3 +108,39 @@ python3 ${basedir}/script/run_batch_sim.py --ros_node "vio" --launch_file "euroc
 ```
 
 **Note**: This is a research-grade VIO system. For production use, additional testing and validation is recommended.
+
+## ⚙️ Parameters
+
+### Solver Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `solver_type` | int | 0 | Estimator type: 0=ESKF, 1=Sqrt-ESKF |
+| `enable_schmidt_eskf` | bool | false | Enable Schmidt ESKF to anchor first clone pose and reduce drift |
+| `use_fej` | bool | false | Enable First-Estimate Jacobian for consistency |
+
+### Feature Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `use_slam_feature` | bool | false | Enable SLAM features for landmark-based updates |
+| `max_slam_feature` | int | 25 | Maximum number of SLAM features in state |
+
+### Schmidt ESKF
+
+When `enable_schmidt_eskf=true`, the first clone pose in the sliding window is anchored:
+- The first frame remains in the state vector and contributes to innovation covariance S
+- Its Kalman gain is zeroed, so the state is never updated
+- This anchors the trajectory to a reference frame, reducing drift
+- Reference: [Schmidt-EKF for Visual-Inertial SLAM (arxiv:1903.08636)](https://arxiv.org/pdf/1903.08636)
+
+Example launch configuration:
+```xml
+<!-- Enable Schmidt ESKF -->
+<param name="solver_type" value="0" />
+<param name="enable_schmidt_eskf" value="true" />
+
+<!-- Enable SLAM features -->
+<param name="use_slam_feature" value="true" />
+<param name="max_slam_feature" value="50" />
+```
