@@ -209,7 +209,7 @@ void VisualManager::SelectSlamFeatures(std::vector<Feature *> &feature_tracked, 
 
 void VisualManager::SelectMsckfFeatures(const std::vector<Feature*> feats, std::vector<Feature*>& feat_msckf)
 {
-    constexpr double kMinParallexForUse = 3.0;
+    constexpr double kMinParallexForUse = 2.0;
 
     for (int i = 0; i < feats.size(); i++)
     {
@@ -1567,11 +1567,6 @@ bool VisualManager::SingleFeatureJacobianSlam(const Feature* feat,
         std::cout << "residual is too large: " << res_total.norm() / cnt << ", threashold is: " << threshold << std::endl;
         return false;
     }
-
-    // utils::math::NullSpaceProjectInplace(Hfx, 3);
-    // // Hfx = utils::math::GivensRotation(Hfx, 3);
-    // Eigen::MatrixXd Hx = Eigen::MatrixXd::Zero(Hfx.rows() - 3, Hfx.cols() - 3);
-    // Hx.noalias() = Hfx.block(3, 3, Hfx.rows() - 3, Hfx.cols() - 3);
 
     return true;
 }
