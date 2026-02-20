@@ -123,4 +123,21 @@ if(CATKIN_ENABLE_TESTING)
         )
     endif()
 
+    # Unit test for sequential SLAM feature update
+    catkin_add_gtest(test_slam_sequential_update test_slam_sequential_update.cpp)
+    if (TARGET test_slam_sequential_update)
+        target_include_directories(test_slam_sequential_update PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/../types
+            ${CMAKE_CURRENT_SOURCE_DIR}/../core
+            ${CMAKE_CURRENT_SOURCE_DIR}/../utils
+            ${CMAKE_CURRENT_SOURCE_DIR}/../solver
+        )
+        target_link_libraries(test_slam_sequential_update
+            msckf_core
+            ${catkin_LIBRARIES}
+            ${thirdparty_libraries}
+            ${GTEST_LIBRARIES}
+        )
+    endif()
+
 endif()

@@ -39,7 +39,7 @@ class VisualManager
 
     ~VisualManager()
     {
-        for (int i = 0; i < param_.max_feat_n; i++)
+        for (size_t i = 0; i < feature_base_.size(); i++)
         {
             delete feature_base_[i];
         }
@@ -77,11 +77,6 @@ class VisualManager
                                       std::unordered_map<std::shared_ptr<Type>, size_t> &map_hx,
                                       std::vector<std::shared_ptr<Type>> &Hx_order, Eigen::MatrixXd &Hx_full,
                                       Eigen::VectorXd &res);
-
-    bool ConstructFeatureJacobianFullSlam(std::vector<Feature *> feats,
-                                          std::unordered_map<std::shared_ptr<Type>, size_t> &Hx_mapping,
-                                          std::vector<std::shared_ptr<Type>> &Hx_order, Eigen::MatrixXd &H_full,
-                                          Eigen::VectorXd &residual_full);
 
     bool SingleFeatureJacobian(const Feature *feat, const std::unordered_map<std::shared_ptr<Type>, size_t> Hx_mapping,
                                const int total_hx, Eigen::MatrixXd &Hfx_single);

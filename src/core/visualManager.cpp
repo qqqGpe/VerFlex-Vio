@@ -91,25 +91,73 @@ bool VisualManager::SlamFeatureUpdate(std::vector<Feature *> feats_slam)
         LOG(INFO) << "No slam features to update.";
         return false;
     }
-    std::unordered_map<std::shared_ptr<Type>, size_t> Hx_mapping;
-    std::vector<std::shared_ptr<Type>> Hx_order;
-    Eigen::MatrixXd Hx_slam;
-    Eigen::VectorXd res;
-
-    if (!ConstructFeatureJacobianFullSlam(feats_slam, Hx_mapping, Hx_order, Hx_slam, res))
-    {
-        LOG(WARNING) << "Failed to construct feature jacobian for slam update.";
-        return false;
-    }
-
-    Eigen::MatrixXd R =
-        Eigen::MatrixXd::Identity(Hx_slam.rows(), Hx_slam.rows()) * std::pow(param_.sigma_visual_pix, 2);
 
     if (_state->_clone_pose.size() == param_.max_clone_pose)
     {
-        solver_->update(_state, Hx_slam, res, Hx_order, Hx_mapping, R);
-        _state->UpdateSlamFeatureAfterVisualUpdate();
-        return true;
+        int num_updated = 0;
+        for (auto* feat : feats_slam)
+        {
+            if (!feat->_is_triangulated)
+            {
+                continue;
+            }
+
+            auto& slam_feat = _state->slam_features().at(feat->_id);
+
+            std::unordered_map<std::shared_ptr<Type>, size_t> Hx_mapping;
+            std::vector<std::shared_ptr<Type>> Hx_order;
+            size_t total_hx = 0;
+
+            for (const auto& [ts, pose] : _state->_clone_pose)
+            {
+                Hx_mapping.emplace(pose, total_hx);
+                Hx_order.push_back(pose);
+                total_hx += pose->size();
+            }
+
+            if (_state->enableEstimateRic())
+            {
+                for (uint8_t cam_id = 0; cam_id < param_.camera_num; cam_id++)
+                {
+                    auto qic = _state->mutable_Qic(cam_id);
+                    Hx_mapping.emplace(qic, total_hx);
+                    Hx_order.push_back(qic);
+                    total_hx += qic->size();
+                }
+            }
+
+            // total_hx_before_feat is the width for Hx output (clone+extrinsic columns only, not feature)
+            size_t total_hx_before_feat = total_hx;
+
+            auto feat_ptr = slam_feat._state_ptr;
+            Hx_mapping.emplace(feat_ptr, total_hx);
+            Hx_order.push_back(feat_ptr);
+            total_hx += feat_ptr->size();
+
+            Eigen::MatrixXd Hf, Hx;
+            Eigen::VectorXd res;
+            if (!SingleFeatureJacobianSlam(feat, Hx_mapping, total_hx_before_feat, Hf, Hx, res))
+            {
+                LOG(WARNING) << "Failed to compute Jacobian for SLAM feature " << feat->_id;
+                continue;
+            }
+
+            Eigen::MatrixXd H_combined = Eigen::MatrixXd::Zero(res.rows(), total_hx);
+            H_combined.block(0, 0, Hx.rows(), Hx.cols()) = Hx;
+            H_combined.block(0, Hx_mapping.at(feat_ptr), Hf.rows(), Hf.cols()) = Hf;
+
+            Eigen::MatrixXd R = Eigen::MatrixXd::Identity(res.rows(), res.rows()) *
+                                std::pow(param_.sigma_visual_pix, 2);
+
+            solver_->update(_state, H_combined, res, Hx_order, Hx_mapping, R);
+            num_updated++;
+        }
+
+        if (num_updated > 0)
+        {
+            _state->UpdateSlamFeatureAfterVisualUpdate();
+        }
+        return num_updated > 0;
     }
     else
     {
@@ -1129,97 +1177,6 @@ void VisualManager::CalculateMaxFeatureParallex(std::vector<Feature *> &feats)
 
         feat->_parallex = max_parallex;
     }
-}
-
-bool VisualManager::ConstructFeatureJacobianFullSlam(std::vector<Feature*> feats,
-                                                     std::unordered_map<std::shared_ptr<Type>, size_t>& Hx_mapping,
-                                                     std::vector<std::shared_ptr<Type>>& Hx_order,
-                                                     Eigen::MatrixXd& H_full,
-                                                     Eigen::VectorXd& residual_full)
-{
-    Hx_mapping.clear();
-    Hx_order.clear();
-    uint32_t total_hx = 0;
-
-    // Add clone poses to Hx map
-    for (auto x : _state->_clone_pose)
-    {
-        Hx_mapping.emplace(x.second, total_hx);
-        Hx_order.push_back(x.second);
-        total_hx += x.second->size();
-    }
-
-    // Add extrinsic to Hx map
-    if (_state->enableEstimateRic())
-    {
-        for (uint8_t i = 0; i < param_.camera_num; i++)
-        {
-            Hx_mapping.emplace(_state->mutable_Qic(i), total_hx);
-            Hx_order.push_back(_state->mutable_Qic(i));
-            total_hx += _state->mutable_Qic(i)->size();
-        }
-    }
-
-    std::vector<SlamFeature> slam_features;
-    for (auto& feat : feats)
-    {
-        slam_features.push_back(_state->slam_features().at(feat->_id));
-    }
-    uint32_t max_hx_cols = _state->Covariance().cols();
-
-    H_full.resize(4 * slam_features.size() * _state->_clone_pose.size(), max_hx_cols);
-    residual_full.resize(4 * slam_features.size() * _state->_clone_pose.size(), 1);
-    H_full.setZero();
-    residual_full.setZero();
-
-    uint32_t Hxf_rows = 0;
-    // for (int i = 0; i < slam_features.size(); i++)
-    for (auto& f : slam_features)
-    {
-        Eigen::MatrixXd Hf;
-        Eigen::MatrixXd Hx;
-        Eigen::VectorXd res;
-        Feature* feat = f._info;
-        std::shared_ptr<Type> feat_ptr = f._state_ptr;
-        if (feat->_is_triangulated)
-        {
-            if (!SingleFeatureJacobianSlam(feat, Hx_mapping, total_hx, Hf, Hx, res))
-            {
-                continue;
-            }
-            Hx_mapping.emplace(feat_ptr, total_hx);
-            Hx_order.push_back(feat_ptr);
-            total_hx += feat_ptr->size();
-
-            H_full.block(Hxf_rows, 0, Hx.rows(), Hx.cols()) = Hx;
-            H_full.block(Hxf_rows, Hx_mapping.at(feat_ptr), Hf.rows(), Hf.cols()) = Hf;
-            residual_full.segment(Hxf_rows, res.rows()) = res;
-            Hxf_rows += Hx.rows();
-            // Hx_full.block(Hxf_rows, 0, Hx.rows(), Hx.cols()) = Hx;
-            // Hxf_rows += Hx.rows();
-        }
-    }
-    H_full.conservativeResize(Hxf_rows, total_hx);
-    residual_full.conservativeResize(Hxf_rows, 1);
-
-    if(Hxf_rows == 0)
-    {
-        LOG(WARNING) << "No valid feature jacobian constructed.";
-        return false;
-    }
-
-    // // 创建临时矩阵Hxfr用于压缩观测矩阵Hxf
-    // Eigen::MatrixXd Hxfr_full = Eigen::MatrixXd::Zero(H_full.rows(), H_full.cols() + 1);
-    // Hxfr_full.leftCols(H_full.cols()) = H_full;
-    // Hxfr_full.rightCols(1) = residual_full;
-
-    // // 压缩观测矩阵Hxf
-    // Hxfr_full = utils::math::GivensRotation(Hxfr_full, Hxfr_full.cols() - 1);
-    // uint32_t final_hx_rows = Hxfr_full.cols() - 1;
-    // H_full = Hxfr_full.block(0, 0, final_hx_rows, Hxfr_full.cols() - 1);
-    // residual_full = Hxfr_full.block(0, Hxfr_full.cols() - 1, final_hx_rows, 1);
-
-    return true;
 }
 
 bool VisualManager::ConstructFeatureJacobianFull(FeatureUpdateType update_type,
