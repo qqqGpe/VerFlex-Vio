@@ -278,6 +278,100 @@ TEST_F(SlamSequentialUpdateTest, MixedValidInvalidFeatures_ProcessesValid)
     EXPECT_TRUE(result);
 }
 
+TEST_F(SlamSequentialUpdateTest, CovarianceChangesAfterUpdate)
+{
+    addClonePoses(kMaxClonePose);
+    
+    // Create feature with perturbed position to generate non-zero residuals
+    Feature* feat = createFeatureWithObservations(0, Eigen::Vector3d(1.05, 0.52, 2.03));
+    addSlamFeatureToState(feat);
+    
+    // Store covariance diagonal before update
+    Eigen::VectorXd cov_diag_before = state_->covariance().diagonal();
+    
+    std::vector<Feature*> feats = {feat};
+    bool result = visual_manager_->SlamFeatureUpdate(feats);
+    
+    EXPECT_TRUE(result);
+    
+    // Get covariance after update
+    const Eigen::MatrixXd& cov_after = state_->covariance();
+    Eigen::VectorXd cov_diag_after = cov_after.diagonal();
+    
+    // Verify covariance diagonal has changed
+    bool diagonal_changed = !cov_diag_before.isApprox(cov_diag_after);
+    EXPECT_TRUE(diagonal_changed) << "Covariance diagonal should change after update";
+    
+    // Verify covariance remains symmetric
+    EXPECT_TRUE(cov_after.isApprox(cov_after.transpose()))
+        << "Covariance should remain symmetric after update";
+    
+    // Verify all diagonal elements remain positive
+    for (int i = 0; i < cov_diag_after.size(); i++)
+    {
+        EXPECT_GT(cov_diag_after(i), 0.0)
+            << "Diagonal element " << i << " should be positive, got " << cov_diag_after(i);
+    }
+}
+
+TEST_F(SlamSequentialUpdateTest, FeaturePositionUpdatedAfterUpdate)
+{
+    addClonePoses(kMaxClonePose);
+    
+    // Create feature with perturbed position (observations are for exact position)
+    Eigen::Vector3d perturbed_pwf(1.05, 0.52, 2.03);
+    Feature* feat = createFeatureWithObservations(0, perturbed_pwf);
+    addSlamFeatureToState(feat);
+    
+    // Store original position
+    Eigen::Vector3d pwf_before = feat->_pwf;
+    
+    std::vector<Feature*> feats = {feat};
+    bool result = visual_manager_->SlamFeatureUpdate(feats);
+    
+    EXPECT_TRUE(result);
+    
+    // Sync state back to feature
+    state_->UpdateSlamFeatureAfterVisualUpdate();
+    
+    // Verify _pwf has changed after update
+    Eigen::Vector3d pwf_after = feat->_pwf;
+    bool position_changed = !pwf_before.isApprox(pwf_after);
+    EXPECT_TRUE(position_changed)
+        << "Feature position should change after update. Before: " << pwf_before.transpose()
+        << ", After: " << pwf_after.transpose();
+}
+
+TEST_F(SlamSequentialUpdateTest, SlamFeatureStateMatchesPwf)
+{
+    addClonePoses(kMaxClonePose);
+    
+    // Create feature with perturbed position
+    Eigen::Vector3d perturbed_pwf(1.05, 0.52, 2.03);
+    Feature* feat = createFeatureWithObservations(0, perturbed_pwf);
+    addSlamFeatureToState(feat);
+    
+    std::vector<Feature*> feats = {feat};
+    bool result = visual_manager_->SlamFeatureUpdate(feats);
+    
+    EXPECT_TRUE(result);
+    
+    // Sync state back to feature
+    state_->UpdateSlamFeatureAfterVisualUpdate();
+    
+    // Verify slam feature state matches _pwf
+    const auto& slam_features = state_->slam_features();
+    ASSERT_EQ(slam_features.count(0), 1) << "SLAM feature 0 should exist";
+    
+    const auto& slam_feat = slam_features.at(0);
+    Eigen::Vector3d state_vec = slam_feat._state_ptr->vec();
+    Eigen::Vector3d pwf = feat->_pwf;
+    
+    EXPECT_TRUE(state_vec.isApprox(pwf))
+        << "SLAM feature state should match _pwf. State: " << state_vec.transpose()
+        << ", _pwf: " << pwf.transpose();
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
