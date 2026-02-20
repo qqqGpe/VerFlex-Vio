@@ -1470,6 +1470,10 @@ bool VisualManager::SingleFeatureJacobianSlam(const Feature* feat,
         // since the right camera will not contribute to the residual if it's mono
         total_meas += CamModel::getInstance().camera_num();
     }
+    if (total_meas == 0) {
+        LOG(WARNING) << "Feature " << feat->_id << " has no observations";
+        return false;
+    }
     Hf = Eigen::MatrixXd::Zero(2 * total_meas, 3);
     Hx = Eigen::MatrixXd::Zero(2 * total_meas, total_hx);
     residual = Eigen::VectorXd::Zero(2 * total_meas);
@@ -1491,7 +1495,12 @@ bool VisualManager::SingleFeatureJacobianSlam(const Feature* feat,
             R_CtoI = _state->Qic(cam_id).toRotationMatrix();
             p_CinI = _state->Pic(cam_id);
 
-            std::shared_ptr<Pose> obs_pose = _state->_clone_pose.at(obs_ts);
+            auto pose_it = _state->_clone_pose.find(obs_ts);
+            if (pose_it == _state->_clone_pose.end()) {
+                LOG(WARNING) << "Observation timestamp not in clone poses: " << obs_ts;
+                continue;
+            }
+            std::shared_ptr<Pose> obs_pose = pose_it->second;
             Eigen::Matrix3d R_IitoG = obs_pose->quat().toRotationMatrix();
             Eigen::Vector3d p_IiinG = obs_pose->p();
 
@@ -1499,6 +1508,11 @@ bool VisualManager::SingleFeatureJacobianSlam(const Feature* feat,
             Eigen::Vector3d p_CiinG = p_IiinG + R_IitoG * p_CinI;
 
             Eigen::Vector3d p_finCi = R_CitoG.transpose() * (p_finG - p_CiinG);
+
+            if (p_finCi(2) <= 0) {
+                LOG(WARNING) << "Feature " << feat->_id << " is behind camera (z=" << p_finCi(2) << ")";
+                return false;
+            }
 
             // // Compute visual observations and residuals
             Eigen::Vector2d zm = obs.second.uv.at(cam_id);
