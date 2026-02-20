@@ -49,7 +49,7 @@ protected:
         }
         
         state_ = std::make_shared<State>(params_);
-        solver_ = std::make_shared<eskfSolver>(params_.use_fej);
+        solver_ = std::make_shared<eskfSolver>(params_.use_fej, params_.enable_schmidt_eskf);
         visual_manager_ = createVisualManager();
     }
 

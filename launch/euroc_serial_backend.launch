@@ -53,6 +53,7 @@
         <param name="use_nn_feature"            type="bool"     value="$(arg use_nn_feature)" />
         <param name="lazy_time"                 type="double"   value="0.2" />
         <param name="use_rate_limit"            type="bool"     value="$(arg use_rate_limit)" />
+        <param name="enable_schmidt_eskf"       type="bool"     value="true" />
 
         <!-- bag parameters -->
         <param name="bag_name"                  type="str"      value="$(arg dataset)" />

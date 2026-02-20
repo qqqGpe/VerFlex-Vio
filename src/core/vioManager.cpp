@@ -31,7 +31,7 @@ VioManager::VioManager(std::shared_ptr<ros::NodeHandle>& nh, const Param& params
     // Solver configuration
     if (params.solver_type == static_cast<int>(SolverType::ESKF))
     {
-        solver = std::make_shared<eskfSolver>(params.use_fej);
+        solver = std::make_shared<eskfSolver>(params.use_fej, params.enable_schmidt_eskf);
     }
     else if (params.solver_type == static_cast<int>(SolverType::SQRT_ESKF))
     {

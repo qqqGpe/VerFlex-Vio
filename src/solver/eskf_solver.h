@@ -17,7 +17,8 @@ class eskfSolver : public MsckfSolverBase
 {
    public:
     eskfSolver() = default;
-    eskfSolver(const bool use_fej) : use_fej_(use_fej) {}
+    eskfSolver(const bool use_fej, const bool enable_schmidt_eskf)
+        : use_fej_(use_fej), enable_schmidt_eskf_(enable_schmidt_eskf) {}
     virtual ~eskfSolver() = default;
 
     /**
@@ -234,8 +235,21 @@ class eskfSolver : public MsckfSolverBase
         Eigen::MatrixXd K = M_all * Sinv.selfadjointView<Eigen::Upper>();
         // Eigen::MatrixXd K = M_all * S.inverse();
 
-        // Update Covariance
-        Eigen::MatrixXd Cov_update = Cov_old - K * M_all.transpose();
+        // Schmidt ESKF: Zero out Kalman gain for the first clone pose
+        // The first clone pose remains in state and contributes to S,
+        // but its state is never updated, anchoring the trajectory.
+        if (enable_schmidt_eskf_ && state->clone_poses().size() >= 2)
+        {
+            std::shared_ptr<Pose> first_clone = state->clone_poses().begin()->second;
+            const uint32_t first_id = first_clone->id();
+            const uint32_t first_size = first_clone->size();
+            K.block(first_id, 0, first_size, K.cols()).setZero();
+        }
+
+        // Joseph form covariance update to ensure symmetry and positive semi-definiteness
+        // reference: "https://blog.csdn.net/weixin_55252589/article/details/156830326"
+        Eigen::MatrixXd IKH = Eigen::MatrixXd::Identity(Cov_old.rows(), Cov_old.rows()) - K * Hx_all;
+        Eigen::MatrixXd Cov_update = IKH * Cov_old * IKH.transpose() + K * R * K.transpose();
         state->SetCovariance(0.5 * (Cov_update + Cov_update.transpose()));
 
         // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
@@ -454,6 +468,7 @@ class eskfSolver : public MsckfSolverBase
 
    private:
     bool use_fej_ = true;
+    bool enable_schmidt_eskf_ = false;
     constexpr static uint32_t kNoiseAccId = 0;
     constexpr static uint32_t kNoiseGyroId = 3;
     constexpr static uint32_t kNoiseGyroBiasId = 6;
