@@ -17,7 +17,7 @@ A high-performance Visual Inertial Odometry (VIO) system implemented in C++ with
 - **Schmidt ESKF**: First clone pose anchoring to reduce trajectory drift
 - **Numerically stable**: Joseph form covariance update for improved robustness
 - **Dual feature support**: MSCKF features for batch updates & SLAM features for landmark-based updates
-
+- **Sequential ESKF**: Sequential ESKF update for SLAM features to boost processing speed
 
 ## 🛠️ Installation
 
