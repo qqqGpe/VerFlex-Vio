@@ -11,8 +11,6 @@
 #include "mathematical_tools.h"
 #include "visualManager.h"
 
-#define SHOW_CLONE_POSES 0
-
 namespace
 {
 constexpr uint32_t kMinFeatForMapping = 1;
@@ -341,55 +339,6 @@ bool VisualManager::VisualUpdate()
         PnpRansacToRejectOutliers(feat_msckf_);
     }
 
-#if SHOW_CLONE_POSES
-    constexpr double fr = 11.333;
-    constexpr double fb = 22.333;
-    constexpr double fg = 33.333;
-    std::map<double, cv::Mat> clone_image_map;
-    for (auto it = _state->_clone_pose.begin(); it != _state->_clone_pose.end(); it++)
-    {
-        double timestamp = it->first;
-        cv::Mat image = stored_images_.at(timestamp).first.clone();
-        cv::cvtColor(image, image, cv::COLOR_GRAY2BGR);
-        clone_image_map.insert(std::make_pair(timestamp, image));
-    }
-
-    for (auto it = feature_tracked_.begin(); it != feature_tracked_.end(); it++)
-    {
-        if ((*it)->_is_triangulated == false)
-        {
-            continue;
-        }
-
-        for (auto it_feat = (*it)->_visual_obs_buffer.begin(); it_feat != (*it)->_visual_obs_buffer.end(); it_feat++)
-        {
-            uint32_t feat_id = (*it)->_id;
-            double timestamp = it_feat->first;
-            cv::Point2f point(it_feat->second.uv[LEFT_CAM].x(), it_feat->second.uv[LEFT_CAM].y());
-
-            CameraPose camera_pose = camera_pose_buffer.at(timestamp);
-            Eigen::Vector3d pcf = camera_pose.Rwc.transpose() * ((*it)->_pwf - camera_pose.pwc);
-            Eigen::Vector2d uv = CamModel::getInstance().project(0, pcf);
-
-            std::ostringstream os;
-            os << std::fixed << feat_id;
-            std::string depth_text = os.str();
-            cv::putText(clone_image_map.at(timestamp), depth_text, point, cv::FONT_HERSHEY_SIMPLEX, 0.5,
-                        cv::Scalar(0, 0, 255), 1);
-            cv::Scalar color = cv::Scalar(int(fb * feat_id) % 255, int(fg * feat_id) % 255, int(fr * feat_id) % 255);
-            cv::circle(clone_image_map.at(timestamp), point, 4, color, -1);
-            cv::circle(clone_image_map.at(timestamp), cv::Point2f(uv.x(), uv.y()), 5, color, 1);
-        }
-    }
-
-    std::vector<cv::Mat> images_to_show;
-    for (auto it = clone_image_map.begin(); it != clone_image_map.end(); it++)
-    {
-        images_to_show.push_back(it->second);
-    }
-    utils::ShowGridImages(images_to_show);
-#endif
-
     if (param_.use_slam_feature)
     {
         if (SlamFeatureUpdate(feat_slam_old_))
@@ -424,10 +373,16 @@ bool VisualManager::VisualUpdate()
         }
     }
 
-    std::cout << "feature slam old: " << feat_slam_old_.size()
-              << ", feature slam new: " << feat_slam_new_.size()
-              << ", feature msckf num: " << feat_msckf_.size()
-              << ", keyframe status: " << static_cast<int>(*_keyframe) << std::endl;
+    std::cout << fmt::format("feature slam old: {}, feature slam new: {}, feature msckf num: {}, keyframe status: {}",
+                             feat_slam_old_.size(), feat_slam_new_.size(), feat_msckf_.size(),
+                             static_cast<int>(*_keyframe));
+
+    // Visualize clone poses if enabled and NOT using multi-threading
+    // Note: OpenCV HighGUI is not thread-safe, so skip visualization when called from BackendLoop
+    if (param_.visualize_clone_poses && !param_.use_multi_thread)
+    {
+        VisualizeClonePoses(camera_pose_buffer);
+    }
 
     // TODO: marginalize slam features that are lost
     if (state_to_marginalize != nullptr)
@@ -1571,3 +1526,77 @@ bool VisualManager::SingleFeatureJacobianSlam(const Feature* feat,
     return true;
 }
 
+void VisualManager::VisualizeClonePoses(const std::map<double, CameraPose> &camera_pose_buffer)
+{
+    constexpr double fr = 11.333;
+    constexpr double fb = 22.333;
+    constexpr double fg = 33.333;
+
+    std::map<double, cv::Mat> clone_image_map;
+
+    // Clone and convert images to BGR
+    for (const auto &entry : camera_pose_buffer)
+    {
+        double timestamp = entry.first;
+        auto stored_it = stored_images_.find(timestamp);
+        if (stored_it == stored_images_.end() || stored_it->second.empty())
+        {
+            continue;
+        }
+        cv::Mat image = stored_it->second[0].clone();
+        cv::cvtColor(image, image, cv::COLOR_GRAY2BGR);
+        clone_image_map[timestamp] = image;
+    }
+
+    // Draw feature observations and reprojected points
+    for (const auto *feat : feature_tracked_)
+    {
+        if (!feat->_is_triangulated) continue;
+
+        for (const auto &obs_entry : feat->_visual_obs_buffer)
+        {
+            uint32_t feat_id = feat->_id;
+            double timestamp = obs_entry.first;
+            cv::Point2f point(obs_entry.second.uv.at(LEFT_CAM).x(),
+                              obs_entry.second.uv.at(LEFT_CAM).y());
+
+            auto cam_pose_it = camera_pose_buffer.find(timestamp);
+            if (cam_pose_it == camera_pose_buffer.end()) continue;
+
+            const CameraPose &camera_pose = cam_pose_it->second;
+            auto clone_image_it = clone_image_map.find(timestamp);
+            if (clone_image_it == clone_image_map.end()) continue;
+
+            cv::Mat &clone_image = clone_image_it->second;
+
+            // Reproject feature point using CamModel
+            Eigen::Vector3d pcf = camera_pose.Rwc[LEFT_CAM].transpose() *
+                                  (feat->_pwf - camera_pose.pwc[LEFT_CAM]);
+            Eigen::Vector2d uv = CamModel::getInstance().project_distort(LEFT_CAM, pcf);
+
+            // Draw feature ID and observations
+            std::ostringstream os;
+            os << std::fixed << feat_id;
+            cv::putText(clone_image, os.str(), point, cv::FONT_HERSHEY_SIMPLEX, 0.5,
+                        cv::Scalar(0, 0, 255), 1);
+
+            cv::Scalar color = cv::Scalar(int(fb * feat_id) % 255,
+                                       int(fg * feat_id) % 255,
+                                       int(fr * feat_id) % 255);
+            cv::circle(clone_image, point, 4, color, -1);
+            cv::circle(clone_image, cv::Point2f(uv.x(), uv.y()), 5, color, 1);
+        }
+    }
+
+    // Display all clone images in a grid
+    std::vector<cv::Mat> images_to_show;
+    for (const auto &entry : clone_image_map)
+    {
+        images_to_show.push_back(entry.second);
+    }
+
+    if (!images_to_show.empty())
+    {
+        utils::ShowGridImages(images_to_show);
+    }
+}

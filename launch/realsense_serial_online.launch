@@ -10,6 +10,9 @@
     <arg name="use_rviz"    default="true"/>
     <node if="$(arg use_rviz)" pkg="rviz" type="rviz" name="rviz" args="-d $(find vio)/rviz/display.rviz"/>
 
+    <!-- if visualize clone poses in rviz -->
+    <arg name="visualize_clone_poses"   default="false"/>
+
     <!-- MASTER NODE -->
     <node name="vio" pkg="vio" type="vio_subscribe_node" output="screen" clear_params="true" required="true">
 
@@ -70,6 +73,7 @@
         <param name="init_td_visual_sigma"      type="double" value="1e-4" />
         <param name="init_ric_sigma"            type="double" value="1e-3" />
 
+        <param name="visualize_clone_poses"     type="bool"   value="$(arg visualize_clone_poses)" />
         <rosparam param="camera_topic">   ["/camera/infra1/image_rect_raw", "/camera/infra2/image_rect_raw"]   </rosparam>
         <param name="imu_topic"         type="str"    value="/camera/imu" />
     </node>

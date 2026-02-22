@@ -108,39 +108,3 @@ python3 ${basedir}/script/run_batch_sim.py --ros_node "vio" --launch_file "euroc
 ```
 
 **Note**: This is a research-grade VIO system. For production use, additional testing and validation is recommended.
-
-## ⚙️ Parameters
-
-### Solver Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `solver_type` | int | 0 | Estimator type: 0=ESKF, 1=Sqrt-ESKF |
-| `enable_schmidt_eskf` | bool | false | Enable Schmidt ESKF to anchor first clone pose and reduce drift |
-| `use_fej` | bool | false | Enable First-Estimate Jacobian for consistency |
-
-### Feature Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `use_slam_feature` | bool | false | Enable SLAM features for landmark-based updates |
-| `max_slam_feature` | int | 25 | Maximum number of SLAM features in state |
-
-### Schmidt ESKF
-
-When `enable_schmidt_eskf=true`, the first clone pose in the sliding window is anchored:
-- The first frame remains in the state vector and contributes to innovation covariance S
-- Its Kalman gain is zeroed, so the state is never updated
-- This anchors the trajectory to a reference frame, reducing drift
-- Reference: [Schmidt-EKF for Visual-Inertial SLAM (arxiv:1903.08636)](https://arxiv.org/pdf/1903.08636)
-
-Example launch configuration:
-```xml
-<!-- Enable Schmidt ESKF -->
-<param name="solver_type" value="0" />
-<param name="enable_schmidt_eskf" value="true" />
-
-<!-- Enable SLAM features -->
-<param name="use_slam_feature" value="true" />
-<param name="max_slam_feature" value="50" />
-```

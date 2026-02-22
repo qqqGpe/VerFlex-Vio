@@ -21,6 +21,9 @@
     <arg name="use_rviz"    default="false"/>
     <node if="$(arg use_rviz)" pkg="rviz" type="rviz" name="rviz" args="-d $(find vio)/rviz/display.rviz"/>
 
+    <!-- if visualize clone poses in rviz -->
+    <arg name="visualize_clone_poses"   default="false"/>
+
     <!-- nn feature parameters -->
     <arg name="use_nn_feature"          default="false"/>
     <arg name="max_keypoints"           default="384" />
@@ -89,6 +92,7 @@
         <param name="init_td_visual_sigma"      type="double"   value="1e-4" />
         <param name="init_ric_sigma"            type="double"   value="1e-3" />
 
+        <param name="visualize_clone_poses"     type="bool"     value="$(arg visualize_clone_poses)" />
         <rosparam param="camera_topic">   ["/cam0/image_raw", "/cam1/image_raw"]   </rosparam>
         <param name="imu_topic"                 type="str"      value="/imu0" />
     </node>

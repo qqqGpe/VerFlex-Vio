@@ -59,6 +59,7 @@ public:
         _nh->param<int>("solver_type", solver_type, 0);
         _nh->param<bool>("enable_schmidt_eskf", enable_schmidt_eskf, false);
         _nh->param<int>("initial_type", initial_type, 1);
+        _nh->param<bool>("visualize_clone_poses", visualize_clone_poses, false);
 
         camera_topic.resize(camera_num, "");
         _nh->getParam("camera_topic", camera_topic);
@@ -116,6 +117,7 @@ public:
     int solver_type = 0; // 0: ESKF, 1: SqrtESKF
     bool enable_schmidt_eskf = false;
     int initial_type = 0; // 0: static initialization, 1: dynamic initialization
+    bool visualize_clone_poses = false; // Enable clone pose visualization
 
     double sigma_na;
     double sigma_nw;

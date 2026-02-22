@@ -113,33 +113,46 @@ void show_eigen_matrix(const Eigen::MatrixXd matrix, const std::string win_name)
 
 void ShowGridImages(const std::vector<cv::Mat> &images, const std::string win_name)
 {
-    if (images.size() != 6)
+    if (images.empty())
     {
         return;
     }
-    constexpr uint8_t scale = 1;
-    int height = 2 * images[0].rows / scale;
-    int width = 3 * images[0].cols / scale;
-    cv::Mat gridImage = cv::Mat::zeros(height, width, CV_8UC3);
 
-    int rows = 2;
-    int cols = 3;
+    // For a single image, display directly
+    if (images.size() == 1)
+    {
+        cv::imshow(win_name.c_str(), images[0]);
+        cv::waitKey(1); // Wait 1ms for GUI events
+        return;
+    }
 
-    int cellWidth = width / cols;
-    int cellHeight = height / rows;
+    // Calculate grid layout based on image count
+    int cols = static_cast<int>(std::ceil(std::sqrt(images.size())));
+    int rows = static_cast<int>(std::ceil(static_cast<double>(images.size()) / cols));
 
-    for (int i = 0; i < images.size(); ++i)
+    // Ensure all images have same dimensions (resize if needed)
+    int cellWidth = images[0].cols;
+    int cellHeight = images[0].rows;
+
+    cv::Mat gridImage = cv::Mat::zeros(rows * cellHeight, cols * cellWidth, CV_8UC3);
+
+    for (size_t i = 0; i < images.size(); ++i)
     {
         cv::Mat img = images[i];
-        cv::resize(img, img, cv::Size(cellWidth, cellHeight));
+        // Resize to match cell dimensions if needed
+        if (img.rows != cellHeight || img.cols != cellWidth)
+        {
+            cv::resize(img, img, cv::Size(cellWidth, cellHeight));
+        }
 
-        int row = i / cols;
-        int col = i % cols;
+        int row = static_cast<int>(i) / cols;
+        int col = static_cast<int>(i) % cols;
         cv::Rect roi(col * cellWidth, row * cellHeight, cellWidth, cellHeight);
 
         img.copyTo(gridImage(roi));
     }
 
+    // Draw grid lines
     for (int i = 0; i < rows; ++i)
     {
         for (int j = 0; j < cols; ++j)
@@ -150,19 +163,8 @@ void ShowGridImages(const std::vector<cv::Mat> &images, const std::string win_na
         }
     }
 
-    static int wait_sec = 1;
     cv::imshow(win_name.c_str(), gridImage);
-    if (cv::waitKey(wait_sec) == 'w')
-    {
-        if (wait_sec == 1)
-        {
-            wait_sec = 0;
-        }
-        else
-        {
-            wait_sec = 1;
-        }
-    }
+    cv::waitKey(1); // Wait 1ms for GUI events
 }
 
 // Function to draw matches between two images in one image

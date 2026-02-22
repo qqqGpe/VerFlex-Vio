@@ -146,6 +146,9 @@ class VisualManager
 
     friend VioFrontend;
 
+  private:
+    void VisualizeClonePoses(const std::map<double, CameraPose> &camera_pose_buffer);
+
   protected:
     Param param_;
     std::shared_ptr<ros::NodeHandle> nh_;
