@@ -78,11 +78,13 @@ roslaunch vio realsense_serial_online.launch
 ### 2. Batch simulatation with Euroc dataset
 ```bash
 # Batch simulation and evaluation
-basedir=#PATH_TO_WS
-
 source ./devel/setup.zsh
 
-python3 ${basedir}/script/run_batch_sim.py --ros_node "vio" --launch_file "euroc_serial_backend.launch"
+# Run all data
+python3 src/vio_backend/script/run_vio_batch.py --align --dataset_dir ~/dataset/euroc_mav --cases all
+
+# Run specified data
+python3 src/vio_backend/script/run_vio_batch.py --align --dataset_dir ~/dataset/euroc_mav --cases MH_01_easy
 
 # An example of running results for batch simulation on EuRoc Dataset
 # ================================================================================

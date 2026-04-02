@@ -1,15 +1,22 @@
-# AGENTS.md - VerFlex-VIO Codebase Guide
-
-> This file provides essential context for AI coding agents working in this repository.
+---
+name: vio-backend
+description: VerFlex-VIO - ROS Visual-Inertial Odometry system with C++17, Eigen, Ceres, Sophus. Build with catkin, test with gtest.
+license: MIT
+compatibility: opencode
+metadata:
+  audience: developers
+  language: c++
+  framework: ros-noetic
+---
 
 ## Project Overview
-
-**VerFlex-VIO** is a Visual-Inertial Odometry system with ROS integration. It supports monocular/stereo cameras, multiple initialization modes (static/dynamic), and multiple estimators (ESKF, Sqrt-ESKF).
+- **VerFlex-VIO**: Visual-Inertial Odometry system with ROS integration
+- **Language**: C++17
+- **Build System**: catkin (ROS)
+- **Key Dependencies**: Eigen3, Ceres Solver, Sophus, OpenCV 4, glog, gtest
 
 ## Build Commands
-
 ```bash
-# From catkin workspace root
 cd /home/gao/ws/catkin_ws
 
 # Full build (recommended)
@@ -23,17 +30,16 @@ rm -rf build devel && catkin build vio
 
 # Source workspace after build
 source devel/setup.bash
-```
-
-## Test Commands
-
-```bash
-cd /home/gao/ws/catkin_ws
 
 # Build with tests enabled
 catkin build vio -DCATKIN_ENABLE_TESTING=1
+```
 
-# Run all test executables (found in devel/lib/vio/)
+## Test Commands
+```bash
+cd /home/gao/ws/catkin_ws
+
+# Run all test executables (in devel/lib/vio/)
 ./devel/lib/vio/test_triangulation
 ./devel/lib/vio/test_givens_rotation
 ./devel/lib/vio/test_pnp_ransac
@@ -48,35 +54,14 @@ catkin build vio -DCATKIN_ENABLE_TESTING=1
 ./devel/lib/vio/test_logger --gtest_filter=LoggerTest.*
 ```
 
-## Run Commands
-
-```bash
-# Offline rosbag processing
-roslaunch vio euroc_serial_backend.launch
-
-# Online subscription (rosbag playback)
-roslaunch vio euroc_serial_backend_subscribe.launch
-
-# RealSense camera (online)
-roslaunch vio realsense_serial_online.launch
-```
-
 ## Code Style Guidelines
 
-### Formatting
-- **clang-format** is configured (`.clang-format` file exists)
-- Column limit: 120 characters
-- Indent width: 4 spaces
-- C++11 braced list style enabled
-- Run `clang-format -i <file.cpp>` before committing
-
 ### Naming Conventions
-
 | Type | Convention | Example |
 |------|------------|---------|
 | Classes | PascalCase | `VioManager`, `ImuManager` |
 | Functions/Methods | camelCase | `TryFrontendTrack()` |
-| Member Variables | `_suffix` or `suffix_` | `_imu_manager`, `params_` |
+| Member Variables | `_suffix` | `_imu_manager`, `params_` |
 | Constants | kCamelCase | `kRad2Deg` |
 | Enums | PascalCase | `SolverType::ESKF` |
 | Namespaces | lowercase | `utils`, `utils::math` |
@@ -97,6 +82,13 @@ roslaunch vio realsense_serial_online.launch
 #include "parameter.h"
 ```
 
+### Formatting
+- **clang-format** configured (`.clang-format` exists)
+- Column limit: 120 characters
+- Indent width: 4 spaces
+- C++11 braced list style enabled
+- Run `clang-format -i <file.cpp>` before committing
+
 ### Class Structure
 ```cpp
 class ClassName
@@ -115,27 +107,12 @@ private:
 };
 ```
 
-### Smart Pointers
-```cpp
-std::shared_ptr<State> state = std::make_shared<State>(params);
-std::shared_ptr<ImuManager> _imu_manager;
-```
-
 ### Error Handling (glog)
 ```cpp
 LOG(INFO) << "Initialization successful";
 LOG(WARNING) << "Not enough features: " << count;
 LOG(ERROR) << "Failed to load parameters!";
 LOG(FATAL) << "Unsupported configuration!";  // Exits program
-```
-
-### Constants
-```cpp
-namespace
-{
-constexpr double kRad2Deg = 180.0 / M_PI;
-constexpr uint32_t kMinVisualFeaturesForUpdate = 10;
-}  // namespace
 ```
 
 ### Eigen Types
@@ -162,14 +139,17 @@ TEST_F(MyTest, TestName_ExpectedBehavior)
 }
 ```
 
-## Key Dependencies
-- **ROS Noetic** - Robot Operating System
-- **Eigen3** - Linear algebra
-- **Ceres Solver** - Nonlinear optimization
-- **Sophus** - Lie groups (SO3, SE3)
-- **OpenCV 4** - Image processing
-- **glog** - Logging
-- **gtest** - Unit testing
+## Run Commands
+```bash
+# Offline rosbag processing
+roslaunch vio euroc_serial_backend.launch
+
+# Online subscription (rosbag playback)
+roslaunch vio euroc_serial_backend_subscribe.launch
+
+# RealSense camera (online)
+roslaunch vio realsense_serial_online.launch
+```
 
 ## Important Notes
 1. **C++17** required
@@ -177,12 +157,3 @@ TEST_F(MyTest, TestName_ExpectedBehavior)
 3. **ROS parameters**: Config loaded from launch files
 4. **Coordinate frames**: IMU is the body frame
 5. **Timestamps**: All in seconds (double)
-### SLAM Feature Support
-
-The Sqrt-ESKF estimator supports SLAM features by maintaining their states in the state vector and performing sequential updates. This is particularly useful for long-term consistency in scenarios with re-observed landmarks.
-
-- **Implementation**: Handled via `MarginalizeType::SlamFeature` in `MarginalizeState()`.
-- **Numerical Stability**: Covariance is maintained in square-root form ($P = S^T S$) using Givens rotations, ensuring positive-definiteness even with many SLAM features.
-- **Verification**: Tested in `test_sqrt_eskf_slam.cpp` covering initialization, marginalization, and covariance consistency.
-- **Configuration**: Enabled via `use_slam_feature=true` in launch files (e.g., `realsense_serial_online.launch`).
-

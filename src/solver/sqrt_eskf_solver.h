@@ -51,12 +51,17 @@ class SqrtEskfSolver : public MsckfSolverBase
         }
 
         state->SetSqrtPt(SqrtPt_new);
+
+        Eigen::MatrixXd Cov_new = SqrtPt_new.transpose() * SqrtPt_new;
+        state->SetCovariance(0.5 * (Cov_new + Cov_new.transpose()));
     }
 
     /**
      * @brief Marginalize the given state variable from the state
+     * @param marge_type The type of state to be marginalized (ClonePose, SlamFeature, etc.)
      * @param state The state containing the variable to be marginalized
      * @param state_to_marginalize The state variable to be marginalized
+     * @note SLAM Feature marginalization involves removing both the state variable and its mapping in the state.
      * @return void
      */
     virtual void MarginalizeState(MarginalizeType marge_type, std::shared_ptr<State> state, std::shared_ptr<Type> state_to_marginalize) override
@@ -96,7 +101,7 @@ class SqrtEskfSolver : public MsckfSolverBase
             }
         }
 
-        // Marginalize slam feature
+        // Marginalize slam feature (works identically to ESKF, removing the state from the feature map)
         if (marge_type == MarginalizeType::SlamFeature)
         {
             for (auto &[id, feature] : state->slam_features())
@@ -109,7 +114,7 @@ class SqrtEskfSolver : public MsckfSolverBase
             }
         }
 
-        // Update marginalized covariance matrix
+        // Update marginalized square-root covariance matrix. P = S^T * S, where S is SqrtPt.
         Eigen::MatrixXd SqrtPt_old = state->Sqrt_Pt();
         const uint32_t old_rows = SqrtPt_old.rows();
         const uint32_t old_cols = SqrtPt_old.cols();

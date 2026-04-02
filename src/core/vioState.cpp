@@ -4,6 +4,7 @@
  * Copyright (c) 2025 by gaope.hb@gmail.com, All Rights Reserved.
  */
 #include "vioState.h"
+#include <glog/logging.h>
 
 State::State(const Param& param)
 {
@@ -175,8 +176,29 @@ bool State::AugumentSlamFeature(Feature* feature,
     new_covariance.block(new_feature._state_ptr->id(), 0, new_feature._state_ptr->size(), old_covariance.rows()) = Pxf.transpose();
 
     SetCovariance(new_covariance);
-    // SetSqrtPt(Eigen::MatrixXd::Identity(_dim, _dim));    // TODO: move augument part to solver
 
+    // Augment SqrtPt directly (avoids numerically fragile full-matrix LLT)
+    // Decompose P_aug = S_aug^T * S_aug using block formula:
+    //   S_aug = [ S_old | B ]    where B = -S_old * Hx_all^T * Hf_inv^T
+    //           [   0   | C ]    where C^T * C = Hf_inv * R * Hf_inv^T (Schur complement)
+    if (sqrt_Pt_.size() > 0)
+    {
+        Eigen::MatrixXd SqrtPt_old = Sqrt_Pt();
+        int feat_dim = new_feature._state_ptr->size();
+        int old_rows = SqrtPt_old.rows();
+        int old_cols = SqrtPt_old.cols();
+
+        Eigen::MatrixXd B = -SqrtPt_old * Hx_all.transpose() * Hf_inv.transpose();
+        Eigen::MatrixXd R_schur = Hf_inv * R * Hf_inv.transpose();
+        Eigen::MatrixXd C = R_schur.llt().matrixL().transpose();
+
+        Eigen::MatrixXd SqrtPt_new = Eigen::MatrixXd::Zero(old_rows + feat_dim, old_cols + feat_dim);
+        SqrtPt_new.topLeftCorner(old_rows, old_cols) = SqrtPt_old;
+        SqrtPt_new.block(0, old_cols, old_rows, feat_dim) = B;
+        SqrtPt_new.bottomRightCorner(feat_dim, feat_dim) = C;
+
+        SetSqrtPt(SqrtPt_new);
+    }
     // Add to slam feature map
     _slam_features.try_emplace(new_feature._id, new_feature);
 

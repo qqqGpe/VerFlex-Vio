@@ -140,4 +140,21 @@ if(CATKIN_ENABLE_TESTING)
         )
     endif()
 
+    # Unit test for sqrt-ESKF SLAM feature lifecycle
+    catkin_add_gtest(test_sqrt_eskf_slam test_sqrt_eskf_slam.cpp)
+    if (TARGET test_sqrt_eskf_slam)
+        target_include_directories(test_sqrt_eskf_slam PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/../types
+            ${CMAKE_CURRENT_SOURCE_DIR}/../core
+            ${CMAKE_CURRENT_SOURCE_DIR}/../utils
+            ${CMAKE_CURRENT_SOURCE_DIR}/../solver
+        )
+        target_link_libraries(test_sqrt_eskf_slam
+            msckf_core
+            ${catkin_LIBRARIES}
+            ${thirdparty_libraries}
+            ${GTEST_LIBRARIES}
+        )
+    endif()
+
 endif()

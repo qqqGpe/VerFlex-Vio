@@ -67,7 +67,6 @@ bool VisualManager::MsckfFeatureUpdate(std::vector<Feature *> feats_msckf)
 
     if (_state->_clone_pose.size() >= 2 && Hx_msckf.rows() > 0)
     {
-        // std::cout << "Msckf update with " << feats_msckf.size() << " features." << std::endl;
         solver_->update(_state, Hx_msckf, res, Hx_order, map_hx, R);
         return true;
     }
@@ -243,35 +242,34 @@ void VisualManager::InitializeNewSlamFeatures(std::vector<Feature*>& feat_slam_n
     FeatureTriangulation(camera_pose_buffer, feat_slam_new);
 
     Eigen::Matrix3d R = Eigen::Matrix3d::Identity() * std::pow(param_.sigma_visual_pix, 2);
-    std::unordered_map<std::shared_ptr<Type>, size_t> map_hx;
-    std::vector<std::shared_ptr<Type>> Hx_order;
-    uint32_t total_hx = 0;
     for (auto it = feat_slam_new.begin(); it != feat_slam_new.end();)
     {
         Feature* feature = *it;
-        if (feature->_is_triangulated && feature->_visual_obs_buffer.size() == param_.max_clone_pose)
-        {
-            for (auto x : _state->_clone_pose)
-            {
-                map_hx.emplace(x.second, total_hx);
-                Hx_order.push_back(x.second);
-                total_hx += x.second->size();
-            }
-
-            if (_state->enableEstimateRic())
-            {
-                for (uint8_t i = 0; i < param_.camera_num; i++)
-                {
-                    map_hx.emplace(_state->mutable_Qic(i), total_hx);
-                    Hx_order.push_back(_state->mutable_Qic(i));
-                    total_hx += _state->mutable_Qic(i)->size();
-                }
-            }
-        }
-        else
+        if (!feature->_is_triangulated || feature->_visual_obs_buffer.size() != param_.max_clone_pose)
         {
             it = feat_slam_new.erase(it);
             continue;
+        }
+
+        std::unordered_map<std::shared_ptr<Type>, size_t> map_hx;
+        std::vector<std::shared_ptr<Type>> Hx_order;
+        uint32_t total_hx = 0;
+
+        for (auto x : _state->_clone_pose)
+        {
+            map_hx.emplace(x.second, total_hx);
+            Hx_order.push_back(x.second);
+            total_hx += x.second->size();
+        }
+
+        if (_state->enableEstimateRic())
+        {
+            for (uint8_t i = 0; i < param_.camera_num; i++)
+            {
+                map_hx.emplace(_state->mutable_Qic(i), total_hx);
+                Hx_order.push_back(_state->mutable_Qic(i));
+                total_hx += _state->mutable_Qic(i)->size();
+            }
         }
 
         Eigen::MatrixXd Hfx;
@@ -296,7 +294,6 @@ void VisualManager::InitializeNewSlamFeatures(std::vector<Feature*>& feat_slam_n
         Eigen::MatrixXd R = Eigen::MatrixXd::Identity(3, 3) * std::pow(param_.sigma_visual_pix, 2);
 
         feature->_pwf += Hf.inverse() * r1;
-        feature->_type = FeatureType::kSlamPoint;
 
         if (!_state->AugumentSlamFeature(feature, Hf, Hx1, Hx_order, R, map_hx))
         {
@@ -304,6 +301,8 @@ void VisualManager::InitializeNewSlamFeatures(std::vector<Feature*>& feat_slam_n
             it = feat_slam_new.erase(it);
             continue;
         }
+
+        feature->_type = FeatureType::kSlamPoint;
 
         R = Eigen::MatrixXd::Identity(Hx2.rows(), Hx2.rows()) * std::pow(param_.sigma_visual_pix, 2);
         solver_->update(_state, Hx2, r2, Hx_order, map_hx, R);
@@ -373,9 +372,9 @@ bool VisualManager::VisualUpdate()
         }
     }
 
-    std::cout << fmt::format("feature slam old: {}, feature slam new: {}, feature msckf num: {}, keyframe status: {}",
-                             feat_slam_old_.size(), feat_slam_new_.size(), feat_msckf_.size(),
-                             static_cast<int>(*_keyframe));
+    // std::cout << fmt::format("feature slam old: {}, feature slam new: {}, feature msckf num: {}, keyframe status: {}",
+    //                          feat_slam_old_.size(), feat_slam_new_.size(), feat_msckf_.size(),
+    //                          static_cast<int>(*_keyframe));
 
     // Visualize clone poses if enabled and NOT using multi-threading
     // Note: OpenCV HighGUI is not thread-safe, so skip visualization when called from BackendLoop
