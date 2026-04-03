@@ -6,8 +6,6 @@
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/core/types.hpp>
 #include <opencv2/opencv.hpp>
-#include <cv_bridge/cv_bridge.h>
-#include <std_msgs/Header.h>
 
 #include "camModel.h"
 #include "vioFrontend.h"
@@ -80,34 +78,17 @@ void EpipolarRansac(const std::vector<cv::Point2f> points_prev, const std::vecto
     }
 }
 
-VioFrontend::VioFrontend(std::shared_ptr<ros::NodeHandle>& nh, const Param params, std::shared_ptr<KeyFrameStatus> keyframe)
+VioFrontend::VioFrontend(const Param& params, std::shared_ptr<KeyFrameStatus> keyframe)
 {
-    nh_ = nh;
     _keyframe = keyframe;
     grid_w_ = params.grid_w;
     grid_h_ = params.grid_h;
     width_ = params.img_width;
     height_ = params.img_height;
     max_feat_n_ = params.max_feat_n;
-    use_nn_feature_ = params.use_nn_feature;
     use_census_transform_ = params.use_census_transform;
     do_prediction_ = params.frontend_prediction;
     ref_features_to_track_.resize(max_feat_n_, CameraObs());
-
-    if (use_nn_feature_)
-    {
-        client_ = nh_->serviceClient<vio::nnFeatures>("/extract_features");
-        if (client_.exists())
-        {
-            LOG(INFO) << "SuperPoint service connected successfully";
-        }
-        else
-        {
-            LOG(ERROR) << "nn Feature service not available";
-            use_nn_feature_ = false;
-            exit(1);
-        }
-    }
 }
 
 KeyFrameStatus VioFrontend::getKeyframeStatus() const
@@ -201,91 +182,6 @@ VioFrontend::status_t VioFrontend::MonoCheckEpipolarLine(const std::vector<Camer
     EpipolarRansac(points_prev, points_curr, &inliers_epipolar);
     inliers = inliers_epipolar;
     return STATUS_OK;
-}
-
-std::vector<uint8_t> VioFrontend::TrackNNFeatures(const cv::Mat image_left, const cv::Mat image_right,
-                                                  const std::vector<CameraObs> &ref_features_to_track,
-                                                  const std::map<uint32_t, cv::Mat> ref_feature_descriptors_map_,
-                                                  std::vector<cv::Point2f> &pts_tracked)
-{
-    std::vector<uint8_t> status;
-    std::vector<cv::Point2f> cur_feature_extracted;;
-    std::vector<cv::Mat> cur_feature_descriptors;
-    ExtractFeatures(image_right, cur_feature_extracted, cur_feature_descriptors);
-
-    pts_tracked.clear();
-    if (ref_features_to_track.empty() || ref_feature_descriptors_map_.empty() || cur_feature_extracted.empty() || cur_feature_descriptors.empty())
-    {
-        // 没有可用的特征或描述子，直接返回
-        status.resize(ref_features_to_track.size(), 0);
-        return status;
-    }
-
-    // 构建参考帧的描述子矩阵
-    std::vector<cv::Mat> ref_descriptors_vec;
-    std::vector<uint32_t> ref_feat_ids;
-    for (const auto& obs : ref_features_to_track)
-    {
-        if (!obs.valid) {
-            ref_descriptors_vec.push_back(cv::Mat()); // 占位
-            ref_feat_ids.push_back(obs.feat_id);
-            continue;
-        }
-        auto it = ref_feature_descriptors_map_.find(obs.feat_id);
-        if (it != ref_feature_descriptors_map_.end())
-        {
-            ref_descriptors_vec.push_back(it->second);
-        }
-        else
-        {
-            ref_descriptors_vec.push_back(cv::Mat());
-        }
-        ref_feat_ids.push_back(obs.feat_id);
-    }
-
-    // 将描述子vector转为cv::Mat
-    cv::Mat ref_descriptors, cur_descriptors;
-    if (!ref_descriptors_vec.empty() && !ref_descriptors_vec[0].empty())
-    {
-        cv::vconcat(ref_descriptors_vec, ref_descriptors);
-    }
-
-    if (!cur_feature_descriptors.empty() && !cur_feature_descriptors[0].empty())
-    {
-        cv::vconcat(cur_feature_descriptors, cur_descriptors);
-    }
-
-    if (ref_descriptors.empty() || cur_descriptors.empty())
-    {
-        status.resize(ref_features_to_track.size(), 0);
-        return status;
-    }
-
-    // 使用BFMatcher进行匹配
-    cv::BFMatcher matcher(cv::NORM_L2, true);
-    std::vector<cv::DMatch> matches;
-    matcher.match(ref_descriptors, cur_descriptors, matches);
-
-    // 初始化status为0
-    status.resize(ref_features_to_track.size(), 0);
-    pts_tracked.resize(ref_features_to_track.size(), cv::Point2f(-1, -1));
-
-    // 记录每个ref index的最佳匹配
-    for (const auto& match : matches)
-    {
-        int ref_idx = match.queryIdx;
-        int cur_idx = match.trainIdx;
-        if (ref_idx >= 0 && ref_idx < ref_features_to_track.size() && cur_idx >= 0 && cur_idx < cur_feature_extracted.size())
-        {
-            if (ref_features_to_track[ref_idx].valid)
-            {
-                status[ref_idx] = 1;
-                pts_tracked[ref_idx] = cur_feature_extracted[cur_idx];
-            }
-        }
-    }
-
-    return status;
 }
 
 std::vector<uint8_t> VioFrontend::TrackFeatures(const cv::Mat image_left, const cv::Mat image_right,
@@ -626,13 +522,6 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>> &
     const int w_step = width_ / grid_w_;
     std::vector<std::vector<uint8_t>> occupied_mat(grid_h_ + 1, std::vector<uint8_t>(grid_w_ + 1, 0));
 
-    // For nn feature tracking
-    std::map<uint32_t, cv::Mat> cur_feature_descriptors_map;
-    if (use_nn_feature_)
-    {
-        cur_feature_descriptors_map = ref_feature_descriptors_map_;
-    }
-
     if (!is_first_frame_)
     {
         if (cur_frame.first <= ref_frame.first)
@@ -656,17 +545,8 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>> &
 
         // Circular track
         std::vector<uint8_t> status;
-        if (use_nn_feature_)
-        {
-            status = TrackNNFeatures(ref_frame.second, cur_frame.second, ref_features_to_track_,
-                                     ref_feature_descriptors_map_, curr_pts);
-
-        }
-        else
-        {
-            status = TrackFeatures(ref_frame.second, cur_frame.second, R_ref, Rwc, false, do_prediction_flag,
-                                   use_census_transform_, prev_pts, curr_pts);
-        }
+        status = TrackFeatures(ref_frame.second, cur_frame.second, R_ref, Rwc, false, do_prediction_flag,
+                               use_census_transform_, prev_pts, curr_pts);
 
         for (int i = 0; i < status.size(); i++)
         {
@@ -724,17 +604,12 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>> &
         }
     }
 
-    // Delate invalid features
+    // Delete invalid features
     for (auto it = cur_features_to_track.begin(); it != cur_features_to_track.end();)
     {
         if (!it->valid)
         {
-            uint32_t feat_id_erased = it->feat_id;
             it = cur_features_to_track.erase(it);
-            if (use_nn_feature_)
-            {
-                cur_feature_descriptors_map.erase(feat_id_erased);
-            }
             continue;
         }
         it = std::next(it);
@@ -744,11 +619,8 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>> &
     if (getKeyframeStatus() != KeyFrameStatus::kNone || is_first_frame_)
     {
         std::deque<CameraObs> new_features;
-        std::deque<cv::Mat> new_feature_descriptors;
         std::vector<cv::Point2f> candidate_keypoints;
-        std::vector<cv::Mat> candidate_feature_descriptors;
-        ExtractFeatures(cur_frame.second, candidate_keypoints, candidate_feature_descriptors);
-        // cv::goodFeaturesToTrack(cur_frame.second, candidate_keypoints, max_feat_n_, 0.01, 30);
+        cv::goodFeaturesToTrack(cur_frame.second, candidate_keypoints, max_feat_n_, 0.01, 30);
         for (int i = 0; i < candidate_keypoints.size(); i++)
         {
             int h = candidate_keypoints[i].y / h_step;
@@ -761,31 +633,18 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>> &
                 feature.uv[LEFT_CAM] = Eigen::Vector2d(candidate_keypoints[i].x, candidate_keypoints[i].y);
                 new_features.push_back(feature);
                 occupied_mat[h][w] = 1;
-
-                if (use_nn_feature_ && !candidate_feature_descriptors.empty())
-                {
-                    new_feature_descriptors.push_back(candidate_feature_descriptors[i]);
-                }
             }
         }
 
         while (!new_features.empty() && cur_features_to_track.size() < max_feat_n_)
         {
-            const uint32_t feat_new_id = new_features.front().feat_id;
             cur_features_to_track.push_back(new_features.front());
             cur_features_to_track.back().valid = true;
             new_features.pop_front();
-
-            if (use_nn_feature_ && !new_feature_descriptors.empty())
-            {
-                cur_feature_descriptors_map.insert_or_assign(feat_new_id, new_feature_descriptors.front());
-                new_feature_descriptors.pop_front();
-            }
         }
 
         ref_frame = cur_frame;
         ref_features_to_track_ = cur_features_to_track;
-        ref_feature_descriptors_map_ = cur_feature_descriptors_map;
         R_ref = Rwc;
     }
 
@@ -814,37 +673,4 @@ bool VioFrontend::TrackMonocular(const std::pair<double, std::vector<cv::Mat>> &
     image_with_features_ = std::make_pair(ts_sec, image_to_show);
 
     return true;
-}
-
-bool VioFrontend::ExtractFeatures(const cv::Mat& image, std::vector<cv::Point2f>& keypoints, std::vector<cv::Mat>& descriptors)
-{
-    keypoints.clear();
-    descriptors.clear();
-
-    if (use_nn_feature_)
-    {
-        vio::nnFeatures srv;
-        srv.request.image = *cv_bridge::CvImage(std_msgs::Header(), "mono8", image).toImageMsg();
-        if (client_.call(srv))
-        {
-            std::cout << "num_keypoints: " << srv.response.num_keypoints << std::endl;
-            std::cout << "descriptors size: " << srv.response.descriptors.size() << std::endl;
-            for (size_t i = 0; i < srv.response.num_keypoints; i++)
-            {
-                keypoints.emplace_back(srv.response.keypoints[2 * i], srv.response.keypoints[2 * i + 1]);
-                descriptors.emplace_back(cv::Mat(1, 256, CV_32F, &srv.response.descriptors.data()[i * 256]).clone());
-            }
-            return true;
-        }
-        else
-        {
-            LOG(ERROR) << "Failed to call nnFeatures service";
-            return false;
-        }
-    }
-    else
-    {
-        cv::goodFeaturesToTrack(cur_frame.second, keypoints, max_feat_n_, 0.01, 30);
-        return true;
-    }
 }

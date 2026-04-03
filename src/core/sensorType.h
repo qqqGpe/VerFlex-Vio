@@ -27,7 +27,6 @@ struct ImuData
     double ts_sec = 0.f;
     Eigen::Vector3d am = Eigen::Vector3d::Zero();
     Eigen::Vector3d wm = Eigen::Vector3d::Zero();
-    ;
     bool operator<(const ImuData& other) { return ts_sec < other.ts_sec; }
 };
 

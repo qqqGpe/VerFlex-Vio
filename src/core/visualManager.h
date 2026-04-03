@@ -34,7 +34,7 @@ class VisualManager
     static constexpr uint32_t kMinFeatureForUpdate = 8;
 
     VisualManager() = default;
-    VisualManager(std::shared_ptr<ros::NodeHandle> &nh, const Param &params, std::shared_ptr<State> &state,
+    VisualManager(const Param &params, std::shared_ptr<State> &state,
                   std::shared_ptr<MsckfSolverBase> solver = nullptr);
 
     ~VisualManager()
@@ -151,7 +151,6 @@ class VisualManager
 
   protected:
     Param param_;
-    std::shared_ptr<ros::NodeHandle> nh_;
     std::shared_ptr<State> _state;
     std::shared_ptr<MsckfSolverBase> solver_;
 };

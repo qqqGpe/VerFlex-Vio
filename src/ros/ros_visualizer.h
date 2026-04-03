@@ -1,5 +1,5 @@
-#ifndef __VISUALIZER__
-#define __VISUALIZER__
+#ifndef __ROS_VISUALIZER__
+#define __ROS_VISUALIZER__
 
 #include <Eigen/Eigen>
 #include <ros/ros.h>
@@ -7,7 +7,6 @@
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/PointCloud.h>
 #include <sensor_msgs/PointCloud2.h>
-#include <nav_msgs/Path.h>
 #include <cv_bridge/cv_bridge.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
@@ -17,32 +16,16 @@
 
 #include "vioManager.h"
 
-class Visualizer
+class RosVisualizer
 {
 public:
-    ~Visualizer() = default;
-    Visualizer(const Visualizer&) = delete;
-    Visualizer& operator=(const Visualizer&) = delete;
-    Visualizer(Visualizer&&) noexcept = delete;
-    Visualizer& operator=(Visualizer&&) noexcept = delete;
-
-    static Visualizer& getInstance()
-    {
-        static Visualizer* instance = new Visualizer();
-        return *instance;
-    }
+    ~RosVisualizer() = default;
 
     void Init(std::shared_ptr<ros::NodeHandle> &nh, const Param &params);
 
-    void PublishVioState(const std::shared_ptr<ImuState> &imu_state);
-
-    void PublishFeatures(const double timestamp, const std::vector<Feature *> &features);
-
-    void PublishImageWithFeatures(const double timestamp, const cv::Mat &image_with_features);
+    void PublishVioOutput(const VioOutput &output);
 
   private:
-    Visualizer() = default;
-
     void publishStaticCameraTransform(Eigen::Quaterniond qic, Eigen::Vector3d tic)
     {
         geometry_msgs::TransformStamped static_transform;
@@ -60,7 +43,6 @@ public:
     }
 
     uint32_t frame_id_ = 0;
-    uint32_t pub_path_div_ = 4;
     std::shared_ptr<ros::NodeHandle> nh_;
     ros::Publisher pose_publisher_;
     ros::Publisher path_publisher_;

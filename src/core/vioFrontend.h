@@ -6,14 +6,10 @@
  * @FilePath: /catkin_ws/src/vio_backend/src/core/vioFrontend.h
  */
 #include <Eigen/Eigen>
-#include <cv_bridge/cv_bridge.h>
 #include <fmt/format.h>
 #include <glog/logging.h>
 #include <memory>
 #include <unistd.h>
-#include <vio/nnFeatures.h>
-#include <ros/node_handle.h>
-#include <sensor_msgs/PointCloud.h>
 
 #include "camModel.h"
 #include "parameter.h"
@@ -32,7 +28,7 @@ class VioFrontend
         STATUS_ERROR
     };
 
-    VioFrontend(std::shared_ptr<ros::NodeHandle> &nh, const Param params, std::shared_ptr<KeyFrameStatus> keyframe);
+    VioFrontend(const Param& params, std::shared_ptr<KeyFrameStatus> keyframe);
 
     bool InBorder(int x, int y);
 
@@ -52,30 +48,19 @@ class VioFrontend
                                        const std::vector<cv::Point2f> pts_to_track,
                                        std::vector<cv::Point2f> &pts_tracked);
 
-    std::vector<uint8_t> TrackNNFeatures(const cv::Mat image_left, const cv::Mat image_right,
-                                         const std::vector<CameraObs> &ref_features_to_track,
-                                         const std::map<uint32_t, cv::Mat> ref_feature_descriptors_map_,
-                                         std::vector<cv::Point2f> &pts_tracked);
-
     status_t MonoCheckEpipolarLine(const std::vector<CameraObs> &obs_prev, const std::vector<CameraObs> &obs_curr,
                                    std::vector<uint8_t> &inliers);
 
     std::pair<double, cv::Mat> ref_frame;                           // (ts_sec, image)
     std::pair<double, cv::Mat> cur_frame;                           // (ts_sec, image)
     std::vector<CameraObs> ref_features_to_track_;                  // valid, (x, y)
-    std::map<uint32_t, cv::Mat> ref_feature_descriptors_map_;       // For nn feature tracking
     Eigen::Matrix3d R_ref = Eigen::Matrix3d::Identity();            // Rotation of the reference frame
 
   private:
     static uint8_t ComputeCensusByte(const cv::Mat &image, int x, int y);
 
-    bool ExtractFeatures(const cv::Mat& image, std::vector<cv::Point2f>& keypoints, std::vector<cv::Mat>& descriptors);
-
     KeyFrameStatus getKeyframeStatus() const;
 
-    std::shared_ptr<ros::NodeHandle> nh_;
-    ros::ServiceClient client_;
-    bool use_nn_feature_ = false;
     bool use_census_transform_ = true;
     bool is_first_frame_ = true;
     bool do_prediction_ = false;

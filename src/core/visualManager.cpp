@@ -21,14 +21,13 @@ constexpr uint32_t kMaxIterationTimes = 5;
 constexpr uint32_t kMinFeatNumToUpdate = 15;
 } // namespace
 
-VisualManager::VisualManager(std::shared_ptr<ros::NodeHandle> &nh, const Param &params, std::shared_ptr<State> &state,
+VisualManager::VisualManager(const Param &params, std::shared_ptr<State> &state,
                              std::shared_ptr<MsckfSolverBase> solver)
 {
-    nh_ = nh;
     _state = state;
     param_ = params;
     _keyframe = std::make_shared<KeyFrameStatus>(KeyFrameStatus::kNone);
-    vio_frontend = std::make_shared<VioFrontend>(nh, params, _keyframe);
+    vio_frontend = std::make_shared<VioFrontend>(params, _keyframe);
     max_clone_pose_ = params.max_clone_pose;
     solver_ = solver;
     for (int i = 0; i < param_.max_feat_n; i++)

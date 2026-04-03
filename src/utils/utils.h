@@ -7,7 +7,6 @@
 #define __UTILS__
 
 #include <Eigen/Core>
-#include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
 
 #define RAD2DEG 180 / M_PI
@@ -26,8 +25,6 @@
 
 namespace utils
 {
-bool transfer_image(const sensor_msgs::ImageConstPtr &msg, cv::Mat &output);
-
 void visualize_feature_tracking_results(const cv::Mat &image,
                                         const std::vector<std::pair<int32_t, cv::Point2f>> &points,
                                         const int32_t wait_key_time_ms, cv::Mat *out_image);

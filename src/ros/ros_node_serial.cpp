@@ -2,19 +2,39 @@
 #include <ros/ros.h>
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
+#include <cv_bridge/cv_bridge.h>
+#include <sensor_msgs/Image.h>
+#include <sensor_msgs/Imu.h>
+#include <geometry_msgs/PointStamped.h>
 #include <signal.h>
 #include <cstdlib>
 #include <memory>
 #include <fmt/format.h>
 
 #include "core/camModel.h"
-#include "core/visualizer.h"
 #include "core/parameter.h"
 #include "core/vioManager.h"
+#include "ros_visualizer.h"
 
 namespace
 {
 constexpr double kStereoTimeDeviation = 0.02;
+
+// Helper to convert ROS Image to cv::Mat
+cv::Mat rosImageToCvMat(const sensor_msgs::ImageConstPtr& msg)
+{
+    cv_bridge::CvImageConstPtr cv_ptr;
+    try
+    {
+        cv_ptr = cv_bridge::toCvShare(msg, sensor_msgs::image_encodings::MONO8);
+    }
+    catch (cv_bridge::Exception& e)
+    {
+        LOG(ERROR) << "cv_bridge exception: " << e.what();
+        return cv::Mat();
+    }
+    return cv_ptr->image.clone();
+}
 }
 
 int main(int argc, char** argv)
@@ -23,25 +43,44 @@ int main(int argc, char** argv)
     ros::init(argc, argv, "vio_backend");
     std::shared_ptr<ros::NodeHandle> nh = std::make_shared<ros::NodeHandle>("~");
 
-    // Load vio_backend parameters
-    Param params(nh);
-    if (!params.load_params())
+    // Load parameters from ROS parameter server into JSON-compatible Param
+    // For ROS mode, we create a temporary JSON from ROS params
+    // Or load from a JSON file specified by ROS param
+    std::string config_path;
+    nh->param<std::string>("config_path", config_path, "");
+
+    Param params;
+    if (!config_path.empty())
     {
-        LOG(ERROR) << "Failed to load parameters!";
+        if (!params.load_from_json(config_path))
+        {
+            LOG(ERROR) << "Failed to load parameters from: " << config_path;
+            return -1;
+        }
+    }
+    else
+    {
+        LOG(ERROR) << "config_path parameter is required!";
         return -1;
     }
 
     // Initialize camera model
     CamModel::getInstance().Init(params);
 
-    // Initialize ros visualizer
-    Visualizer::getInstance().Init(nh, params);
+    // Initialize ROS visualizer
+    RosVisualizer ros_visualizer;
+    ros_visualizer.Init(nh, params);
 
     // Initialize vio_backend
-    std::shared_ptr<VioManager> vio_manager = std::make_shared<VioManager>(nh, params);
+    std::shared_ptr<VioManager> vio_manager = std::make_shared<VioManager>(params);
+
+    // Set output callback to publish via ROS
+    vio_manager->SetOutputCallback([&ros_visualizer](const VioOutput& output) {
+        ros_visualizer.PublishVioOutput(output);
+    });
 
     // set log level
-    fLI::FLAGS_stderrthreshold = params.log_level;  // 0: info, 1: warning, 2: error, 3: fatal
+    fLI::FLAGS_stderrthreshold = params.log_level;
 
     // prepare rosbag
     rosbag::Bag bag;
@@ -53,7 +92,7 @@ int main(int argc, char** argv)
     ros::Time time_finish = (params.bag_duration < 0) ? view_full.getEndTime() : time_init + ros::Duration(params.bag_duration);
     view.addQuery(bag, time_init, time_finish);
 
-    if (params.set_init_timestamp_to_zero == true)
+    if (params.set_init_timestamp_to_zero)
     {
         vio_manager->SetInitialTimeStamp(time_init.toSec());
     }
@@ -67,27 +106,16 @@ int main(int argc, char** argv)
     std::vector<rosbag::MessageInstance> msgs;
     for (const rosbag::MessageInstance& msg : view)
     {
-        if (!ros::ok())
-        {
-            break;
-        }
+        if (!ros::ok()) break;
 
         if (msg.getTopic() == params.imu_topic)
-        {
             msgs.push_back(msg);
-        }
-
         if (msg.getTopic() == ground_truth_topic)
-        {
             msgs.push_back(msg);
-        }
-
         for (int i = 0; i < params.camera_num; i++)
         {
             if (msg.getTopic() == params.camera_topic[i])
-            {
                 msgs.push_back(msg);
-            }
         }
     }
 
@@ -95,30 +123,34 @@ int main(int argc, char** argv)
 
     for (int m = 0; m < msgs.size(); m++)
     {
-        if (!ros::ok())
-        {
-            break;
-        }
+        if (!ros::ok()) break;
 
-        // get groundtruth msgs
+        // Ground truth
         if (msgs.at(m).getTopic() == ground_truth_topic)
         {
-            vio_manager->GroundTruthCallback(msgs.at(m).instantiate<geometry_msgs::PointStamped>());
+            auto gt_msg = msgs.at(m).instantiate<geometry_msgs::PointStamped>();
+            GroundTruth gt;
+            gt.ts_sec = gt_msg->header.stamp.toSec();
+            gt.p_ << gt_msg->point.x, gt_msg->point.y, gt_msg->point.z;
+            vio_manager->FeedGroundTruth(gt);
         }
 
-        // get imu msgs
+        // IMU
         if (msgs.at(m).getTopic() == params.imu_topic)
         {
-            vio_manager->ImuCallback(msgs.at(m).instantiate<sensor_msgs::Imu>());
+            auto imu_msg = msgs.at(m).instantiate<sensor_msgs::Imu>();
+            ImuData data;
+            data.ts_sec = imu_msg->header.stamp.toSec();
+            data.wm << imu_msg->angular_velocity.x, imu_msg->angular_velocity.y, imu_msg->angular_velocity.z;
+            data.am << imu_msg->linear_acceleration.x, imu_msg->linear_acceleration.y, imu_msg->linear_acceleration.z;
+            vio_manager->FeedImuData(data);
         }
 
-        // get stereo visual msgs
+        // Camera
         for (int cam_id = 0; cam_id < params.camera_num; cam_id++)
         {
             if (msgs.at(m).getTopic() != params.camera_topic.at(cam_id))
-            {
                 continue;
-            }
 
             std::map<int, int> camid_to_msg_index;
             double meas_time = msgs.at(m).getTime().toSec();
@@ -134,55 +166,36 @@ int main(int argc, char** argv)
                 for (int mt = m; mt < (int)msgs.size(); mt++)
                 {
                     if (msgs.at(mt).getTopic() != params.camera_topic.at(cam_idt))
-                    {
                         continue;
-                    }
-
                     if (std::abs(msgs.at(mt).getTime().toSec() - meas_time) < kStereoTimeDeviation)
-                    {
                         cam_idt_idx = mt;
-                    }
                     break;
                 }
 
                 if (cam_idt_idx != -1)
-                {
                     camid_to_msg_index.insert_or_assign(cam_idt, cam_idt_idx);
-                }
             }
 
             if (static_cast<int>(camid_to_msg_index.size()) != params.camera_num)
-            {
                 continue;
+
+            std::vector<cv::Mat> images;
+            double ts_sec = msgs.at(camid_to_msg_index.at(0)).getTime().toSec();
+
+            for (int cid = 0; cid < params.camera_num; cid++)
+            {
+                auto img_msg = msgs.at(camid_to_msg_index.at(cid)).instantiate<sensor_msgs::Image>();
+                images.push_back(rosImageToCvMat(img_msg));
             }
 
-            if (params.camera_num == CamType::MONO)
-            {
-                auto msg0 = msgs.at(camid_to_msg_index.at(0));
-                vio_manager->CameraCallback(msg0.instantiate<sensor_msgs::Image>(), nullptr);
-            }
-            else if (params.camera_num == CamType::STEREO)
-            {
-                auto msg0 = msgs.at(camid_to_msg_index.at(0));
-                auto msg1 = msgs.at(camid_to_msg_index.at(1));
-                vio_manager->CameraCallback(msg0.instantiate<sensor_msgs::Image>(), msg1.instantiate<sensor_msgs::Image>());
-            }
-            else
-            {
-                LOG(ERROR) << "Camera type not supported!";
-                return -1;
-            }
-
+            vio_manager->FeedImageData(ts_sec, images);
             vio_manager->ProcessMeasurementOnce();
 
             if (params.use_rate_limit)
-            {
                 loop_rate.sleep();
-            }
         }
     }
 
-    // waiting for program to exit
     google::ShutdownGoogleLogging();
     ros::shutdown();
     return 0;

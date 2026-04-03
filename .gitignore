@@ -4,3 +4,4 @@
 build
 log
 .sisyphus/
+build_standalone/

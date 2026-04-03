@@ -2,23 +2,6 @@
 
 namespace utils
 {
-bool transfer_image(const sensor_msgs::ImageConstPtr &msg, cv::Mat &output)
-{
-    cv_bridge::CvImageConstPtr cv_ptr;
-    try
-    {
-        cv_ptr = cv_bridge::toCvShare(msg, sensor_msgs::image_encodings::MONO8);
-    }
-    catch (cv_bridge::Exception &e)
-    {
-        std::cerr << e.what() << std::endl;
-        return false;
-    }
-    cv::Mat image = cv_ptr->image.clone();
-    output = image;
-    return true;
-}
-
 void visualize_feature_tracking_results(const cv::Mat &image,
                                         const std::vector<std::pair<int32_t, cv::Point2f>> &points,
                                         const int32_t wait_key_time_ms, cv::Mat *out_image)

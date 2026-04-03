@@ -1,90 +1,133 @@
 #ifndef __VIO_PARAMETER__
 #define __VIO_PARAMETER__
-#include <ros/ros.h>
 #include <Eigen/Core>
+#include <nlohmann/json.hpp>
+#include <fstream>
+#include <iostream>
 #include <memory>
-#include "ros/node_handle.h"
 
 class Param
 {
 public:
-    Param(std::shared_ptr<ros::NodeHandle> nh) : _nh(nh) {}
-
     Param() = default;
 
-    bool load_params()
+    bool load_from_json(const std::string& json_path)
     {
-        _nh->param<bool>("set_init_timestamp_to_zero", set_init_timestamp_to_zero, false);
-        _nh->param<bool>("use_multi_thread", use_multi_thread, false);
-        _nh->param<bool>("estimate_ric", estimate_ric, true);
-        _nh->param<bool>("estimate_td_visual", estimate_td_visual, true);
-        _nh->param<bool>("use_zupt", use_zupt, false);
-        _nh->param<bool>("use_fej", use_fej, false);
-        _nh->param<bool>("use_nn_feature", use_nn_feature, false);
-        _nh->param<bool>("frontend_prediction", frontend_prediction, false);
-        _nh->param<int>("log_level", log_level, 2);
-        _nh->param<bool>("save_full_log", save_full_log, true);
-        _nh->param<bool>("save_tum_log", save_tum_log, true);
-        _nh->param<bool>("use_pnp_ransac", use_pnp_ransac, true);
-        _nh->param<bool>("use_slam_feature", use_slam_feature, false);
-        _nh->param<int>("camera_num", camera_num, 1);
-        _nh->param<int>("running_rate", running_rate, 20);
-        _nh->param<bool>("use_rate_limit", use_rate_limit, true);
-        _nh->param<double>("lazy_time", lazy_time, 0.2);
-        _nh->param<int>("img_width", img_width, 752);
-        _nh->param<int>("img_height", img_height, 480);
-        _nh->param<double>("bag_start", bag_start, 0);
-        _nh->param<double>("bag_duration", bag_duration, -1);
-        _nh->param<int>("max_feat_n", max_feat_n, 225);
-        _nh->param<int>("grid_w", grid_w, 15);
-        _nh->param<int>("grid_h", grid_h, 15);
-        _nh->param<bool>("use_census_transform", use_census_transform, true);
-        _nh->param<bool>("use_histogram_equal", use_histequal, true);
-        _nh->param<int>("max_clone_pose", max_clone_pose, 6);
-        _nh->param<int>("max_slam_feature", max_slam_feature, 25);
-        _nh->param<std::string>("bag_name", bag_name, "");
-        _nh->param<std::string>("log_path", log_path, "");
-        _nh->param<std::string>("bag_path", bag_path, "");
-        _nh->param<std::string>("imu_topic", imu_topic, "");
-        _nh->param<double>("sigma_na", sigma_na, 2.0000e-3);
-        _nh->param<double>("sigma_nw", sigma_nw, 1.6968e-04);
-        _nh->param<double>("sigma_ba", sigma_ba, 3.0000e-3);
-        _nh->param<double>("sigma_bg", sigma_bg, 1.9393e-05);
-        _nh->param<double>("sigma_visual_pix", sigma_visual_pix, 1.0);
-        _nh->param<double>("init_td_visual_sigma", init_td_visual_sigma, 1e-4);
-        _nh->param<double>("init_ric_sigma", init_ric_sigma, 1e-3);
-        _nh->param<double>("gravity_magn", gravity_magn, 9.81);
-        _nh->param<double>("imu_acc_var_static_thres", imu_acc_var_static_thres, 0.5);
-        _nh->param<double>("imu_gyro_static_thres", imu_gyro_static_thres, 0.5);
-        _nh->param<int>("solver_type", solver_type, 0);
-        _nh->param<bool>("enable_schmidt_eskf", enable_schmidt_eskf, false);
-        _nh->param<int>("initial_type", initial_type, 1);
-        _nh->param<bool>("visualize_clone_poses", visualize_clone_poses, false);
+        std::ifstream file(json_path);
+        if (!file.is_open())
+        {
+            std::cerr << "Error: Cannot open config file: " << json_path << std::endl;
+            return false;
+        }
 
-        camera_topic.resize(camera_num, "");
-        _nh->getParam("camera_topic", camera_topic);
+        nlohmann::json j;
+        try
+        {
+            file >> j;
+        }
+        catch (const nlohmann::json::parse_error& e)
+        {
+            std::cerr << "Error: JSON parse error: " << e.what() << std::endl;
+            return false;
+        }
 
+        // Boolean flags
+        set_init_timestamp_to_zero = j.value("set_init_timestamp_to_zero", false);
+        use_multi_thread = j.value("use_multi_thread", false);
+        estimate_ric = j.value("estimate_ric", true);
+        estimate_td_visual = j.value("estimate_td_visual", true);
+        use_zupt = j.value("use_zupt", false);
+        use_fej = j.value("use_fej", false);
+        frontend_prediction = j.value("frontend_prediction", false);
+        save_full_log = j.value("save_full_log", true);
+        save_tum_log = j.value("save_tum_log", true);
+        use_pnp_ransac = j.value("use_pnp_ransac", true);
+        use_slam_feature = j.value("use_slam_feature", false);
+        use_census_transform = j.value("use_census_transform", true);
+        use_histequal = j.value("use_histogram_equal", true);
+        use_rate_limit = j.value("use_rate_limit", true);
+        enable_schmidt_eskf = j.value("enable_schmidt_eskf", false);
+        visualize_clone_poses = j.value("visualize_clone_poses", false);
+
+        // Integer parameters
+        log_level = j.value("log_level", 2);
+        camera_num = j.value("camera_num", 1);
+        running_rate = j.value("running_rate", 20);
+        img_width = j.value("img_width", 752);
+        img_height = j.value("img_height", 480);
+        max_feat_n = j.value("max_feat_n", 225);
+        grid_w = j.value("grid_w", 15);
+        grid_h = j.value("grid_h", 15);
+        max_clone_pose = j.value("max_clone_pose", 6);
+        max_slam_feature = j.value("max_slam_feature", 25);
+        solver_type = j.value("solver_type", 0);
+        initial_type = j.value("initial_type", 1);
+
+        // Double parameters
+        lazy_time = j.value("lazy_time", 0.2);
+        bag_start = j.value("bag_start", 0.0);
+        bag_duration = j.value("bag_duration", -1.0);
+        sigma_na = j.value("sigma_na", 2.0000e-3);
+        sigma_nw = j.value("sigma_nw", 1.6968e-04);
+        sigma_ba = j.value("sigma_ba", 3.0000e-3);
+        sigma_bg = j.value("sigma_bg", 1.9393e-05);
+        sigma_visual_pix = j.value("sigma_visual_pix", 1.0);
+        init_td_visual_sigma = j.value("init_td_visual_sigma", 1e-4);
+        init_ric_sigma = j.value("init_ric_sigma", 1e-3);
+        gravity_magn = j.value("gravity_magn", 9.81);
+        imu_acc_var_static_thres = j.value("imu_acc_var_static_thres", 0.5);
+        imu_gyro_static_thres = j.value("imu_gyro_static_thres", 0.5);
+
+        // String parameters
+        bag_name = j.value("bag_name", std::string(""));
+        log_path = j.value("log_path", std::string(""));
+        bag_path = j.value("bag_path", std::string(""));
+        imu_topic = j.value("imu_topic", std::string(""));
+        dataset_dir = j.value("dataset_dir", std::string(""));
+
+        // Camera topics
+        if (j.contains("camera_topic"))
+        {
+            camera_topic = j["camera_topic"].get<std::vector<std::string>>();
+        }
+        else
+        {
+            camera_topic.resize(camera_num, "");
+        }
+
+        // Camera intrinsics and distortion
         for (int i = 0; i < camera_num; i++)
         {
-            std::vector<double> intrinsic, distort;
-            _nh->getParam("intrinsic_cam_" + std::to_string(i), intrinsic);
-            _nh->getParam("distortion_cam_" + std::to_string(i), distort);
+            std::string intrinsic_key = "intrinsic_cam_" + std::to_string(i);
+            std::string distortion_key = "distortion_cam_" + std::to_string(i);
+
+            if (!j.contains(intrinsic_key) || !j.contains(distortion_key))
+            {
+                std::cerr << "Error: Missing " << intrinsic_key << " or " << distortion_key << std::endl;
+                return false;
+            }
+
+            auto intrinsic = j[intrinsic_key].get<std::vector<double>>();
+            auto distort = j[distortion_key].get<std::vector<double>>();
             Eigen::Matrix3d K;
             K << intrinsic[0], 0, intrinsic[2], 0, intrinsic[1], intrinsic[3], 0, 0, 1;
             intrinsics.push_back(K);
             distortion.push_back(Eigen::Map<Eigen::VectorXd>(distort.data(), distort.size()));
         }
 
+        // Extrinsic parameters (Tic)
         Ric.resize(camera_num, Eigen::Matrix3d::Identity());
         tic.resize(camera_num, Eigen::Vector3d::Zero());
-        std::vector<double> Tic;
-        _nh->getParam("Tic", Tic);
-        for (int cam_id = 0; cam_id < camera_num; cam_id++)
+        if (j.contains("Tic"))
         {
-            const int offset = cam_id * 12;
-            Ric[cam_id] << Tic[offset], Tic[offset + 1], Tic[offset + 2], Tic[offset + 3], Tic[offset + 4], Tic[offset + 5], Tic[offset + 6],
-                Tic[offset + 7], Tic[offset + 8];
-            tic[cam_id] << Tic[offset + 9], Tic[offset + 10], Tic[offset + 11];
+            auto Tic = j["Tic"].get<std::vector<double>>();
+            for (int cam_id = 0; cam_id < camera_num; cam_id++)
+            {
+                const int offset = cam_id * 12;
+                Ric[cam_id] << Tic[offset], Tic[offset + 1], Tic[offset + 2], Tic[offset + 3], Tic[offset + 4], Tic[offset + 5], Tic[offset + 6],
+                    Tic[offset + 7], Tic[offset + 8];
+                tic[cam_id] << Tic[offset + 9], Tic[offset + 10], Tic[offset + 11];
+            }
         }
 
         return CheckParams();
@@ -95,7 +138,6 @@ public:
     bool estimate_ric = true;
     bool estimate_td_visual = true;
     bool use_zupt = false;
-    bool use_nn_feature = false;
     bool frontend_prediction = false;
     bool save_full_log = true;
     bool save_tum_log = true;
@@ -137,6 +179,7 @@ public:
     std::string bag_path;
     std::string imu_topic;
     std::string bag_name;
+    std::string dataset_dir;
     std::vector<std::string> camera_topic;
 
     std::vector<Eigen::Matrix3d> intrinsics;
@@ -190,8 +233,6 @@ private:
         }
         return true;
     }
-
-    std::shared_ptr<ros::NodeHandle> _nh;
 };
 
 #endif

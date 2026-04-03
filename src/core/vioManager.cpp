@@ -6,7 +6,6 @@
 #include "imuPreIntegration.h"
 #include "mathematical_tools.h"
 #include "utils.h"
-#include "visualizer.h"
 
 using namespace Sophus;
 
@@ -20,12 +19,10 @@ constexpr uint32_t kMinVisualFeaturesForUpdate = 10;
 
 /**
  * @brief Constructor for VioManager
- * @param nh Shared pointer to ROS NodeHandle
  * @param params Configuration parameters
  */
-VioManager::VioManager(std::shared_ptr<ros::NodeHandle>& nh, const Param& params)
+VioManager::VioManager(const Param& params)
 {
-    nh_ = nh;
     params_ = params;
 
     // Solver configuration
@@ -45,7 +42,7 @@ VioManager::VioManager(std::shared_ptr<ros::NodeHandle>& nh, const Param& params
     _imu_manager = std::make_shared<ImuManager>(params, state, solver);
 
     // Initialize visual manager
-    _visual_manager = std::make_shared<VisualManager>(nh, params, state, solver);
+    _visual_manager = std::make_shared<VisualManager>(params, state, solver);
 
     // Initializer configuration
     if (params.initial_type == static_cast<int>(InitializerType::kStatic) && params.camera_num == 2)
@@ -321,15 +318,13 @@ bool VioManager::TryVisualUpdate(const std::pair<double, std::vector<CameraObs>>
     }
 
     solver->PropagateStateAndCovariance(imu_data, time_comp, state);
-
     solver->StochasticClone(state, &imu_data);
-
     _visual_manager->UpdateFeatureStatistic(state->ts_sec(), feature_observes);
-
+    
     if (_visual_manager->VisualUpdate())
     {
-        LOG(INFO) << fmt::format(GREEN "VIO updated, current state ts: {:f}, pos: [{:.3f}, {:.3f}, {:.3f}], vel: "
-                                 "[{:.3f}, {:.3f}, {:.3f}]" RESET,
+        LOG(INFO) << fmt::format(GREEN "[VIO updated @ {:f}s], pos: [{:.3f}, {:.3f}, {:.3f}], vel: "
+                                       "[{:.3f}, {:.3f}, {:.3f}]" RESET,
                                  state->ts_sec(), state->_imu_state->p()->vec().x(), state->_imu_state->p()->vec().y(),
                                  state->_imu_state->p()->vec().z(), state->_imu_state->v()->vec().x(),
                                  state->_imu_state->v()->vec().y(), state->_imu_state->v()->vec().z());
@@ -362,23 +357,40 @@ bool VioManager::CheckVioState(const double ts_sec) const
 }
 
 /**
- * @brief Publish VIO state and features to ROS topics
+ * @brief Publish VIO state and features via output callback
  * @param ts_sec Current timestamp in seconds
  */
 void VioManager::PublishVioMessages(const double ts_sec)
 {
-    Visualizer::getInstance().PublishVioState(state->_imu_state);
+    if (!output_callback_)
+    {
+        return;
+    }
+
+    VioOutput output;
+    output.timestamp = state->_imu_state->ts();
+    output.position = state->_imu_state->p()->vec();
+    output.orientation = state->_imu_state->q()->q();
+    output.velocity = state->_imu_state->v()->vec();
 
     if (visual_updated_this_tick_)
     {
-        Visualizer::getInstance().PublishFeatures(state->ts_sec(), _visual_manager->feat_msckf_);
+        for (const auto* feat : _visual_manager->feat_msckf_)
+        {
+            if (feat->_valid && feat->_is_triangulated)
+            {
+                output.feature_points.push_back(feat->_pwf);
+            }
+        }
     }
 
     std::pair<double, cv::Mat> image_with_features = _visual_manager->vio_frontend->getImageWithFeatures();
     if (abs(image_with_features.first - ts_sec) < 0.01 && !image_with_features.second.empty())
     {
-        Visualizer::getInstance().PublishImageWithFeatures(image_with_features.first, image_with_features.second);
+        output.image_with_features = image_with_features.second;
     }
+
+    output_callback_(output);
 }
 
 /**
@@ -783,118 +795,59 @@ void VioManager::SaveResultsToFile()
     }
 }
 
-void VioManager::GroundTruthCallback(const geometry_msgs::PointStamped::ConstPtr& msg)
+void VioManager::FeedGroundTruth(const GroundTruth& gt)
 {
-    double ts_sec = msg->header.stamp.toSec() - _initial_timestamp;
-    GroundTruth gt_pv;
-    gt_pv.p_ << msg->point.x, msg->point.y, msg->point.z;
+    double ts_sec = gt.ts_sec - _initial_timestamp;
+    GroundTruth gt_adjusted = gt;
+    gt_adjusted.ts_sec = ts_sec;
     if (!ground_truth_.empty())
     {
         auto it = ground_truth_.rbegin();
-        gt_pv.v_ = (gt_pv.p_ - it->second.p_) / (ts_sec - it->first);
+        gt_adjusted.v_ = (gt_adjusted.p_ - it->second.p_) / (ts_sec - it->first);
     }
-    ground_truth_.try_emplace(ts_sec, gt_pv);
+    ground_truth_.try_emplace(ts_sec, gt_adjusted);
 }
 
 /**
- * @brief IMU data callback function
- * @param msg Pointer to the incoming IMU message
+ * @brief Feed IMU data into the VIO system
+ * @param data IMU measurement data
  */
-void VioManager::ImuCallback(const sensor_msgs::Imu::ConstPtr& msg)
+void VioManager::FeedImuData(const ImuData& data)
 {
-    ImuData data;
-    data.ts_sec = msg->header.stamp.toSec() - _initial_timestamp;
-    data.wm << msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z;
-    data.am << msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z;
-
-    initializer->FeedImuMeasurement(data);
-    _imu_manager->FeedImuMeasurement(data);
+    ImuData adjusted = data;
+    adjusted.ts_sec = data.ts_sec - _initial_timestamp;
+    initializer->FeedImuMeasurement(adjusted);
+    _imu_manager->FeedImuMeasurement(adjusted);
 }
 
 /**
- * @brief Stereo camera data callback function
- * @param msg0 Pointer to the left camera image message
- * @param msg1 Pointer to the right camera image message
+ * @brief Feed image data into the VIO system
+ * @param ts_sec Timestamp in seconds
+ * @param images Vector of images (mono: 1, stereo: 2)
  */
-void VioManager::CallbackStereo(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1)
+void VioManager::FeedImageData(double ts_sec, const std::vector<cv::Mat>& images)
 {
-    double ts_sec = msg0->header.stamp.toSec() - _initial_timestamp;
-    std::vector<cv::Mat> images;
+    double adjusted_ts = ts_sec - _initial_timestamp;
+    std::vector<cv::Mat> rectified_images;
 
-    if (msg0 != nullptr && msg1 != nullptr)
+    if (params_.camera_num == CamType::MONO && !images.empty())
     {
-        cv::Mat image_l, image_l_rectify;
-        cv::Mat image_r, image_r_rectify;
-        utils::transfer_image(msg0, image_l);
-        utils::transfer_image(msg1, image_r);
-        CamModel::getInstance().RectifyImage(0, image_l, &image_l_rectify);
-        CamModel::getInstance().RectifyImage(1, image_r, &image_r_rectify);
-        images.push_back(image_l_rectify);
-        images.push_back(image_r_rectify);
-        _visual_manager->FeedImages(std::make_pair(ts_sec, images));
-    }
-}
-
-/**
- * @brief Monocular camera data callback function
- * @param msg0 Pointer to the monocular camera image message
- */
-void VioManager::CallbackMonocular(const sensor_msgs::ImageConstPtr& msg0)
-{
-    double ts_sec = msg0->header.stamp.toSec() - _initial_timestamp;
-    std::vector<cv::Mat> images;
-
-    if (msg0 != nullptr)
-    {
-        cv::Mat image_l, image_l_rectify;
-        utils::transfer_image(msg0, image_l);
-        CamModel::getInstance().RectifyImage(0, image_l, &image_l_rectify);
-        images.push_back(image_l_rectify);
-        _visual_manager->FeedImages(std::make_pair(ts_sec, images));
-    }
-}
-
-/**
- * @brief Camera data callback function for both mono and stereo setups
- * @param msg0 Pointer to the first camera image message (left or mono)
- * @param msg1 Pointer to the second camera image message (right), can be nullptr for mono
- */
-void VioManager::CameraCallback(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1)
-{
-    double ts_sec = msg0->header.stamp.toSec() - _initial_timestamp;
-    std::vector<cv::Mat> images;
-
-    if (params_.camera_num == CamType::MONO && msg0 != nullptr)
-    {
-        cv::Mat image_l, image_l_rectify;
-        utils::transfer_image(msg0, image_l);
-        // CamModel::getInstance().RectifyImage(0, image_l, &image_l_rectify);
+        cv::Mat image_rectified;
+        CamModel::getInstance().RectifyImage(0, images[0], &image_rectified);
         if (params_.use_histequal)
         {
-            cv::equalizeHist(image_l_rectify, image_l_rectify);
+            cv::equalizeHist(image_rectified, image_rectified);
         }
-
-        images.push_back(image_l_rectify);
-        _visual_manager->FeedImages(std::make_pair(ts_sec, images));
+        rectified_images.push_back(image_rectified);
     }
-
-    else if (params_.camera_num == CamType::STEREO && msg0 != nullptr && msg1 != nullptr)
+    else if (params_.camera_num == CamType::STEREO && images.size() >= 2)
     {
-        cv::Mat image_l, image_l_rectify;
-        cv::Mat image_r, image_r_rectify;
-        utils::transfer_image(msg0, image_l);
-        utils::transfer_image(msg1, image_r);
-        // CamModel::getInstance().RectifyImage(0, image_l, &image_l_rectify);
-        // CamModel::getInstance().RectifyImage(1, image_r, &image_r_rectify);
-        if (params_.use_histequal)
-        {
-            // cv::equalizeHist(image_l_rectify, image_l_rectify);
-            // cv::equalizeHist(image_r_rectify, image_r_rectify);
-            cv::equalizeHist(image_l, image_l);
-            cv::equalizeHist(image_r, image_r);
-        }
-        images.push_back(image_l);
-        images.push_back(image_r);
-        _visual_manager->FeedImages(std::make_pair(ts_sec, images));
+        cv::Mat image_l_rectified, image_r_rectified;
+        CamModel::getInstance().RectifyImage(0, images[0], &image_l_rectified);
+        CamModel::getInstance().RectifyImage(1, images[1], &image_r_rectified);
+        rectified_images.push_back(image_l_rectified);
+        rectified_images.push_back(image_r_rectified);
     }
+
+    _visual_manager->FeedImages(std::make_pair(adjusted_ts, rectified_images));
 }

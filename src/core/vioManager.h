@@ -1,13 +1,10 @@
 #ifndef __VIO_MANAGER__
 #define __VIO_MANAGER__
-#include <geometry_msgs/PointStamped.h>
-#include <sensor_msgs/Image.h>
-#include <sensor_msgs/Imu.h>
-#include <sensor_msgs/PointCloud.h>
 #include <Eigen/Core>
 #include <thread>
 #include <mutex>
 #include <queue>
+#include <functional>
 
 #include "solver.h"
 #include "eskf_solver.h"
@@ -32,13 +29,33 @@ enum class FrameOptions
     kSkipFrame = 3
 };
 
+struct VioOutput
+{
+    double timestamp = 0.0;
+    Eigen::Vector3d position = Eigen::Vector3d::Zero();
+    Eigen::Quaterniond orientation = Eigen::Quaterniond::Identity();
+    Eigen::Vector3d velocity = Eigen::Vector3d::Zero();
+    std::vector<Eigen::Vector3d> feature_points;
+    cv::Mat image_with_features;
+};
+
+using VioOutputCallback = std::function<void(const VioOutput&)>;
+
 class VioManager
 {
    public:
     VioManager() = default;
-    VioManager(std::shared_ptr<ros::NodeHandle> &nh, const Param& params);
+    VioManager(const Param& params);
 
     ~VioManager() {}
+
+    void SetOutputCallback(VioOutputCallback callback) { output_callback_ = std::move(callback); }
+
+    void FeedImuData(const ImuData& data);
+
+    void FeedImageData(double ts_sec, const std::vector<cv::Mat>& images);
+
+    void FeedGroundTruth(const GroundTruth& gt);
 
     bool TryFrontendTrack(const std::pair<double, std::vector<cv::Mat>>& images, std::pair<double, std::vector<CameraObs>>& feature_observes);
 
@@ -63,16 +80,6 @@ class VioManager
     FrameOptions CheckMeasurements() const;
 
     void ProcessMeasurementOnce();
-
-    void GroundTruthCallback(const geometry_msgs::PointStamped::ConstPtr& msg);
-
-    void ImuCallback(const sensor_msgs::Imu::ConstPtr& msg);
-
-    void CameraCallback(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1);
-
-    void CallbackStereo(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::ImageConstPtr& msg1);
-
-    void CallbackMonocular(const sensor_msgs::ImageConstPtr& msg0);
 
     void ResetSystem();
 
@@ -101,7 +108,7 @@ class VioManager
 
     Param params_;
     bool use_zupt_ = false;
-    std::shared_ptr<ros::NodeHandle> nh_;
+    VioOutputCallback output_callback_;
     uint8_t visual_updated_this_tick_ = false;
     uint8_t zupt_updated_this_tick_ = false;
     double last_update_timestamp_ = -1.0;

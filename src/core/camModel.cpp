@@ -141,6 +141,12 @@ void CamModel::back_project_undistort(CameraObs& obs) const
 
 void CamModel::RectifyImage(const int32_t cam_id, const cv::Mat& img_raw_ptr, cv::Mat* img_rectified_ptr)
 {
-    // Apply rectification
+    // Skip rectification if maps are not initialized
+    if (rectify_map_.size() <= cam_id * 2 + 1 ||
+        rectify_map_[cam_id * 2].empty() || rectify_map_[cam_id * 2 + 1].empty())
+    {
+        *img_rectified_ptr = img_raw_ptr.clone();
+        return;
+    }
     cv::remap(img_raw_ptr, *img_rectified_ptr, rectify_map_[cam_id * 2], rectify_map_[cam_id * 2 + 1], cv::INTER_LINEAR);
 }
