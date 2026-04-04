@@ -10,6 +10,7 @@
 #include <opencv2/core/core.hpp>
 #include <sophus/so3.hpp>
 #include <fmt/format.h>
+#include <fmt/ostream.h>
 
 using namespace Sophus;
 
@@ -84,7 +85,7 @@ class eskfSolver : public MsckfSolverBase
     {
         if (state_to_marginalize == nullptr)
         {
-            LOG(ERROR) << "State marginalization failed, state_to_marginalize is nullptr";
+            LOG_ERROR("State marginalization failed, state_to_marginalize is nullptr");
             return;
         }
 
@@ -95,7 +96,7 @@ class eskfSolver : public MsckfSolverBase
         auto iter_marginalize = std::find(state->_variables.begin(), state->_variables.end(), state_to_marginalize);
         if (iter_marginalize == state->_variables.end())
         {
-            LOG(ERROR) << "State marginalization failed, no such variable in states";
+            LOG_ERROR("State marginalization failed, no such variable in states");
             return;
         }
         state->_variables.erase(iter_marginalize);
@@ -258,8 +259,8 @@ class eskfSolver : public MsckfSolverBase
         {
             if (diags(i) < 0.0)
             {
-                LOG(ERROR) << fmt::format(RED "Diagonal is negative when update, diags") << RESET;
-                LOG(ERROR) << "diags: " << diags.transpose();
+                LOG_ERROR(RED "Diagonal is negative when update, diags" RESET);
+                LOG_ERROR("diags: {}", fmt::streamed(diags.transpose()));
                 std::exit(EXIT_FAILURE);
             }
         }
@@ -389,15 +390,15 @@ class eskfSolver : public MsckfSolverBase
     {
         if (visual_ts <= state->_imu_state->ts())
         {
-            LOG(WARNING) << fmt::format("Propagation failed, curent state timestamp: %f, must be later than imu_state timestamp: %f", visual_ts,
-                                        state->_imu_state->ts());
+            LOG_WARN("Propagation failed, curent state timestamp: {:f}, must be later than imu_state timestamp: {:f}", visual_ts,
+                     state->_imu_state->ts());
             return false;
         }
 
         if (imu_data.empty() || imu_data.back().ts_sec < visual_ts)
         {
-            LOG(WARNING) << fmt::format("Propagation failed, waiting for imu data, current state timestamp: %f but latest imu timestamp: %f",
-                                        state->ts_sec(), imu_data.back().ts_sec);
+            LOG_WARN("Propagation failed, waiting for imu data, current state timestamp: {:f} but latest imu timestamp: {:f}",
+                     state->ts_sec(), imu_data.back().ts_sec);
             return false;
         }
 
@@ -446,7 +447,7 @@ class eskfSolver : public MsckfSolverBase
             }
             else
             {
-                LOG(WARNING) << fmt::format(RED "Imu delayed for {}s" RESET, dt);
+                LOG_WARN(RED "Imu delayed for {}s" RESET, dt);
                 exit(0);
             }
         }

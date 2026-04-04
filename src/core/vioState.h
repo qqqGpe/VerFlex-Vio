@@ -38,7 +38,7 @@ struct SlamFeature
 class State
 {
    public:
-    State(const Param& param);
+    State(const Parameter& param);
     virtual ~State() = default;
 
     double ts_sec() const { return _imu_state->ts(); }
@@ -130,7 +130,7 @@ class State
                              std::unordered_map<std::shared_ptr<Type>, size_t>& map_hx);
 
     uint32_t _dim = 0;
-    Param _param;
+    Parameter _param;
     std::shared_ptr<ImuState> _imu_state;
     std::shared_ptr<Scalar> td_visual_;
     std::map<double, std::shared_ptr<Pose>> _clone_pose;

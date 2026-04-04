@@ -1,4 +1,5 @@
 #include <glog/logging.h>
+#include "utils.h"
 #include <ros/ros.h>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/Image.h>
@@ -42,7 +43,7 @@ void StereoCallback(const sensor_msgs::ImageConstPtr& msg0, const sensor_msgs::I
     }
     catch (cv_bridge::Exception& e)
     {
-        LOG(ERROR) << "cv_bridge exception: " << e.what();
+        LOG_ERROR("cv_bridge exception: {}", e.what());
         return;
     }
     g_vio_manager->FeedImageData(ts_sec, images);
@@ -58,7 +59,7 @@ void MonoCallback(const sensor_msgs::ImageConstPtr& msg0)
     }
     catch (cv_bridge::Exception& e)
     {
-        LOG(ERROR) << "cv_bridge exception: " << e.what();
+        LOG_ERROR("cv_bridge exception: {}", e.what());
         return;
     }
     g_vio_manager->FeedImageData(ts_sec, images);
@@ -79,18 +80,18 @@ int main(int argc, char** argv)
     std::string config_path;
     nh->param<std::string>("config_path", config_path, "");
 
-    Param params;
+    Parameter params;
     if (!config_path.empty())
     {
-        if (!params.load_from_json(config_path))
+        if (!params.load_from_yaml(config_path))
         {
-            LOG(ERROR) << "Failed to load parameters from: " << config_path;
+            LOG_ERROR("Failed to load parameters from: {}", config_path);
             return -1;
         }
     }
     else
     {
-        LOG(ERROR) << "config_path parameter is required!";
+        LOG_ERROR("config_path parameter is required!");
         return -1;
     }
 

@@ -5,7 +5,7 @@
  */
 #include "camModel.h"
 
-void CamModel::Init(const Param params)
+void CamModel::Init(const Parameter params)
 {
     camera_num_ = params.camera_num;
     image_size_ = cv::Size(params.img_width, params.img_height);
@@ -21,22 +21,6 @@ void CamModel::Init(const Param params)
         rectify_map_.push_back(map2);
         vK_.push_back(K_undistort);
     }
-}
-
-void CamModel::CalculateUndistortRectifyMap(const Eigen::Matrix3d& K,
-                                               const Eigen::VectorXd& D,
-                                               Eigen::Matrix3d& K_undistort,
-                                               cv::Mat& map1,
-                                               cv::Mat& map2)
-{
-    cv::Mat K_cv, D_cv;
-    cv::eigen2cv(K, K_cv);
-    cv::eigen2cv(D, D_cv);
-
-    cv::Mat R = cv::Mat::eye(3, 3, CV_64F);
-    cv::Mat new_K = cv::getOptimalNewCameraMatrix(K_cv, D_cv, image_size_, 0, image_size_, 0);
-    cv::initUndistortRectifyMap(K_cv, D_cv, R, new_K, image_size_, CV_32FC1, map1, map2);
-    cv::cv2eigen(new_K, K_undistort);
 }
 
 // For debug

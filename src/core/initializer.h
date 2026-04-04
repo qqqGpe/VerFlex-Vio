@@ -39,7 +39,7 @@ class Initializer
     static constexpr double kInitSigmaTdVisual = 1e-3;   // sec
 
     Initializer() = default;
-    Initializer(const Param& paramters, const std::shared_ptr<VisualManager> visual_manager, std::shared_ptr<State>& state)
+    Initializer(const Parameter& paramters, const std::shared_ptr<VisualManager> visual_manager, std::shared_ptr<State>& state)
     {
         state_ = state;
         param_ = paramters;
@@ -68,7 +68,7 @@ class Initializer
     bool is_velocity_initialized = false;
 
    protected:
-    Param param_;
+    Parameter param_;
     std::shared_ptr<VisualManager> visual_manager_;
     std::shared_ptr<State> state_;
     std::deque<std::unordered_map<uint32_t, CameraObs>> feature_obs_buffer_;

@@ -76,12 +76,11 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     }
     else if (is_orientation_initialized == false || is_bias_initialized == false)
     {
-        LOG(INFO) << "Stereo visual initialization failed reason: orientation or bias not initialized!";
+        LOG_WARN("Stereo visual initialization failed reason: orientation or bias not initialized!");
         return false;
     }
 
-    LOG(INFO) << "trying to initialize with stereo visual measurements";
-
+    LOG_INFO("Trying to initialize with stereo visual measurements");
     double ts_sec = feature_observes.first;
     std::unordered_map<uint32_t, CameraObs> current_feature_umap;
     for (auto& obs : feature_observes.second)
@@ -102,7 +101,7 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     // Store stereo visual observations for first entry
     if (feature_obs_buffer_.size() < 2)
     {
-        LOG(INFO) << "Stereo visual initialization failed reason: first entry, exit";
+        LOG_WARN("Stereo visual initialization failed reason: Exit at first entry!");
         return false;
     }
 
@@ -121,7 +120,7 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
 
     if (candidate_obs_umap.empty())
     {
-        LOG(INFO) << "Stereo visual initialization failed reason: not enough parallex!";
+        LOG_WARN("Stereo visual initialization failed reason: Not enough parallex!");
         return false;
     }
 
@@ -137,7 +136,7 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     }
     if (stereo_obs_pairs.size() < kMinStereoFeaturesForInit)
     {
-        LOG(INFO) << "Stereo visual initialization failed reason: not enough stereo observations";
+        LOG_WARN("Stereo visual initialization failed reason: Not enough stereo observations");
         return false;
     }
 
@@ -169,7 +168,7 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
     auto& [obs_prev, obs_cur] = stereo_obs_pairs[0];
     double delta_ts = abs(obs_cur.ts_sec - obs_prev.ts_sec);
     Eigen::Vector3d v_CinG = p_CpinG / delta_ts;  // initial velocity of camera in global coordinate
-    LOG(INFO) << cv::format("Stereo visual initialization success! Initial velocity: [%f, %f, %f]", v_CinG.x(), v_CinG.y(), v_CinG.z());
+    LOG_INFO(GREEN "Stereo visual initialization success with initial velocity: [{:f}, {:f}, {:f}]" RESET, v_CinG.x(), v_CinG.y(), v_CinG.z());
 
     // initialize position and velocity
     state_->set_ts_sec(ts_sec);
@@ -231,16 +230,16 @@ bool Initializer::StereoVisualInitialize(const std::pair<double, std::vector<Cam
 
 bool Initializer::InitializeOrientation()
 {
-    LOG(INFO) << "trying to initialize with static states";
+    LOG_INFO("Trying to initialize with static states");
     if (is_orientation_initialized && is_bias_initialized)
     {
-        LOG(WARNING) << "orientation has already been initialized!";
+        LOG_WARN("Orientation has already been initialized!");
         return false;
     }
 
     if (imu_data.size() < kInitializeImuQueSize)
     {
-        LOG(INFO) << "Static initialization failed reason: not enough imu data for initialization";
+        // LOG_WARN("Static initialization failed reason: Not enough imu data for initialization");
         return false;
     }
 
@@ -274,7 +273,7 @@ bool Initializer::InitializeOrientation()
 
     if (acc_var > static_acc_var_thres && abs(acc_mean.norm() - gravity_mag) < 0.5)
     {
-        LOG(INFO) << "Static initialization failed reason: platform is moving";
+        LOG_WARN("Static initialization failed reason: Platform is moving");
         return false;
     }
 
@@ -303,10 +302,10 @@ bool Initializer::InitializeOrientation()
     is_orientation_initialized = true;
     is_bias_initialized = true;
 
-    LOG(INFO) << cv::format("ba: [%f, %f, %f]", imu_state->ba()->vec().x(), imu_state->ba()->vec().y(), imu_state->ba()->vec().z());
-    LOG(INFO) << cv::format("bg: [%f, %f, %f]", imu_state->bg()->vec().x(), imu_state->bg()->vec().y(), imu_state->bg()->vec().z());
-    LOG(INFO) << "orientation inialization success!";
-    LOG(INFO) << "IMU bias initialization success!";
+    LOG_INFO(GREEN "Orientation init successfully!" RESET);
+    LOG_INFO(GREEN "IMU bias init successfully, with ba: [{:f}, {:f}, {:f}], bg: [{:f}, {:f}, {:f}]" RESET,
+             imu_state->ba()->vec().x(), imu_state->ba()->vec().y(), imu_state->ba()->vec().z(),
+             imu_state->bg()->vec().x(), imu_state->bg()->vec().y(), imu_state->bg()->vec().z());
 
     return true;
 }

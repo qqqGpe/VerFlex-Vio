@@ -9,8 +9,7 @@ namespace utils
 {
 namespace math
 {
-template <typename Derived>
-Eigen::Matrix<typename Derived::Scalar, 3, 3> skew(const Eigen::MatrixBase<Derived>& w)
+template <typename Derived> Eigen::Matrix<typename Derived::Scalar, 3, 3> skew(const Eigen::MatrixBase<Derived> &w)
 {
     assert(w.rows() == 3 && w.cols() == 1);
     typedef typename Derived::Scalar Scalar_t;
@@ -19,8 +18,7 @@ Eigen::Matrix<typename Derived::Scalar, 3, 3> skew(const Eigen::MatrixBase<Deriv
     return w_x;
 }
 
-template <typename Derived>
-Eigen::Matrix<typename Derived::Scalar, 3, 3> Rodrigues(const Eigen::MatrixBase<Derived>& vec, const double theta)
+template <typename Derived> Eigen::Matrix<typename Derived::Scalar, 3, 3> Rodrigues(const Eigen::MatrixBase<Derived> &vec, const double theta)
 {
     assert(vec.rows() == 3 && vec.cols() == 1);
     typedef typename Derived::Scalar Scalar_t;
@@ -37,7 +35,7 @@ Eigen::Matrix<typename Derived::Scalar, 3, 3> Rodrigues(const Eigen::MatrixBase<
     return R;
 }
 
-inline void NullSpaceProjectInplace(Eigen::MatrixXd& Hfx, int cols)
+inline void NullSpaceProjectInplace(Eigen::MatrixXd &Hfx, int cols)
 {
     // Apply the left nullspace of H_f to all variables
     // Based on "Matrix Computations 4th Edition by Golub and Van Loan"
@@ -58,8 +56,7 @@ inline void NullSpaceProjectInplace(Eigen::MatrixXd& Hfx, int cols)
     }
 }
 
-template <typename Derived>
-Eigen::Matrix<typename Derived::Scalar, 3, 1> R2rpy(const Eigen::MatrixBase<Derived>& R)
+template <typename Derived> Eigen::Matrix<typename Derived::Scalar, 3, 1> R2rpy(const Eigen::MatrixBase<Derived> &R)
 {
     // euler (Z-Y-X，i.e. RPY) make sure in range [-pi/2, pi/2]
     typedef typename Derived::Scalar Scalar_t;
@@ -77,37 +74,47 @@ Eigen::Matrix<typename Derived::Scalar, 3, 1> R2rpy(const Eigen::MatrixBase<Deri
     return euler_angle;
 }
 
-template <typename Derived>
-Eigen::Matrix<typename Derived::Scalar, 3, 3> rpy2R(const Eigen::MatrixBase<Derived>& euler_angle)
+template <typename Derived> Eigen::Matrix<typename Derived::Scalar, 3, 3> rpy2R(const Eigen::MatrixBase<Derived> &euler_angle)
 {
     typedef typename Derived::Scalar Scalar_t;
 
     // Check input
     EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Derived, 3);
-
     const Scalar_t roll = euler_angle(0);
     const Scalar_t pitch = euler_angle(1);
     const Scalar_t yaw = euler_angle(2);
-
     const Eigen::AngleAxis<Scalar_t> Rx(roll, Eigen::Matrix<Scalar_t, 3, 1>::UnitX());
     const Eigen::AngleAxis<Scalar_t> Ry(pitch, Eigen::Matrix<Scalar_t, 3, 1>::UnitY());
     const Eigen::AngleAxis<Scalar_t> Rz(yaw, Eigen::Matrix<Scalar_t, 3, 1>::UnitZ());
-
     Eigen::Matrix<Scalar_t, 3, 3> R = (Rz * Ry * Rx).toRotationMatrix();
-
     return R;
 }
 
-inline double CalcStereoDepth(const Eigen::Vector2d uv_left, const Eigen::Vector2d uv_right, const Eigen::Matrix3d K, const double baseline)
+inline Eigen::Vector3d triangulatePoint(const Eigen::Matrix3d R0, const Eigen::Vector3d p0, const Eigen::Matrix3d R1, const Eigen::Vector3d p1,
+                                        const Eigen::Vector2d &point0, const Eigen::Vector2d &point1)
 {
-    Eigen::Vector3d p_left = K.inverse() * uv_left.homogeneous();
-    Eigen::Vector3d p_right = K.inverse() * uv_right.homogeneous();
-    double depth = baseline / (p_left - p_right).norm();
-    return depth;
+    Eigen::Matrix4d T_wtoc0 = Eigen::Matrix4d::Identity();
+    Eigen::Matrix4d T_wtoc1 = Eigen::Matrix4d::Identity();
+    T_wtoc0.block<3, 3>(0, 0) = R0.transpose();
+    T_wtoc0.block<3, 1>(0, 3) = -R0.transpose() * p0;
+    T_wtoc1.block<3, 3>(0, 0) = R1.transpose();
+    T_wtoc1.block<3, 1>(0, 3) = -R1.transpose() * p1;
+
+    Eigen::Matrix4d A = Eigen::Matrix4d::Zero();
+    A.row(0) = point0[0] * T_wtoc0.row(2) - T_wtoc0.row(0);
+    A.row(1) = point0[1] * T_wtoc0.row(2) - T_wtoc0.row(1);
+    A.row(2) = point1[0] * T_wtoc1.row(2) - T_wtoc1.row(0);
+    A.row(3) = point1[1] * T_wtoc1.row(2) - T_wtoc1.row(1);
+    Eigen::Vector4d triangulated_point = A.jacobiSvd(Eigen::ComputeFullV).matrixV().rightCols<1>();
+    Eigen::Vector3d point_3d;
+    point_3d(0) = triangulated_point(0) / triangulated_point(3);
+    point_3d(1) = triangulated_point(1) / triangulated_point(3);
+    point_3d(2) = triangulated_point(2) / triangulated_point(3);
+
+    return point_3d;
 }
 
-template <typename Derived>
-Derived cot(const Derived& theta)
+template <typename Derived> Derived cot(const Derived &theta)
 {
     Derived tanx = std::tan(theta);
     if (abs(tanx) < 1e-12)
@@ -120,8 +127,7 @@ Derived cot(const Derived& theta)
     }
 }
 
-template <typename Derived>
-Eigen::Matrix<typename Derived::Scalar, 3, 3> Jl(const Eigen::MatrixBase<Derived>& phi)
+template <typename Derived> Eigen::Matrix<typename Derived::Scalar, 3, 3> Jl(const Eigen::MatrixBase<Derived> &phi)
 {
     typedef typename Derived::Scalar Scalar_t;
     Eigen::Matrix<Scalar_t, 3, 3> Jl;
@@ -139,8 +145,7 @@ Eigen::Matrix<typename Derived::Scalar, 3, 3> Jl(const Eigen::MatrixBase<Derived
     return Jl;
 }
 
-template <typename Derived>
-Eigen::Matrix<typename Derived::Scalar, 3, 3> Jl_inv(const Eigen::MatrixBase<Derived>& phi)
+template <typename Derived> Eigen::Matrix<typename Derived::Scalar, 3, 3> Jl_inv(const Eigen::MatrixBase<Derived> &phi)
 {
     typedef typename Derived::Scalar Scalar_t;
     Eigen::Matrix<Scalar_t, 3, 3> Jl_inv;
@@ -159,20 +164,12 @@ Eigen::Matrix<typename Derived::Scalar, 3, 3> Jl_inv(const Eigen::MatrixBase<Der
     return Jl_inv;
 }
 
-template <typename Derived>
-Eigen::Matrix<typename Derived::Scalar, 3, 3> Jr(const Eigen::MatrixBase<Derived>& phi)
-{
-    return Jl(-phi);
-}
+template <typename Derived> Eigen::Matrix<typename Derived::Scalar, 3, 3> Jr(const Eigen::MatrixBase<Derived> &phi) { return Jl(-phi); }
+
+template <typename Derived> Eigen::Matrix<typename Derived::Scalar, 3, 3> Jr_inv(const Eigen::MatrixBase<Derived> &phi) { return Jl_inv(-phi); }
 
 template <typename Derived>
-Eigen::Matrix<typename Derived::Scalar, 3, 3> Jr_inv(const Eigen::MatrixBase<Derived>& phi)
-{
-    return Jl_inv(-phi);
-}
-
-template <typename Derived>
-Eigen::Matrix<typename Derived::Scalar, -1, -1> GivensRotation(const Eigen::MatrixBase<Derived>& mat, const int32_t stop_col = -1)
+Eigen::Matrix<typename Derived::Scalar, -1, -1> GivensRotation(const Eigen::MatrixBase<Derived> &mat, const int32_t stop_col = -1)
 {
     typedef typename Derived::Scalar Scalar_t;
     Eigen::Matrix<Scalar_t, -1, -1> mat_ret = mat;
@@ -209,7 +206,7 @@ Eigen::Matrix<typename Derived::Scalar, -1, -1> GivensRotation(const Eigen::Matr
     }
     return mat_ret;
 }
-};  // namespace math
-};  // namespace utils
+}; // namespace math
+}; // namespace utils
 
 #endif

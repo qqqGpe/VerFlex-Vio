@@ -6,7 +6,7 @@ bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& 
 {
     if (current_feature_observe.second.size() < kMinRequiredFeaturesPerFrame)
     {
-        LOG(INFO) << cv::format("Not enough features for SFM keyframe: %d < %d", static_cast<int>(current_feature_observe.second.size()), kMinRequiredFeaturesPerFrame);
+        LOG_INFO("Not enough features for SFM keyframe: {:d} < {:d}", static_cast<int>(current_feature_observe.second.size()), kMinRequiredFeaturesPerFrame);
         return false;
     }
 
@@ -18,8 +18,8 @@ bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& 
         {
             keyframe_images_.insert_or_assign(current_feature_observe.first, image->second);
         }
-        LOG(INFO) << cv::format("First keyframe added, timestamp: %f, observations: %d", current_feature_observe.first,
-                                static_cast<int>(current_feature_observe.second.size()));
+        LOG_INFO("First keyframe added, timestamp: {:f}, observations: {:d}", current_feature_observe.first,
+                 static_cast<int>(current_feature_observe.second.size()));
         return true;
     }
     else
@@ -44,13 +44,13 @@ bool Sfm::MaybeAddSfmKeyframes(const std::pair<double, std::vector<CameraObs>>& 
             {
                 keyframe_images_.insert_or_assign(current_feature_observe.first, image->second);
             }
-            LOG(INFO) << cv::format("Keyframe added, timestamp: %f, pixel parallex: %f, feature observations: %d", current_feature_observe.first,
-                                    pixel_parallex, static_cast<int>(current_feature_observe.second.size()));
+            LOG_INFO("Keyframe added, timestamp: {:f}, pixel parallex: {:f}, feature observations: {:d}", current_feature_observe.first,
+                     pixel_parallex, static_cast<int>(current_feature_observe.second.size()));
             return true;
         }
         else if (abs(current_feature_observe.first - latest_keyframe_observe_.first) > kMaxTimeIntervalBetweenKeyframes)
         {
-            LOG(INFO) << "Platform moves too slow, can not perform dynamic-initialization";
+            LOG_INFO("Platform moves too slow, can not perform dynamic-initialization");
             return false;
         }
         else
@@ -66,7 +66,7 @@ bool Sfm::isReady() const
 {
         if (all_feature_observes_.size() > kRequiredKeyframesForSfm)
         {
-            LOG(ERROR) << fmt::format("Too many keyframes: {:d}, expected: {:d}", all_feature_observes_.size(), kRequiredKeyframesForSfm);
+            LOG_ERROR("Too many keyframes: {:d}, expected: {:d}", all_feature_observes_.size(), kRequiredKeyframesForSfm);
             std::exit(EXIT_FAILURE);
         }
         else if (all_feature_observes_.size() < kRequiredKeyframesForSfm)
@@ -86,7 +86,7 @@ bool Sfm::calcRelativePose(const std::vector<CameraObs> &obs_a,
     constexpr uint32_t kMinInliersForRelativePose = 12;
     if (obs_a.size() < kMinRequiredFeaturesForRelativePose || obs_b.size() < kMinRequiredFeaturesForRelativePose)
     {
-        LOG(INFO) << "Not enough observations to calculate relative pose";
+        LOG_INFO("Not enough observations to calculate relative pose");
         return false;
     }
 
@@ -123,7 +123,7 @@ bool Sfm::calcRelativePose(const std::vector<CameraObs> &obs_a,
     int inlier_cnt = cv::recoverPose(E, corresponding_points_a, corresponding_points_b, K_cv, R_cv, t_cv, mask); // relative pose is R_AtoB, p_AinB
     if (inlier_cnt < kMinInliersForRelativePose)
     {
-        LOG(INFO) << "Not enough inliers to calculate relative pose";
+        LOG_INFO("Not enough inliers to calculate relative pose");
         return false;
     }
 
@@ -142,7 +142,7 @@ void Sfm::triangulateFramePoints(const std::vector<CameraObs> &obs_A, const std:
 
     if (obs_A.size() < kMinRequiredFeaturesPerFrame || obs_B.size() < kMinRequiredFeaturesPerFrame)
     {
-        LOG(INFO) << "Not enough observations to triangulate points";
+        LOG_INFO("Not enough observations to triangulate points");
         return;
     }
 
@@ -180,7 +180,8 @@ void Sfm::triangulateFramePoints(const std::vector<CameraObs> &obs_A, const std:
             CameraObs obs_b = obs_B_umap[point_id];
             Eigen::Vector2d obs_a_norm(obs_a.uv_norm.at(LEFT_CAM).x(), obs_a.uv_norm.at(LEFT_CAM).y());
             Eigen::Vector2d obs_b_norm(obs_b.uv_norm.at(LEFT_CAM).x(), obs_b.uv_norm.at(LEFT_CAM).y());
-            Eigen::Vector3d point_3d = triangulatePoint(pose_a, pose_b, obs_a_norm, obs_b_norm);
+            Eigen::Vector3d point_3d = utils::math::triangulatePoint(pose_a.quat().toRotationMatrix(), pose_a.p(), pose_b.quat().toRotationMatrix(),
+                                                                     pose_b.p(), obs_a_norm, obs_b_norm);
 
             // Add new sfm feature
             Feature feature;
@@ -192,33 +193,6 @@ void Sfm::triangulateFramePoints(const std::vector<CameraObs> &obs_A, const std:
             all_features_.emplace(point_id, feature);
         }
     }
-}
-
-Eigen::Vector3d Sfm::triangulatePoint(const Pose pose0, const Pose pose1, const Vector2d &point0, const Vector2d &point1)
-{
-    Eigen::Matrix3d Rwc0 = pose0.quat().toRotationMatrix();
-    Eigen::Matrix3d Rwc1 = pose1.quat().toRotationMatrix();
-    Eigen::Vector3d twc0 = pose0.p();
-    Eigen::Vector3d twc1 = pose1.p();
-    Eigen::Matrix4d T_wtoc0 = Eigen::Matrix4d::Identity();
-    Eigen::Matrix4d T_wtoc1 = Eigen::Matrix4d::Identity();
-    T_wtoc0.block<3, 3>(0, 0) = Rwc0.transpose();
-    T_wtoc1.block<3, 1>(0, 3) = -Rwc0.transpose() * twc0;
-    T_wtoc1.block<3, 3>(0, 0) = Rwc1.transpose();
-    T_wtoc1.block<3, 1>(0, 3) = -Rwc1.transpose() * twc1;
-
-    Matrix4d A = Matrix4d::Zero();
-    A.row(0) = point0[0] * T_wtoc0.row(2) - T_wtoc0.row(0);
-    A.row(1) = point0[1] * T_wtoc0.row(2) - T_wtoc0.row(1);
-    A.row(2) = point1[0] * T_wtoc1.row(2) - T_wtoc1.row(0);
-    A.row(3) = point1[1] * T_wtoc1.row(2) - T_wtoc1.row(1);
-    Vector4d triangulated_point = A.jacobiSvd(Eigen::ComputeFullV).matrixV().rightCols<1>();
-    Eigen::Vector3d point_3d;
-    point_3d(0) = triangulated_point(0) / triangulated_point(3);
-    point_3d(1) = triangulated_point(1) / triangulated_point(3);
-    point_3d(2) = triangulated_point(2) / triangulated_point(3);
-
-    return point_3d;
 }
 
 Eigen::Matrix3d generateRandomSmallRotation() {
@@ -262,7 +236,7 @@ bool Sfm::solveFrameByPnp(const std::vector<CameraObs> current_obsv, Pose &curre
 
     if (corresponding_points.size() < kMinRequiredFeaturesForPnp)
     {
-        LOG(INFO) << "Not enough observations to solve frame by PnP";
+        LOG_INFO("Not enough observations to solve frame by PnP");
         return false;
     }
 
@@ -334,7 +308,7 @@ void Sfm::showKeyframeImages() const
 {
     if (keyframe_images_.empty())
     {
-        LOG(INFO) << "No keyframe images to show";
+        LOG_INFO("No keyframe images to show");
         return;
     }
 
@@ -395,7 +369,7 @@ bool Sfm::initSfmSolver()
     std::vector<CameraObs> reference_keyframe_observes = all_feature_observes_[reference_keyframe_timestamp_];
     if (!calcRelativePose(oldest_keyframe_observes, reference_keyframe_observes, R_rto0, p_rin0))
     {
-        LOG(INFO) << "Failed to calculate relative pose";
+        LOG_INFO("Failed to calculate relative pose");
         return false;
     }
 
@@ -424,7 +398,7 @@ bool Sfm::initSfmSolver()
         std::vector<CameraObs> current_observes = it->second;
         if (!solveFrameByPnp(current_observes, current_pose))
         {
-            LOG(INFO) << "Failed to solve frame by PnP";
+            LOG_INFO("Failed to solve frame by PnP");
             return false;
         }
         keyframe_poses_.insert_or_assign(current_pose.ts(), current_pose);
@@ -474,7 +448,7 @@ bool Sfm::initSfmSolver()
     // Check if we have enough features for sfm
     if (all_features_.size() < kMinRequiredFeaturesForSfm)
     {
-        LOG(INFO) << cv::format("Not enough points: %d, for sfm, minimum required points: %d", static_cast<int>(all_features_.size()), kMinRequiredFeaturesForSfm);
+        LOG_INFO("Not enough points: {:d}, for sfm, minimum required points: {:d}", static_cast<int>(all_features_.size()), kMinRequiredFeaturesForSfm);
         return false;
     }
 
@@ -497,13 +471,13 @@ bool Sfm::Optimization()
 {
     if (!isReady())
     {
-        LOG(INFO) << "Not enough keyframes for optimization";
+        LOG_INFO("Not enough keyframes for optimization");
         return false;
     }
 
     if (!initSfmSolver())
     {
-        LOG(INFO) << "Failed to initialize sfm state";
+        LOG_INFO("Failed to initialize sfm state");
         return false;
     }
 
@@ -519,7 +493,7 @@ bool Sfm::Optimization()
         std::optional<uint32_t> pose_idx = indexInMap<double, Pose>(keyframe_poses_, timestamp);
         if (!pose_idx.has_value())
         {
-            LOG(INFO) << "Keyframe pose not found for timestamp: " << timestamp;
+            LOG_INFO("Keyframe pose not found for timestamp: {}", timestamp);
             return false;
         }
         uint32_t idx = pose_idx.value();
@@ -604,16 +578,15 @@ bool Sfm::Optimization()
     // }
 
     // Update keyframe poses
-    LOG(INFO) << "Pose after optimization: " << std::endl;
+    LOG_INFO("Pose after optimization: ");
     for (auto& [timestamp, pose] : keyframe_poses_)
     {
         uint32_t pose_idx = indexInMap<double, Pose>(keyframe_poses_, timestamp).value();
         Eigen::Quaterniond q_updated(qs[pose_idx][3], qs[pose_idx][0], qs[pose_idx][1], qs[pose_idx][2]);  // w, x, y, z
         Eigen::Vector3d p_updated(ps[pose_idx][0], ps[pose_idx][1], ps[pose_idx][2]);
         Eigen::Vector3d rpy = utils::math::R2rpy(q_updated.toRotationMatrix()) * RAD2DEG;
-        LOG(INFO) << fmt::format("timestamp: {:f}, rpy: [{:f}, {:f}, {:f}], p: [{:f}, {:f}, {:f}]", timestamp, rpy.x(), rpy.y(), rpy.z(),
-                                 p_updated.x(), p_updated.y(), p_updated.z())
-                  << std::endl;
+        LOG_INFO("timestamp: {:f}, rpy: [{:f}, {:f}, {:f}], p: [{:f}, {:f}, {:f}]", timestamp, rpy.x(), rpy.y(), rpy.z(),
+                 p_updated.x(), p_updated.y(), p_updated.z());
         keyframe_poses_[timestamp].set_pose(q_updated.toRotationMatrix(), p_updated);
     }
 

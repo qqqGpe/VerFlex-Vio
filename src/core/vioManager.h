@@ -45,7 +45,7 @@ class VioManager
 {
    public:
     VioManager() = default;
-    VioManager(const Param& params);
+    VioManager(const Parameter& params);
 
     ~VioManager() {}
 
@@ -106,7 +106,7 @@ class VioManager
    private:
     void SaveResultsToFile();
 
-    Param params_;
+    Parameter params_;
     bool use_zupt_ = false;
     VioOutputCallback output_callback_;
     uint8_t visual_updated_this_tick_ = false;

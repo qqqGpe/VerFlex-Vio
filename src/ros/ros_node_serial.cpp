@@ -1,4 +1,5 @@
 #include <glog/logging.h>
+#include "utils.h"
 #include <ros/ros.h>
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
@@ -30,7 +31,7 @@ cv::Mat rosImageToCvMat(const sensor_msgs::ImageConstPtr& msg)
     }
     catch (cv_bridge::Exception& e)
     {
-        LOG(ERROR) << "cv_bridge exception: " << e.what();
+        LOG_ERROR("cv_bridge exception: {}", e.what());
         return cv::Mat();
     }
     return cv_ptr->image.clone();
@@ -43,24 +44,24 @@ int main(int argc, char** argv)
     ros::init(argc, argv, "vio_backend");
     std::shared_ptr<ros::NodeHandle> nh = std::make_shared<ros::NodeHandle>("~");
 
-    // Load parameters from ROS parameter server into JSON-compatible Param
+    // Load parameters from ROS parameter server into JSON-compatible Parameter
     // For ROS mode, we create a temporary JSON from ROS params
     // Or load from a JSON file specified by ROS param
     std::string config_path;
     nh->param<std::string>("config_path", config_path, "");
 
-    Param params;
+    Parameter params;
     if (!config_path.empty())
     {
-        if (!params.load_from_json(config_path))
+        if (!params.load_from_yaml(config_path))
         {
-            LOG(ERROR) << "Failed to load parameters from: " << config_path;
+            LOG_ERROR("Failed to load parameters from: {}", config_path);
             return -1;
         }
     }
     else
     {
-        LOG(ERROR) << "config_path parameter is required!";
+        LOG_ERROR("config_path parameter is required!");
         return -1;
     }
 

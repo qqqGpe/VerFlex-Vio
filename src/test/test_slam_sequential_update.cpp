@@ -30,7 +30,7 @@ public:
     using VisualManager::param_;
     using VisualManager::solver_;
     
-    void setParam(const Param& params) { param_ = params; }
+    void setParam(const Parameter& params) { param_ = params; }
     void setSolver(std::shared_ptr<MsckfSolverBase> solver) { solver_ = solver; }
 };
 
@@ -180,7 +180,7 @@ protected:
         state_->SetCovariance(new_cov);
     }
 
-    Param params_;
+    Parameter params_;
     std::shared_ptr<State> state_;
     std::shared_ptr<eskfSolver> solver_;
     std::shared_ptr<TestableVisualManager> visual_manager_;

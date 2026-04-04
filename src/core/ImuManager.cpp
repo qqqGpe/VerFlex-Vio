@@ -20,7 +20,7 @@ bool ImuManager::FeedImuMeasurement(const ImuData& imu_measurement)
     }
     else if (imu_measurement.ts_sec <= _data->back().ts_sec)
     {
-        LOG(WARNING) << "latest imu data ts: " << _data->back().ts_sec << ", input imu ts: " << imu_measurement.ts_sec;
+        LOG_WARN("latest imu data ts: {}, input imu ts: {}", _data->back().ts_sec, imu_measurement.ts_sec);
         return false;
     }
     else
@@ -68,14 +68,14 @@ std::vector<ImuData> ImuManager::AccessIntervalImuMeasurements(const double ts_s
     std::vector<ImuData> output;
     if (ts_end <= ts_start)
     {
-        LOG(ERROR) << "ts_end: " << ts_end << ", should later than ts_start: " << ts_start;
+        LOG_ERROR("ts_end: {}, should later than ts_start: {}", ts_end, ts_start);
         return output;
     }
 
     if (_data->front().ts_sec > ts_start || _data->back().ts_sec < ts_end)
     {
-        LOG(WARNING) << "ts_start: " << ts_start << ", ts_end: " << ts_end
-                     << ", but imu data range is [" << _data->front().ts_sec << ", " << _data->back().ts_sec << "]";
+        LOG_WARN("ts_start: {}, ts_end: {}, but imu data range is [{}, {}]",
+                 ts_start, ts_end, _data->front().ts_sec, _data->back().ts_sec);
         return output;
     }
 
@@ -204,7 +204,7 @@ void ImuManager::SetImuNoise(const double sigma_na, const double sigma_nw, const
     _sigma_nw = sigma_nw;
     _sigma_ba = sigma_ba;
     _sigma_bg = sigma_bg;
-    LOG(INFO) << "Imu noise set: na: " << _sigma_na << ", nw: " << _sigma_nw << ", ba: " << _sigma_ba << ", bg: " << _sigma_bg;
+    LOG_INFO("Imu noise set: na: {}, nw: {}, ba: {}, bg: {}", _sigma_na, _sigma_nw, _sigma_ba, _sigma_bg);
 }
 
 bool ImuManager::IsStaticStatus()

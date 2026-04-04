@@ -43,7 +43,7 @@ find_package(Ceres REQUIRED)
 find_package(Sophus REQUIRED)
 find_package(glog REQUIRED)
 find_package(fmt REQUIRED)
-find_package(nlohmann_json 3.2.0 REQUIRED)
+find_package(yaml-cpp REQUIRED)
 find_package(CURL QUIET)
 
 # =============================================================================
@@ -79,7 +79,7 @@ target_link_libraries(vio_core PUBLIC
     vio_utils
     fmt::fmt
     glog::glog
-    nlohmann_json::nlohmann_json
+    yaml-cpp::yaml-cpp
     ${OpenCV_LIBRARIES}
     ${Sophus_LIBRARIES}
     ${CERES_LIBRARIES}
@@ -90,7 +90,7 @@ target_link_libraries(vio_core PUBLIC
 # Pure C++ Offline Executable
 # =============================================================================
 
-add_executable(vio_offline src/app/vio_offline.cpp)
+add_executable(vio_offline src/app/vio_offline_entry.cpp)
 target_include_directories(vio_offline PRIVATE src/dataloader/)
 target_link_libraries(vio_offline PRIVATE vio_core)
 

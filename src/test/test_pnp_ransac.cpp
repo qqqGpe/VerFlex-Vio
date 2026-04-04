@@ -93,7 +93,7 @@ void project_to_camera()
 int main()
 {
 
-    Param params;
+    Parameter params;
     params.camera_num = 1;
     Eigen::Matrix3d K;
     params.img_width = IMAGE_WIDTH;
@@ -117,7 +117,7 @@ int main()
     std::cout << pts_g.transpose() << std::endl;
 
     std::vector<double> distortion;     // empty distortion coeff for debugging
-    std::shared_ptr<State> state = make_shared<State>(Param());
+    std::shared_ptr<State> state = make_shared<State>(Parameter());
     std::shared_ptr<ros::NodeHandle> nh = nullptr;
     VisualManager visual_manager(nh, params, state, nullptr);
 

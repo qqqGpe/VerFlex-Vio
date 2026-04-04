@@ -21,7 +21,7 @@ class RosVisualizer
 public:
     ~RosVisualizer() = default;
 
-    void Init(std::shared_ptr<ros::NodeHandle> &nh, const Param &params);
+    void Init(std::shared_ptr<ros::NodeHandle> &nh, const Parameter &params);
 
     void PublishVioOutput(const VioOutput &output);
 

@@ -4,8 +4,8 @@ bool DynamicInitializer::isReadyToInitialize() const
 {
     if (!sfm_solver->isReady())
     {
-        LOG(INFO) << fmt::format("SFM solver is not ready({:d}/{:d}), need more movement",
-                                 static_cast<int>(sfm_solver->getAllFeatureObservations().size()), Sfm::kRequiredKeyframesForSfm);
+        LOG_INFO("SFM solver is not ready({:d}/{:d}), need more movement",
+                 static_cast<int>(sfm_solver->getAllFeatureObservations().size()), Sfm::kRequiredKeyframesForSfm);
         return false;
     }
 
@@ -16,7 +16,7 @@ bool DynamicInitializer::isReadyToInitialize() const
         if (sfm_all_feature_observatioins.find(x.second.start_ts()) == sfm_all_feature_observatioins.end() ||
             sfm_all_feature_observatioins.find(x.second.end_ts()) == sfm_all_feature_observatioins.end())
         {
-            LOG(WARNING) << fmt::format("Can not find {:f} (or {:f}) feature observations in SFM-solver", x.second.start_ts(), x.second.end_ts());
+            LOG_WARN("Can not find {:f} (or {:f}) feature observations in SFM-solver", x.second.start_ts(), x.second.end_ts());
             return false;
         }
     }
@@ -70,7 +70,7 @@ bool DynamicInitializer::solveGyroscopeBias()
         Pose sfm_pose_i = sfm_poses_.at(pre_integration.start_ts());
         Pose sfm_pose_j = sfm_poses_.at(pre_integration.end_ts());
         Eigen::Matrix3d Rij_sfm = sfm_pose_i.R().transpose() * sfm_pose_j.R();
-        Eigen::Matrix3d Rij_imu = pre_integration.dR();
+        Eigen::Matrix3d Rij_imu = pre_integration.get_dR();
 
         A = pre_integration.dR_dbg();
 
@@ -84,7 +84,7 @@ bool DynamicInitializer::solveGyroscopeBias()
     Eigen::Vector3d delta_bg = A_total.ldlt().solve(b_total);
     if (!delta_bg.allFinite())
     {
-        LOG(INFO) << "Gyroscope bias estimation failed, has NaN or Inf";
+        LOG_INFO("Gyroscope bias estimation failed, has NaN or Inf");
         return false;
     }
 
@@ -98,7 +98,7 @@ bool DynamicInitializer::solveGyroscopeBias()
     }
 
     Eigen::Vector3d bg = imu_state_map_.begin()->second->bg()->vec();
-    LOG(INFO) << fmt::format("Gyroscope bias estimation successful, estimated bg: [{:f}, {:f}, {:f}]", bg.x(), bg.y(), bg.z());
+    LOG_INFO("Gyroscope bias estimation successful, estimated bg: [{:f}, {:f}, {:f}]", bg.x(), bg.y(), bg.z());
     return true;
 }
 
@@ -132,8 +132,8 @@ bool DynamicInitializer::LinearAlignment(Eigen::VectorXd& x)
     {
         double delta_t = pre_integration.end_ts() - pre_integration.start_ts();
 
-        Eigen::Vector3d Alpha = pre_integration.dp();
-        Eigen::Vector3d Beta = pre_integration.dv();
+        Eigen::Vector3d Alpha = pre_integration.get_dp();
+        Eigen::Vector3d Beta = pre_integration.get_dv();
 
         // Get the sfm pose at the start and end timestamps of the pre-integration
         Pose sfm_pose = sfm_poses_.at(pre_integration.start_ts());
@@ -173,10 +173,10 @@ bool DynamicInitializer::LinearAlignment(Eigen::VectorXd& x)
 
     const double s = x.tail<1>()(0);                     // Sfm scale
     Eigen::Vector3d gravity = x.segment<3>(H_cols - 4);  // Gravity in C0 frame
-    LOG(INFO) << fmt::format("Gravity: [{:f}, {:f}, {:f}], Gravity norm: {:f}, Scale: {:f}", gravity.x(), gravity.y(), gravity.z(), gravity.norm(), s);
+    LOG_INFO("Gravity: [{:f}, {:f}, {:f}], Gravity norm: {:f}, Scale: {:f}", gravity.x(), gravity.y(), gravity.z(), gravity.norm(), s);
     if (fabs(gravity.norm() - kGravityNorm) > kGravityNormTolerance || s < 0)
     {
-        LOG(ERROR) << "Linear alignment failed, gravity norm: " << gravity.norm() << ", scale: " << s;
+        LOG_ERROR("Linear alignment failed, gravity norm: {}, scale: {}", gravity.norm(), s);
         return false;
     }
 
@@ -218,7 +218,7 @@ void DynamicInitializer::assignImuState(const Eigen::VectorXd velocity_gravity_s
         imu_state_i->set_velocity(v_biinG);
 
         Eigen::Vector3d rpy = utils::math::R2rpy(R_bitoG) * 180.0 / M_PI;  // Convert to degrees
-        LOG(INFO) << fmt::format(
+        LOG_INFO(
             GREEN "Dynamic initialized imu state at {:f}: RPY: [{:f}, {:f}, {:f}], Position: [{:f}, {:f}, {:f}], Velocity: [{:f}, {:f}, {:f}]" RESET,
             imu_state_i->ts(), rpy.x(), rpy.y(), rpy.z(), p_biinG.x(), p_biinG.y(), p_biinG.z(), v_biinG.x(), v_biinG.y(), v_biinG.z());
     }
@@ -360,14 +360,14 @@ bool DynamicInitializer::visualInertialAlignment()
 {
     if (!solveGyroscopeBias())
     {
-        LOG(INFO) << "Rotation and gyro bias estimation failed, reset initializer";
+        LOG_INFO("Rotation and gyro bias estimation failed, reset initializer");
         return false;
     }
 
     Eigen::VectorXd vgs;
     if (!LinearAlignment(vgs))
     {
-        LOG(INFO) << "Linear alignment failed, reset initializer";
+        LOG_INFO("Linear alignment failed, reset initializer");
         return false;
     }
 
@@ -387,13 +387,13 @@ bool DynamicInitializer::TryInitialize()
 {
     if (!isReadyToInitialize())
     {
-        LOG(INFO) << "Dynamic initializer is not ready, need more movement";
+        LOG_INFO("Dynamic initializer is not ready, need more movement");
         return false;
     }
 
     if (!InitializeSystem())
     {
-        LOG(INFO) << "Dynamic initializer failed to initialize the system, reset initializer...";
+        LOG_INFO("Dynamic initializer failed to initialize the system, reset initializer...");
         reset();
         return false;
     }
@@ -405,7 +405,7 @@ bool DynamicInitializer::InitializeSystem()
 {
     if (!sfm_solver->Optimization())
     {
-        LOG(INFO) << "SFM optimization failed, reset initializer";
+        LOG_INFO("SFM optimization failed, reset initializer");
         return false;
     }
 
@@ -419,11 +419,11 @@ bool DynamicInitializer::InitializeSystem()
 
     if (!visualInertialAlignment())
     {
-        LOG(INFO) << "Visual initial alignment failed, reset initializer";
+        LOG_INFO("Visual initial alignment failed, reset initializer");
         return false;
     }
 
-    LOG(INFO) << "Dynamic initializer has successfully initialized the system";
+    LOG_INFO("Dynamic initializer has successfully initialized the system");
 
     return true;
 }

@@ -1,136 +1,138 @@
 #ifndef __VIO_PARAMETER__
 #define __VIO_PARAMETER__
 #include <Eigen/Core>
-#include <nlohmann/json.hpp>
-#include <fstream>
 #include <iostream>
-#include <memory>
+#include <yaml-cpp/yaml.h>
 
-class Param
+class Parameter
 {
-public:
-    Param() = default;
+  public:
+    Parameter() = default;
 
-    bool load_from_json(const std::string& json_path)
+    bool load_from_yaml(const std::string &yaml_path)
     {
-        std::ifstream file(json_path);
-        if (!file.is_open())
-        {
-            std::cerr << "Error: Cannot open config file: " << json_path << std::endl;
-            return false;
-        }
-
-        nlohmann::json j;
+        YAML::Node yaml_node;
         try
         {
-            file >> j;
+            yaml_node = YAML::LoadFile(yaml_path);
         }
-        catch (const nlohmann::json::parse_error& e)
+        catch (const YAML::Exception &e)
         {
-            std::cerr << "Error: JSON parse error: " << e.what() << std::endl;
+            std::cerr << "Error: Cannot load config file: " << yaml_path << " (" << e.what() << ")" << std::endl;
             return false;
         }
 
-        // Boolean flags
-        set_init_timestamp_to_zero = j.value("set_init_timestamp_to_zero", false);
-        use_multi_thread = j.value("use_multi_thread", false);
-        estimate_ric = j.value("estimate_ric", true);
-        estimate_td_visual = j.value("estimate_td_visual", true);
-        use_zupt = j.value("use_zupt", false);
-        use_fej = j.value("use_fej", false);
-        frontend_prediction = j.value("frontend_prediction", false);
-        save_full_log = j.value("save_full_log", true);
-        save_tum_log = j.value("save_tum_log", true);
-        use_pnp_ransac = j.value("use_pnp_ransac", true);
-        use_slam_feature = j.value("use_slam_feature", false);
-        use_census_transform = j.value("use_census_transform", true);
-        use_histequal = j.value("use_histogram_equal", true);
-        use_rate_limit = j.value("use_rate_limit", true);
-        enable_schmidt_eskf = j.value("enable_schmidt_eskf", false);
-        visualize_clone_poses = j.value("visualize_clone_poses", false);
-
-        // Integer parameters
-        log_level = j.value("log_level", 2);
-        camera_num = j.value("camera_num", 1);
-        running_rate = j.value("running_rate", 20);
-        img_width = j.value("img_width", 752);
-        img_height = j.value("img_height", 480);
-        max_feat_n = j.value("max_feat_n", 225);
-        grid_w = j.value("grid_w", 15);
-        grid_h = j.value("grid_h", 15);
-        max_clone_pose = j.value("max_clone_pose", 6);
-        max_slam_feature = j.value("max_slam_feature", 25);
-        solver_type = j.value("solver_type", 0);
-        initial_type = j.value("initial_type", 1);
-
-        // Double parameters
-        lazy_time = j.value("lazy_time", 0.2);
-        bag_start = j.value("bag_start", 0.0);
-        bag_duration = j.value("bag_duration", -1.0);
-        sigma_na = j.value("sigma_na", 2.0000e-3);
-        sigma_nw = j.value("sigma_nw", 1.6968e-04);
-        sigma_ba = j.value("sigma_ba", 3.0000e-3);
-        sigma_bg = j.value("sigma_bg", 1.9393e-05);
-        sigma_visual_pix = j.value("sigma_visual_pix", 1.0);
-        init_td_visual_sigma = j.value("init_td_visual_sigma", 1e-4);
-        init_ric_sigma = j.value("init_ric_sigma", 1e-3);
-        gravity_magn = j.value("gravity_magn", 9.81);
-        imu_acc_var_static_thres = j.value("imu_acc_var_static_thres", 0.5);
-        imu_gyro_static_thres = j.value("imu_gyro_static_thres", 0.5);
-
-        // String parameters
-        bag_name = j.value("bag_name", std::string(""));
-        log_path = j.value("log_path", std::string(""));
-        bag_path = j.value("bag_path", std::string(""));
-        imu_topic = j.value("imu_topic", std::string(""));
-        dataset_dir = j.value("dataset_dir", std::string(""));
-
-        // Camera topics
-        if (j.contains("camera_topic"))
+        try
         {
-            camera_topic = j["camera_topic"].get<std::vector<std::string>>();
-        }
-        else
-        {
-            camera_topic.resize(camera_num, "");
-        }
+            auto get = [&](const std::string &key) { return yaml_node[key]; };
+            // Boolean flags
+            set_init_timestamp_to_zero = get("set_init_timestamp_to_zero") ? get("set_init_timestamp_to_zero").as<bool>() : false;
+            use_multi_thread = get("use_multi_thread") ? get("use_multi_thread").as<bool>() : false;
+            estimate_ric = get("estimate_ric") ? get("estimate_ric").as<bool>() : true;
+            estimate_td_visual = get("estimate_td_visual") ? get("estimate_td_visual").as<bool>() : true;
+            use_zupt = get("use_zupt") ? get("use_zupt").as<bool>() : false;
+            use_fej = get("use_fej") ? get("use_fej").as<bool>() : false;
+            do_warp_klt = get("do_warp_klt") ? get("do_warp_klt").as<bool>() : false;
+            do_prediction = get("do_prediction") ? get("do_prediction").as<bool>() : false;
+            save_full_log = get("save_full_log") ? get("save_full_log").as<bool>() : true;
+            save_tum_log = get("save_tum_log") ? get("save_tum_log").as<bool>() : true;
+            use_pnp_ransac = get("use_pnp_ransac") ? get("use_pnp_ransac").as<bool>() : true;
+            use_slam_feature = get("use_slam_feature") ? get("use_slam_feature").as<bool>() : false;
+            use_census_transform = get("use_census_transform") ? get("use_census_transform").as<bool>() : true;
+            use_histequal = get("use_histogram_equal") ? get("use_histogram_equal").as<bool>() : true;
+            use_rate_limit = get("use_rate_limit") ? get("use_rate_limit").as<bool>() : true;
+            enable_schmidt_eskf = get("enable_schmidt_eskf") ? get("enable_schmidt_eskf").as<bool>() : false;
+            visualize_clone_poses = get("visualize_clone_poses") ? get("visualize_clone_poses").as<bool>() : false;
 
-        // Camera intrinsics and distortion
-        for (int i = 0; i < camera_num; i++)
-        {
-            std::string intrinsic_key = "intrinsic_cam_" + std::to_string(i);
-            std::string distortion_key = "distortion_cam_" + std::to_string(i);
+            // Integer parameters
+            log_level = get("log_level") ? get("log_level").as<int>() : 2;
+            camera_num = get("camera_num") ? get("camera_num").as<int>() : 1;
+            running_rate = get("running_rate") ? get("running_rate").as<int>() : 20;
+            img_width = get("img_width") ? get("img_width").as<int>() : 752;
+            img_height = get("img_height") ? get("img_height").as<int>() : 480;
+            max_feat_n = get("max_feat_n") ? get("max_feat_n").as<int>() : 225;
+            grid_w = get("grid_w") ? get("grid_w").as<int>() : 15;
+            grid_h = get("grid_h") ? get("grid_h").as<int>() : 15;
+            max_clone_pose = get("max_clone_pose") ? get("max_clone_pose").as<int>() : 6;
+            max_slam_feature = get("max_slam_feature") ? get("max_slam_feature").as<int>() : 25;
+            solver_type = get("solver_type") ? get("solver_type").as<int>() : 0;
+            initial_type = get("initial_type") ? get("initial_type").as<int>() : 1;
 
-            if (!j.contains(intrinsic_key) || !j.contains(distortion_key))
+            // Double parameters
+            lazy_time = get("lazy_time") ? get("lazy_time").as<double>() : 0.2;
+            bag_start = get("bag_start") ? get("bag_start").as<double>() : 0.0;
+            bag_duration = get("bag_duration") ? get("bag_duration").as<double>() : -1.0;
+            sigma_na = get("sigma_na") ? get("sigma_na").as<double>() : 2.0000e-3;
+            sigma_nw = get("sigma_nw") ? get("sigma_nw").as<double>() : 1.6968e-04;
+            sigma_ba = get("sigma_ba") ? get("sigma_ba").as<double>() : 3.0000e-3;
+            sigma_bg = get("sigma_bg") ? get("sigma_bg").as<double>() : 1.9393e-05;
+            sigma_visual_pix = get("sigma_visual_pix") ? get("sigma_visual_pix").as<double>() : 1.0;
+            init_td_visual_sigma = get("init_td_visual_sigma") ? get("init_td_visual_sigma").as<double>() : 1e-4;
+            init_ric_sigma = get("init_ric_sigma") ? get("init_ric_sigma").as<double>() : 1e-3;
+            gravity_magn = get("gravity_magn") ? get("gravity_magn").as<double>() : 9.81;
+            imu_acc_var_static_thres = get("imu_acc_var_static_thres") ? get("imu_acc_var_static_thres").as<double>() : 0.5;
+            imu_gyro_static_thres = get("imu_gyro_static_thres") ? get("imu_gyro_static_thres").as<double>() : 0.5;
+
+            // String parameters
+            bag_name = get("bag_name") ? get("bag_name").as<std::string>() : std::string("");
+            log_path = get("log_path") ? get("log_path").as<std::string>() : std::string("");
+            bag_path = get("bag_path") ? get("bag_path").as<std::string>() : std::string("");
+            imu_topic = get("imu_topic") ? get("imu_topic").as<std::string>() : std::string("");
+            dataset_dir = get("dataset_dir") ? get("dataset_dir").as<std::string>() : std::string("");
+
+            // Camera topics
+            if (get("camera_topic"))
             {
-                std::cerr << "Error: Missing " << intrinsic_key << " or " << distortion_key << std::endl;
-                return false;
+                camera_topic = get("camera_topic").as<std::vector<std::string>>();
+            }
+            else
+            {
+                camera_topic.resize(camera_num, "");
             }
 
-            auto intrinsic = j[intrinsic_key].get<std::vector<double>>();
-            auto distort = j[distortion_key].get<std::vector<double>>();
-            Eigen::Matrix3d K;
-            K << intrinsic[0], 0, intrinsic[2], 0, intrinsic[1], intrinsic[3], 0, 0, 1;
-            intrinsics.push_back(K);
-            distortion.push_back(Eigen::Map<Eigen::VectorXd>(distort.data(), distort.size()));
-        }
-
-        // Extrinsic parameters (Tic)
-        Ric.resize(camera_num, Eigen::Matrix3d::Identity());
-        tic.resize(camera_num, Eigen::Vector3d::Zero());
-        if (j.contains("Tic"))
-        {
-            auto Tic = j["Tic"].get<std::vector<double>>();
-            for (int cam_id = 0; cam_id < camera_num; cam_id++)
+            // Camera intrinsics and distortion
+            for (int i = 0; i < camera_num; i++)
             {
-                const int offset = cam_id * 12;
-                Ric[cam_id] << Tic[offset], Tic[offset + 1], Tic[offset + 2], Tic[offset + 3], Tic[offset + 4], Tic[offset + 5], Tic[offset + 6],
-                    Tic[offset + 7], Tic[offset + 8];
-                tic[cam_id] << Tic[offset + 9], Tic[offset + 10], Tic[offset + 11];
-            }
-        }
+                std::string intrinsic_key = "intrinsic_cam_" + std::to_string(i);
+                std::string distortion_key = "distortion_cam_" + std::to_string(i);
 
-        return CheckParams();
+                if (!get(intrinsic_key) || !get(distortion_key))
+                {
+                    std::cerr << "Error: Missing " << intrinsic_key << " or " << distortion_key << std::endl;
+                    return false;
+                }
+
+                auto intrinsic = get(intrinsic_key).as<std::vector<double>>();
+                auto distort = get(distortion_key).as<std::vector<double>>();
+                Eigen::Matrix3d K;
+                K << intrinsic[0], 0, intrinsic[2], 0, intrinsic[1], intrinsic[3], 0, 0, 1;
+                intrinsics.push_back(K);
+                distortion.push_back(Eigen::Map<Eigen::VectorXd>(distort.data(), distort.size()));
+            }
+
+            // Extrinsic parameters (Tic): list of [camera_num] 4x3 blocks (rows 0-2: R, row 3: t)
+            Ric.resize(camera_num, Eigen::Matrix3d::Identity());
+            tic.resize(camera_num, Eigen::Vector3d::Zero());
+            if (get("Tic"))
+            {
+                auto Tic_node = get("Tic");
+                for (int cam_id = 0; cam_id < camera_num; cam_id++)
+                {
+                    auto cam = Tic_node[cam_id];
+                    Ric[cam_id] << cam[0][0].as<double>(), cam[0][1].as<double>(), cam[0][2].as<double>(), cam[1][0].as<double>(),
+                        cam[1][1].as<double>(), cam[1][2].as<double>(), cam[2][0].as<double>(), cam[2][1].as<double>(), cam[2][2].as<double>();
+                    tic[cam_id] << cam[3][0].as<double>(), cam[3][1].as<double>(), cam[3][2].as<double>();
+                }
+            }
+
+            return CheckParams();
+
+        } // try
+        catch (const YAML::Exception &e)
+        {
+            std::cerr << "Error: Failed to parse config: " << yaml_path << " (" << e.what() << ")" << std::endl;
+            return false;
+        }
     }
 
     bool set_init_timestamp_to_zero = false;
@@ -138,7 +140,8 @@ public:
     bool estimate_ric = true;
     bool estimate_td_visual = true;
     bool use_zupt = false;
-    bool frontend_prediction = false;
+    bool do_prediction = false;
+    bool do_warp_klt = false;
     bool save_full_log = true;
     bool save_tum_log = true;
     bool use_census_transform = true;
@@ -158,7 +161,7 @@ public:
     int img_width, img_height;
     int solver_type = 0; // 0: ESKF, 1: SqrtESKF
     bool enable_schmidt_eskf = false;
-    int initial_type = 0; // 0: static initialization, 1: dynamic initialization
+    int initial_type = 0;               // 0: static initialization, 1: dynamic initialization
     bool visualize_clone_poses = false; // Enable clone pose visualization
 
     double sigma_na;
@@ -188,7 +191,7 @@ public:
     std::vector<Eigen::Matrix3d> Ric;
     std::vector<Eigen::Vector3d> tic;
 
-private:
+  private:
     bool CheckParams()
     {
         if (camera_num < 1 || camera_num > 2)

@@ -1,4 +1,5 @@
 #include <glog/logging.h>
+#include "utils.h"
 #include <fmt/format.h>
 #include <filesystem>
 #include <iostream>
@@ -49,10 +50,10 @@ int main(int argc, char** argv)
     }
 
     // Load parameters
-    Param params;
-    if (!params.load_from_json(config_path))
+    Parameter params;
+    if (!params.load_from_yaml(config_path))
     {
-        LOG(ERROR) << "Failed to load config: " << config_path;
+        LOG_ERROR("Failed to load config: {}", config_path);
         return -1;
     }
 
@@ -64,7 +65,7 @@ int main(int argc, char** argv)
 
     if (params.dataset_dir.empty())
     {
-        LOG(ERROR) << "dataset_dir must be specified in config or via --dataset";
+        LOG_ERROR("dataset_dir must be specified in config or via --dataset");
         return -1;
     }
 
@@ -85,7 +86,7 @@ int main(int argc, char** argv)
     auto loader = std::make_unique<EurocDataLoader>();
     if (!loader->open(params.dataset_dir, params.camera_num))
     {
-        LOG(ERROR) << "Failed to open dataset: " << params.dataset_dir;
+        LOG_ERROR("Failed to open dataset: {}", params.dataset_dir);
         return -1;
     }
 
@@ -127,7 +128,7 @@ int main(int argc, char** argv)
                     img_data->image = cv::imread(img_data->filepath, cv::IMREAD_GRAYSCALE);
                     if (img_data->image.empty())
                     {
-                        LOG(WARNING) << "Cannot load image: " << img_data->filepath;
+                        LOG_WARN("Cannot load image: {}", img_data->filepath);
                         break;
                     }
                 }
@@ -166,7 +167,7 @@ int main(int argc, char** argv)
         }
     }
 
-    LOG(INFO) << "VIO offline processing completed.";
+    LOG_INFO("VIO offline processing completed.");
     google::ShutdownGoogleLogging();
     return 0;
 }

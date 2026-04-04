@@ -9,6 +9,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 
 #include "mathematical_tools.h"
+#include "utils.h"
 #include "visualManager.h"
 
 namespace
@@ -21,13 +22,12 @@ constexpr uint32_t kMaxIterationTimes = 5;
 constexpr uint32_t kMinFeatNumToUpdate = 15;
 } // namespace
 
-VisualManager::VisualManager(const Param &params, std::shared_ptr<State> &state,
+VisualManager::VisualManager(const Parameter &params, std::shared_ptr<State> &state,
                              std::shared_ptr<MsckfSolverBase> solver)
 {
     _state = state;
     param_ = params;
-    _keyframe = std::make_shared<KeyFrameStatus>(KeyFrameStatus::kNone);
-    vio_frontend = std::make_shared<VioFrontend>(params, _keyframe);
+    vio_frontend = std::make_shared<VioFrontend>(params);
     max_clone_pose_ = params.max_clone_pose;
     solver_ = solver;
     for (int i = 0; i < param_.max_feat_n; i++)
@@ -41,10 +41,10 @@ bool VisualManager::MsckfFeatureUpdate(std::vector<Feature *> feats_msckf)
 {
     if (feats_msckf.size() < kMinFeatureForUpdate)
     {
-        LOG(INFO) << fmt::format("Not enough features to update, features_tracked: {:d}, features_msckf: {:d}, feature "
-                                 "mapping success: {:d}",
-                                 static_cast<int>(feature_tracked_.size()), static_cast<int>(feats_msckf.size()),
-                                 feature_mapping_success_);
+        LOG_WARN("Not enough features to update, features_tracked: {:d}, features_msckf: {:d}, feature "
+                 "mapping success: {:d}",
+                 static_cast<int>(feature_tracked_.size()), static_cast<int>(feats_msckf.size()),
+                 feature_mapping_success_);
         return false;
     }
     std::unordered_map<std::shared_ptr<Type>, size_t> map_hx;
@@ -55,8 +55,8 @@ bool VisualManager::MsckfFeatureUpdate(std::vector<Feature *> feats_msckf)
     {
         if (feat->_type != FeatureType::kMsckfPoint)
         {
-            LOG(WARNING) << fmt::format("Feature {:d} is not msckf point, but type {:d}, skip it for msckf update.",
-                                        feat->_id, static_cast<int>(feat->_type));
+            LOG_WARN("Feature {:d} is not msckf point, but type {:d}, skip it for msckf update.",
+                     feat->_id, static_cast<int>(feat->_type));
             exit(1);
         }
     }
@@ -71,8 +71,8 @@ bool VisualManager::MsckfFeatureUpdate(std::vector<Feature *> feats_msckf)
     }
     else
     {
-        LOG(WARNING) << fmt::format("Not enough clone poses to update, clone poses: {:d}",
-                                    static_cast<int>(_state->_clone_pose.size()));
+        LOG_WARN("Not enough clone poses to update, clone poses: {:d}",
+                 static_cast<int>(_state->_clone_pose.size()));
         return false;
     }
 }
@@ -84,7 +84,7 @@ bool VisualManager::SlamFeatureUpdate(std::vector<Feature *> feats_slam)
 {
     if (feats_slam.empty())
     {
-        LOG(INFO) << "No slam features to update.";
+        LOG_INFO("No slam features to update.");
         return false;
     }
 
@@ -134,7 +134,7 @@ bool VisualManager::SlamFeatureUpdate(std::vector<Feature *> feats_slam)
             Eigen::VectorXd res;
             if (!SingleFeatureJacobianSlam(feat, Hx_mapping, total_hx_before_feat, Hf, Hx, res))
             {
-                LOG(WARNING) << "Failed to compute Jacobian for SLAM feature " << feat->_id;
+                LOG_WARN("Failed to compute Jacobian for SLAM feature {}", feat->_id);
                 continue;
             }
 
@@ -157,9 +157,9 @@ bool VisualManager::SlamFeatureUpdate(std::vector<Feature *> feats_slam)
     }
     else
     {
-        LOG(WARNING) << fmt::format("Not enough clone poses to update slam features, clone poses: {:d}, required: {:d}",
-                                    static_cast<int>(_state->_clone_pose.size()),
-                                    static_cast<int>(param_.max_clone_pose));
+        LOG_WARN("Not enough clone poses to update slam features, clone poses: {:d}, required: {:d}",
+                 static_cast<int>(_state->_clone_pose.size()),
+                 static_cast<int>(param_.max_clone_pose));
         return false;
     }
 }
@@ -296,7 +296,7 @@ void VisualManager::InitializeNewSlamFeatures(std::vector<Feature*>& feat_slam_n
 
         if (!_state->AugumentSlamFeature(feature, Hf, Hx1, Hx_order, R, map_hx))
         {
-            LOG(WARNING) << fmt::format("Failed to augment slam feature {:d}", feature->_id);
+            LOG_WARN("Failed to augment slam feature {:d}", feature->_id);
             it = feat_slam_new.erase(it);
             continue;
         }
@@ -355,9 +355,8 @@ bool VisualManager::VisualUpdate()
 
     if (_state->_clone_pose.size() >= max_clone_pose_)
     {
-        *_keyframe = KeyFrameStatus::kNone;
-        *_keyframe = MaybeSetKeyframe(_state, feat_msckf_);
-        if (*_keyframe == KeyFrameStatus::kNone)
+        vio_frontend->setKeyframeStatus(MaybeSetKeyframe(_state, feat_msckf_));
+        if (vio_frontend->getKeyframeStatus() == KeyFrameStatus::kNone)
         {
             state_to_marginalize = _state->_clone_pose.rbegin()->second;
             ClearOldFeatureObs(state_to_marginalize->ts());
@@ -781,15 +780,15 @@ bool VisualManager::GaussianNewtonOptimization(const std::map<double, CameraPose
     {
         if (paf_opt.norm() > 30)
         {
-            std::cout << "paf_opt is too large, paf norm: " << paf_opt.norm() << std::endl;
+            LOG_WARN("paf_opt is too large, paf norm: {}", paf_opt.norm());
         }
         else if (paf_opt.z() < 0)
         {
-            std::cout << "paf_opt z is negative, paf z: " << paf_opt.z() << std::endl;
+            LOG_WARN("paf_opt z is negative, paf z: {}", paf_opt.z());
         }
         else if (iter_time == kMaxIterationTimes)
         {
-            std::cout << "iter_time is too large" << std::endl;
+            LOG_WARN("Maximum iteration times reached, iter_time: {}", iter_time);
         }
         return false;
     }
@@ -822,7 +821,7 @@ bool VisualManager::StereoLeastSqureTriangulation(CameraObs& cam_obs, Eigen::Vec
     const int32_t camera_num = CamModel::getInstance().camera_num();
     if (camera_num != 2)
     {
-        LOG(ERROR) << "Stereo triangulation only support stereo camera model";
+        LOG_ERROR("Stereo triangulation only support stereo camera model");
         return false;
     }
     Eigen::Matrix3d ATA = Eigen::Matrix3d::Zero();
@@ -929,7 +928,7 @@ bool VisualManager::PnpRansacToRejectOutliers(std::vector<Feature*> feats)
     }
     if (list_points3d.size() <= 0)
     {
-        LOG(INFO) << cv::format("Not enough points for pnpRansac, point triangulated: %d", int(list_points3d.size()));
+        LOG_INFO("Not enough points for pnpRansac, point triangulated: {:d}", int(list_points3d.size()));
         return false;
     }
     cv::Mat intrinsic;
@@ -992,7 +991,7 @@ bool VisualManager::PnpRansac(Eigen::Matrix3d& R_12,
 
     if (inliers.rows < kMinFeaturesForPnp)
     {
-        LOG(ERROR) << cv::format("PnpRansac failed: inliers.rows: %d < %d", inliers.rows, kMinFeaturesForPnp);
+        LOG_ERROR("PnpRansac failed: inliers.rows: {:d} < {:d}", inliers.rows, kMinFeaturesForPnp);
         return false;
     }
 
@@ -1187,7 +1186,7 @@ bool VisualManager::ConstructFeatureJacobianFull(FeatureUpdateType update_type,
         {
             if (!SingleFeatureJacobian(feat, map_hx, total_hx, Hfx_single))
             {
-                LOG(WARNING) << fmt::format("{:d} type feature single feature failed", static_cast<int>(update_type));
+                LOG_WARN("{:d} type feature single feature failed", static_cast<int>(update_type));
                 continue;
             }
 
@@ -1209,7 +1208,7 @@ bool VisualManager::ConstructFeatureJacobianFull(FeatureUpdateType update_type,
 
     if(Hx_rows == 0)
     {
-        LOG(WARNING) << "No valid feature jacobian constructed.";
+        LOG_WARN("No valid feature jacobian constructed.");
         return false;
     }
 
@@ -1424,7 +1423,7 @@ bool VisualManager::SingleFeatureJacobianSlam(const Feature* feat,
         total_meas += CamModel::getInstance().camera_num();
     }
     if (total_meas == 0) {
-        LOG(WARNING) << "Feature " << feat->_id << " has no observations";
+        LOG_WARN("Feature {} has no observations", feat->_id);
         return false;
     }
     Hf = Eigen::MatrixXd::Zero(2 * total_meas, 3);
@@ -1450,7 +1449,7 @@ bool VisualManager::SingleFeatureJacobianSlam(const Feature* feat,
 
             auto pose_it = _state->_clone_pose.find(obs_ts);
             if (pose_it == _state->_clone_pose.end()) {
-                LOG(WARNING) << "Observation timestamp not in clone poses: " << obs_ts;
+                LOG_WARN("Observation timestamp not in clone poses: {}", obs_ts);
                 continue;
             }
             std::shared_ptr<Pose> obs_pose = pose_it->second;
@@ -1463,7 +1462,7 @@ bool VisualManager::SingleFeatureJacobianSlam(const Feature* feat,
             Eigen::Vector3d p_finCi = R_CitoG.transpose() * (p_finG - p_CiinG);
 
             if (p_finCi(2) <= 0) {
-                LOG(WARNING) << "Feature " << feat->_id << " is behind camera (z=" << p_finCi(2) << ")";
+                LOG_WARN("Feature {} is behind camera (z={})", feat->_id, p_finCi(2));
                 return false;
             }
 

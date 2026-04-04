@@ -34,7 +34,7 @@ class VisualManager
     static constexpr uint32_t kMinFeatureForUpdate = 8;
 
     VisualManager() = default;
-    VisualManager(const Param &params, std::shared_ptr<State> &state,
+    VisualManager(const Parameter &params, std::shared_ptr<State> &state,
                   std::shared_ptr<MsckfSolverBase> solver = nullptr);
 
     ~VisualManager()
@@ -116,9 +116,9 @@ class VisualManager
     static std::map<uint32_t, CameraObs> covisibleFeatures(const std::unordered_map<uint32_t, CameraObs> &visual_obs_a,
                                                            const std::unordered_map<uint32_t, CameraObs> &visual_obs_b);
 
-    KeyFrameStatus GetKeyframeState() { return *_keyframe; }
+    KeyFrameStatus GetKeyframeState() { return vio_frontend->getKeyframeStatus(); }
 
-    void SetKeyframeState(const KeyFrameStatus state) { *_keyframe = state; }
+    void SetKeyframeState(const KeyFrameStatus state) { vio_frontend->setKeyframeStatus(state); }
 
     std::vector<Feature *> GetFeatureBase() { return feature_base_; }
 
@@ -141,7 +141,6 @@ class VisualManager
     std::vector<Feature *> feat_msckf_;
     std::vector<Feature *> feat_slam_old_;
     std::vector<Feature *> feat_slam_new_;
-    std::shared_ptr<KeyFrameStatus> _keyframe;
     std::shared_ptr<VioFrontend> vio_frontend;
 
     friend VioFrontend;
@@ -150,7 +149,7 @@ class VisualManager
     void VisualizeClonePoses(const std::map<double, CameraPose> &camera_pose_buffer);
 
   protected:
-    Param param_;
+    Parameter param_;
     std::shared_ptr<State> _state;
     std::shared_ptr<MsckfSolverBase> solver_;
 };

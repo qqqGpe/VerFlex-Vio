@@ -15,7 +15,7 @@ class DynamicInitializer : public Initializer
 {
 public:
     DynamicInitializer() = default;
-    DynamicInitializer(const Param &paramters,
+    DynamicInitializer(const Parameter &paramters,
                        const std::shared_ptr<VisualManager> visual_manager,
                        std::shared_ptr<State> &state)
         : Initializer(paramters, visual_manager, state)

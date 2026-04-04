@@ -32,8 +32,6 @@ public:
     CamModel(CamModel const&) = delete;
     CamModel& operator=(CamModel const&) = delete;
 
-    void CalculateUndistortRectifyMap(const Eigen::Matrix3d& K, const Eigen::VectorXd& D, Eigen::Matrix3d& K_undistort, cv::Mat& map1, cv::Mat& map2);
-
     void SetCameraIntrinsicMatrix(const std::vector<double>& intrinsic_coeff); // For debug
 
     void compute_distort_jacobian(const int &cam_id, const Eigen::Vector2d &uv_norm, Eigen::MatrixXd &H_dz_dzn);
@@ -44,7 +42,7 @@ public:
 
     void RectifyImage(const int32_t cam_id, const cv::Mat& img_raw_ptr, cv::Mat* img_rectified_ptr);
 
-    void Init(const Param params);
+    void Init(const Parameter params);
 
     double getBaseline() const
     {

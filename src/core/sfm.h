@@ -18,7 +18,7 @@ class Sfm
 {
 public:
     Sfm() = default;
-    Sfm(const Param &parameters) : params_(parameters) {}
+    Sfm(const Parameter &parameters) : params_(parameters) {}
     virtual ~Sfm() = default;
 
     void Reset()
@@ -45,8 +45,6 @@ public:
     std::optional<uint32_t> indexInMap(const std::map<KeyType, ValueType> &map, const KeyType &key) const;
 
     void triangulateFramePoints(const std::vector<CameraObs> &obs_A, const std::vector<CameraObs> &obs_B, const Pose &pose_a, const Pose &pose_b);
-
-    Eigen::Vector3d triangulatePoint(const Pose pose0, const Pose pose1, const Vector2d &point0, const Vector2d &point1);
 
     bool initSfmSolver();
 
@@ -81,7 +79,7 @@ public:
     void feedKeyframeImage(const double timestamp, const cv::Mat& image) { keyframe_images_[timestamp] = image; }
 
    private:
-    Param params_;
+    Parameter params_;
     std::map<double, cv::Mat> keyframe_images_;
     std::map<double, std::vector<CameraObs>> all_feature_observes_;
     std::map<uint32_t, Feature> all_features_;

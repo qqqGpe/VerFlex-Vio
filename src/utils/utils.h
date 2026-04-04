@@ -7,6 +7,8 @@
 #define __UTILS__
 
 #include <Eigen/Core>
+#include <glog/logging.h>
+#include <fmt/format.h>
 #include <opencv2/opencv.hpp>
 
 #define RAD2DEG 180 / M_PI
@@ -22,6 +24,11 @@
 #define CYAN "\033[36m"
 #define WHITE "\033[37m"
 #define BOLD "\033[1m"
+
+#define LOG_INFO(...)  LOG(INFO)    << fmt::format("[@{}:{}] ", __FUNCTION__, __LINE__) << fmt::format(__VA_ARGS__)
+#define LOG_WARN(...)  LOG(WARNING) << YELLOW << fmt::format("[@{}:{}] ", __FUNCTION__, __LINE__) << fmt::format(__VA_ARGS__) << RESET
+#define LOG_ERROR(...) LOG(ERROR)   << RED    << fmt::format("[@{}:{}] ", __FUNCTION__, __LINE__) << fmt::format(__VA_ARGS__) << RESET
+#define LOG_FATAL(...) LOG(FATAL)   << RED    << fmt::format("[@{}:{}] ", __FUNCTION__, __LINE__) << fmt::format(__VA_ARGS__) << RESET
 
 namespace utils
 {

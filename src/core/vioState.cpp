@@ -6,7 +6,7 @@
 #include "vioState.h"
 #include <glog/logging.h>
 
-State::State(const Param& param)
+State::State(const Parameter& param)
 {
     _param = param;
     enable_estimate_ric_ = param.estimate_ric;

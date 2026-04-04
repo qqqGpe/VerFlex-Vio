@@ -1,12 +1,12 @@
 #include "imuPreIntegration.h"
+#include "utils.h"
 
 void ImuPreintegrator::Propagate(const Eigen::Vector3d ba, const Eigen::Vector3d bg)
 {
     if (start_ts_ >= end_ts_ || imu_data_.empty())
     {
-        LOG(ERROR) << cv::format(
-            "Invalid data for pre-integration propagate: start_ts_ = %f, end_ts_ = %f, imu_data_.size() = %d",
-            start_ts_, end_ts_, static_cast<int>(imu_data_.size()));
+        LOG_ERROR("Invalid data for pre-integration propagate: start_ts_ = {:f}, end_ts_ = {:f}, imu_data_.size() = {:d}",
+                  start_ts_, end_ts_, static_cast<int>(imu_data_.size()));
         return;
     }
 

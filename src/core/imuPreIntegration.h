@@ -28,11 +28,11 @@ class ImuPreintegrator
 
     void update(const Eigen::Vector3d delta_ba, const Eigen::Vector3d delta_bg);
 
-    Eigen::Matrix3d dR() const { return dR_; }
+    Eigen::Matrix3d get_dR() const { return dR_; }
 
-    Eigen::Vector3d dp() const { return dp_; }
+    Eigen::Vector3d get_dp() const { return dp_; }
 
-    Eigen::Vector3d dv() const { return dv_; }
+    Eigen::Vector3d get_dv() const { return dv_; }
 
     Eigen::Matrix3d dR_dbg() const { return dR_dbg_; }
 

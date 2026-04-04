@@ -1,6 +1,6 @@
 #include "ros_visualizer.h"
 
-void RosVisualizer::Init(std::shared_ptr<ros::NodeHandle> &nh, const Param &params)
+void RosVisualizer::Init(std::shared_ptr<ros::NodeHandle> &nh, const Parameter &params)
 {
     nh_ = nh;
     path_publisher_ = nh_->advertise<nav_msgs::Path>("/vio/path", 10, true);

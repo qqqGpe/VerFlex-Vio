@@ -4,7 +4,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$PROJECT_DIR/build"
-CONFIG="$PROJECT_DIR/config/euroc_stereo.json"
+CONFIG="$PROJECT_DIR/config/euroc_stereo.yaml"
 DATASET_DIR="${1:-$HOME/dataset/euroc_mav/MH_01_easy}"
 
 if [ ! -f "$BUILD_DIR/vio_offline" ]; then

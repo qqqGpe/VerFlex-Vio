@@ -127,7 +127,7 @@ void ShowObservations(const std::vector<CameraObs> &observations)
 
 TEST(VioTest, Sfm)
 {
-    Param params;
+    Parameter params;
     params.camera_num = 1;
     Eigen::Matrix3d K;
     K << focal_x, 0, canvas_size_u / 2, 0, focal_y, canvas_size_v / 2, 0, 0, 1;

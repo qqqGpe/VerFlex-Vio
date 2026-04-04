@@ -171,7 +171,7 @@ class SqrtEskfSlamTest : public ::testing::Test
         }
     }
 
-    Param params_;
+    Parameter params_;
     std::shared_ptr<State> state_;
     std::shared_ptr<SqrtEskfSolver> solver_;
     std::vector<Feature *> features_;

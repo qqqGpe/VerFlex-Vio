@@ -6,6 +6,7 @@
 #include <sstream>
 #include <algorithm>
 #include <glog/logging.h>
+#include "utils.h"
 
 class EurocDataLoader : public DataLoader
 {
@@ -28,7 +29,7 @@ public:
         std::sort(timeline_.begin(), timeline_.end(),
                   [](const SensorDataPtr& a, const SensorDataPtr& b) { return a->timestamp < b->timestamp; });
 
-        LOG(INFO) << "EurocDataLoader: loaded " << timeline_.size() << " entries from " << dataset_path;
+        LOG_INFO("EurocDataLoader: loaded {} entries from {}", timeline_.size(), dataset_path);
         return !timeline_.empty();
     }
 
@@ -47,7 +48,7 @@ private:
         std::ifstream file(csv_path);
         if (!file.is_open())
         {
-            LOG(ERROR) << "Cannot open IMU file: " << csv_path;
+            LOG_ERROR("Cannot open IMU file: {}", csv_path);
             return;
         }
 
@@ -68,7 +69,7 @@ private:
                 count++;
             }
         }
-        LOG(INFO) << "Loaded " << count << " IMU measurements";
+        LOG_INFO("Loaded {} IMU measurements", count);
     }
 
     void loadCamera(int cam_id, const std::string& csv_path, const std::string& image_dir)
@@ -76,7 +77,7 @@ private:
         std::ifstream file(csv_path);
         if (!file.is_open())
         {
-            LOG(ERROR) << "Cannot open camera file: " << csv_path;
+            LOG_ERROR("Cannot open camera file: {}", csv_path);
             return;
         }
 
@@ -98,7 +99,7 @@ private:
             timeline_.push_back(std::make_shared<ImageSensorData>(ts, cam_id, filepath));
             count++;
         }
-        LOG(INFO) << "Loaded " << count << " cam" << cam_id << " entries";
+        LOG_INFO("Loaded {} cam{} entries", count, cam_id);
     }
 
     void loadGroundTruth(const std::string& csv_path)
@@ -106,7 +107,7 @@ private:
         std::ifstream file(csv_path);
         if (!file.is_open())
         {
-            LOG(WARNING) << "No ground truth file: " << csv_path;
+            LOG_WARN("No ground truth file: {}", csv_path);
             return;
         }
 
@@ -127,7 +128,7 @@ private:
                 count++;
             }
         }
-        LOG(INFO) << "Loaded " << count << " ground truth entries";
+        LOG_INFO("Loaded {} ground truth entries", count);
     }
 
     std::vector<double> parseCsvLine(const std::string& line)

@@ -13,7 +13,7 @@
 
 class ImuManager {
 public:
-    ImuManager(const Param& param, std::shared_ptr<State> state, std::shared_ptr<MsckfSolverBase> solver)
+    ImuManager(const Parameter& param, std::shared_ptr<State> state, std::shared_ptr<MsckfSolverBase> solver)
     {
         _imu_acc_var_static_thres = param.imu_acc_var_static_thres;
         _imu_gyro_static_thres = param.imu_gyro_static_thres;

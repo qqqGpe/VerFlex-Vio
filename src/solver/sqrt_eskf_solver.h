@@ -7,6 +7,7 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <fmt/format.h>
+#include <fmt/ostream.h>
 #include <opencv2/core/core.hpp>
 #include <sophus/so3.hpp>
 
@@ -69,7 +70,7 @@ class SqrtEskfSolver : public MsckfSolverBase
     {
         if (state_to_marginalize == nullptr)
         {
-            LOG(ERROR) << "marginalization failed, state_to_marginalize is nullptr";
+            LOG_ERROR("marginalization failed, state_to_marginalize is nullptr");
             return;
         }
 
@@ -80,7 +81,7 @@ class SqrtEskfSolver : public MsckfSolverBase
         auto iter_marginalize = std::find(state->_variables.begin(), state->_variables.end(), state_to_marginalize);
         if (iter_marginalize == state->_variables.end())
         {
-            LOG(ERROR) << "marginalization failed, no such variable in states";
+            LOG_ERROR("marginalization failed, no such variable in states");
             return;
         }
         state->_variables.erase(iter_marginalize);
@@ -196,8 +197,8 @@ class SqrtEskfSolver : public MsckfSolverBase
         {
             if (diags(i) < 0.0)
             {
-                LOG(ERROR) << fmt::format(RED "Diagonal is negative when update, diags" RESET);
-                LOG(ERROR) << "diags: " << diags.transpose();
+                LOG_ERROR(RED "Diagonal is negative when update, diags" RESET);
+                LOG_ERROR("diags: {}", fmt::streamed(diags.transpose()));
                 std::exit(EXIT_FAILURE);
             }
         }
@@ -335,15 +336,15 @@ class SqrtEskfSolver : public MsckfSolverBase
     {
         if (visual_ts <= state->_imu_state->ts())
         {
-            LOG(WARNING) << fmt::format("Propagation failed, curent state timestamp: {}, must be later than imu_state timestamp: {}", visual_ts,
-                                       state->_imu_state->ts());
+            LOG_WARN("Propagation failed, curent state timestamp: {}, must be later than imu_state timestamp: {}", visual_ts,
+                     state->_imu_state->ts());
             return false;
         }
 
         if (imu_data.empty() || imu_data.back().ts_sec < state->ts_sec())
         {
-            LOG(WARNING) << fmt::format("Propagation failed, waiting for imu data, current state timestamp: {} but latest imu timestamp: {}",
-                                       state->ts_sec(), imu_data.back().ts_sec);
+            LOG_WARN("Propagation failed, waiting for imu data, current state timestamp: {} but latest imu timestamp: {}",
+                     state->ts_sec(), imu_data.back().ts_sec);
             return false;
         }
 
@@ -393,7 +394,7 @@ class SqrtEskfSolver : public MsckfSolverBase
             }
             else
             {
-                LOG(WARNING) << fmt::format("Imu delayed for {}s", dt);
+                LOG_WARN("Imu delayed for {}s", dt);
                 exit(0);
             }
         }
