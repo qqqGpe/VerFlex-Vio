@@ -7,7 +7,7 @@ solver_type: 0  # 0: eskf solver, 1: sqrt-root eskf solver
 initial_type: 0  # 0: stereo initialization, 1: dynamic initialization
 estimate_ric: true
 estimate_td_visual: true
-do_warp_klt: false
+do_warp_klt: true
 do_prediction: false
 use_zupt: false
 use_pnp_ransac: true

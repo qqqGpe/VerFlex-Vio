@@ -168,9 +168,10 @@ VioFrontend::status_t VioFrontend::MonoCheckEpipolarLine(const std::vector<Camer
 
 std::vector<uint8_t> VioFrontend::TrackFeatures(const cv::Mat image_left, const cv::Mat image_right, const Eigen::Matrix3d Rwi,
                                                 const Eigen::Matrix3d Rwj, const bool is_stereo_tracking, const bool use_census_transform,
-                                                const std::vector<cv::Point2f> pts_to_track, std::vector<cv::Point2f> &pts_tracked)
+                                                const std::vector<cv::Point2f> pts_to_track, std::vector<cv::Point2f> &pts_tracked, const int warp_cam_id)
 {
-    constexpr double kMaxAllowedRelativePoseAngle = 10; // In degrees
+    constexpr double kMaxAllowedRelativePoseAngle = 20; // In degrees
+    constexpr double kMinWarpAngleDeg = 1.0;            // skip warp for tiny inter-frame rotation (avoids interpolation noise on slow seqs)
 
     std::vector<uint8_t> status;
     std::vector<uchar> forward_status, backward_status;
@@ -195,24 +196,33 @@ std::vector<uint8_t> VioFrontend::TrackFeatures(const cv::Mat image_left, const 
         return status;
     }
 
-    if (do_warp_klt_ && !is_stereo_tracking)
+    // Warp-predicted KLT: compensate the inter-frame ROTATION (predicted from IMU)
+    // so LK only handles translation. Only for temporal tracking (not stereo L<->R,
+    // which is pure translation), and only when the inter-frame rotation is
+    // significant -- for tiny rotation the warp is ~identity and only adds image
+    // interpolation noise + extra pyramid levels (hurts slow/easy sequences).
+    bool apply_warp = do_warp_klt_ && !is_stereo_tracking;
+    Eigen::Matrix3d Rij = Eigen::Matrix3d::Identity();
+    if (apply_warp)
     {
-        Eigen::Matrix3d Rij = Rwi.transpose() * Rwj;
-        Eigen::AngleAxisd angle_axis(Rij);
-        if (angle_axis.angle() > kMaxAllowedRelativePoseAngle / 180.0 * M_PI)
-        {
-            Rij.setIdentity();
-        }
+        Rij = Rwi.transpose() * Rwj;
+        const double angle_deg = Eigen::AngleAxisd(Rij).angle() * 180.0 / M_PI;
+        apply_warp = (angle_deg >= kMinWarpAngleDeg && angle_deg <= kMaxAllowedRelativePoseAngle);
+    }
 
-        Eigen::Matrix3d K = CamModel::getInstance().K(LEFT_CAM);
+    if (apply_warp)
+    {
+        Eigen::Matrix3d K = CamModel::getInstance().K(warp_cam_id);
         Eigen::Matrix3d H_eigen = K * Rij * K.inverse();
         cv::Mat H_cv;
         cv::eigen2cv(H_eigen, H_cv);
         cv::Mat image_right_warped;
         cv::warpPerspective(image_right_gray, image_right_warped, H_cv, image_right_gray.size(), cv::INTER_LINEAR, cv::BORDER_CONSTANT);
 
-        // forward tracking
-        cv::calcOpticalFlowPyrLK(image_left_gray, image_right_warped, pts_to_track, pts_tracked, forward_status, err, cv::Size(21, 21), 6,
+        // forward tracking (3 pyramid levels -- matches the non-warp path; after rotation
+        // compensation the residual is translation-only, so 3 levels suffice and avoids the
+        // extra coarse-level noise that 6 levels introduced on moderate-rotation frames)
+        cv::calcOpticalFlowPyrLK(image_left_gray, image_right_warped, pts_to_track, pts_tracked, forward_status, err, cv::Size(21, 21), 3,
                                  cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01));
 
         // backward tracking
@@ -265,7 +275,7 @@ std::unordered_map<uint32_t, CameraObs> VioFrontend::CircularTrackFeatures(doubl
 
     // step1: track previous left-cam visual points to current left-cam visual points
     auto pre_left_to_cur_left_status =
-        TrackFeatures(prev_image_left, cur_image_left, R_ref, Rwc, true, use_census_transform_, prev_left_pts, prev_l_to_cur_l_tracked);
+        TrackFeatures(prev_image_left, cur_image_left, R_ref, Rwc, false, use_census_transform_, prev_left_pts, prev_l_to_cur_l_tracked);
     int idx = 0;
     auto id_iter = obs_ids.begin();
     for (auto it = prev_l_to_cur_l_tracked.begin(); it != prev_l_to_cur_l_tracked.end(); idx++)
@@ -303,8 +313,8 @@ std::unordered_map<uint32_t, CameraObs> VioFrontend::CircularTrackFeatures(doubl
     // step3: track current right-cam visual points to previous right-cam visual points
     Eigen::Matrix3d Rwr_cur = Rwc * CamModel::getInstance().Rlr();
     Eigen::Matrix3d Rwr_prev = R_ref * CamModel::getInstance().Rlr();
-    auto cur_right_to_prev_right_status = TrackFeatures(cur_image_right, prev_image_right, Rwr_cur, Rwr_prev, true, use_census_transform_,
-                                                        cur_l_to_cur_r_tracked, cur_r_to_pre_r_pts_tracked);
+    auto cur_right_to_prev_right_status = TrackFeatures(cur_image_right, prev_image_right, Rwr_cur, Rwr_prev, false, use_census_transform_,
+                                                        cur_l_to_cur_r_tracked, cur_r_to_pre_r_pts_tracked, RIGHT_CAM);
     idx = 0;
     id_iter = obs_ids.begin();
     for (auto it = cur_r_to_pre_r_pts_tracked.begin(); it != cur_r_to_pre_r_pts_tracked.end(); idx++)

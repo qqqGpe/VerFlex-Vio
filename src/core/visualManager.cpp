@@ -20,6 +20,23 @@ constexpr double kMinTriangDist = 0.05;
 constexpr double kMaxTriangDist = 20.0;
 constexpr uint32_t kMaxIterationTimes = 5;
 constexpr uint32_t kMinFeatNumToUpdate = 15;
+constexpr double kChi2Multiplier = 2.0; // chi-square gate multiplier (1.0 = 95% confidence) -- SLAM fixed gate
+constexpr double kChi2MaxRejRate = 0.5;  // adaptive MSCKF gate: cap the per-update feature rejection rate
+constexpr double kChi2MaxMult = 10.0;    // adaptive MSCKF gate: max chi2 multiplier (raise until rejection rate <= kChi2MaxRejRate)
+constexpr int kChi2MinFeaturesForGate = 20; // skip the chi2 gate when features are scarce (keep all -- avoids starving difficult seqs)
+// Chi-squared 95th percentile (Wilson-Hilferty approximation, <1% error for dof >= 1).
+// Used by the per-feature reprojection chi-square gate to reject outlier features.
+inline double chiSquare95(int dof)
+{
+    if (dof < 1)
+    {
+        return 0.0;
+    }
+    constexpr double z95 = 1.6448536269514722; // one-sided 95% standard normal quantile
+    const double d = static_cast<double>(dof);
+    const double t = 1.0 - 2.0 / (9.0 * d) + z95 * std::sqrt(2.0 / (9.0 * d));
+    return d * t * t * t;
+}
 } // namespace
 
 VisualManager::VisualManager(const Parameter &params, std::shared_ptr<State> &state,
@@ -1179,32 +1196,97 @@ bool VisualManager::ConstructFeatureJacobianFull(FeatureUpdateType update_type,
     Hx_full.resize(4 * feats.size() * _state->_clone_pose.size(), total_hx + 1);
     Hx_full.setZero();
 
+    const double sigma2 = std::pow(param_.sigma_visual_pix, 2);
+    const Eigen::MatrixXd P_marg = eskfSolver::MarginalCovariance(_state, Hx_order);
+
     int Hx_rows = 0;
+    // Pass 1: compute each feature's Jacobian, null-space project out the feature (3 DOF),
+    // and the projected Mahalanobis chi2 (res_proj^T S^-1 res_proj, S = H_proj P_marg H_proj^T
+    // + R). Unlike the unprojected reprojection chi2, this tests the feature's consistency
+    // with the STATE (feature marginalized out), so it does NOT reject informative
+    // high-parallax features whose residual is pose-induced rather than a true outlier.
+    struct FeatHx
+    {
+        Feature* feat;
+        Eigen::MatrixXd Hx; // null-space projected [state_jac (total_hx) | residual (1)]
+    };
+    std::vector<FeatHx> computed;
     for (int i = 0; i < feats.size(); i++)
     {
-        Eigen::MatrixXd Hfx_single;
         Feature* feat = feats[i];
-        if (feat->_is_triangulated)
+        if (!feat->_is_triangulated || feat->_type != FeatureType::kMsckfPoint)
         {
-            if (!SingleFeatureJacobian(feat, map_hx, total_hx, Hfx_single))
-            {
-                LOG_WARN("{:d} type feature single feature failed", static_cast<int>(update_type));
-                continue;
-            }
-
-            if (feat->_type == FeatureType::kMsckfPoint)
-            {
-                Eigen::MatrixXd Hfx_qr = utils::math::GivensRotation(Hfx_single, 3);
-                Eigen::MatrixXd Hx = Hfx_qr.block(3, 3, Hfx_qr.rows() - 3, Hfx_qr.cols() - 3);
-                Hx_full.block(Hx_rows, 0, Hx.rows(), Hx.cols()) = Hx;
-                Hx_rows += Hx.rows();
-            }
-            else if (feat->_type == FeatureType::kSlamPoint)
-            {
-                Hx_full.block(Hx_rows, 0, Hfx_single.rows(), Hfx_single.cols()) = Hfx_single;
-                Hx_rows += Hfx_single.rows();
-            }
+            continue;
         }
+        Eigen::MatrixXd Hfx_single;
+        if (!SingleFeatureJacobian(feat, map_hx, total_hx, Hfx_single))
+        {
+            LOG_WARN("{:d} type feature single feature failed", static_cast<int>(update_type));
+            continue;
+        }
+        Eigen::MatrixXd Hfx_qr = utils::math::GivensRotation(Hfx_single, 3);
+        const int rows = Hfx_qr.rows();
+        const int cols = Hfx_qr.cols();
+        if (rows <= 3)
+        {
+            continue;
+        }
+        Eigen::MatrixXd Hx = Hfx_qr.block(3, 3, rows - 3, cols - 3);
+        const Eigen::MatrixXd Hx_proj = Hx.leftCols(total_hx);
+        const Eigen::VectorXd res_proj = Hx.col(total_hx);
+        Eigen::MatrixXd S = Hx_proj * P_marg * Hx_proj.transpose() + sigma2 * Eigen::MatrixXd::Identity(rows - 3, rows - 3);
+        const int dof = rows - 3;
+        const double chi2_95 = chiSquare95(dof);
+        if (chi2_95 > 0.0 && S.ldlt().isPositive())
+        {
+            feat->_chi2_ratio = res_proj.dot(S.ldlt().solve(res_proj)) / chi2_95;
+        }
+        else
+        {
+            feat->_chi2_ratio = 1e18; // ill-conditioned -> reject
+        }
+        computed.push_back({feat, std::move(Hx)});
+    }
+
+    // Adaptive chi2 multiplier (within-pass, OpenVINS-style): start strict (95%) and raise
+    // the threshold until at most kChi2MaxRejRate of features are rejected. Skip the gate
+    // entirely when features are scarce (< kChi2MinFeaturesForGate) -- on difficult sequences
+    // the unprojected chi2 would otherwise reject informative high-parallax features and
+    // diverge; keeping them all matches the no-chi2 behavior there.
+    double chi2_mult = 1.0;
+    if (static_cast<int>(computed.size()) < kChi2MinFeaturesForGate)
+    {
+        chi2_mult = kChi2MaxMult; // too few features -- keep them all
+    }
+    else
+    {
+        while (chi2_mult < kChi2MaxMult)
+        {
+            int rej = 0;
+            for (const auto& fh : computed)
+            {
+                if (fh.feat->_chi2_ratio > chi2_mult)
+                {
+                    rej++;
+                }
+            }
+            if (static_cast<double>(rej) / static_cast<double>(computed.size()) <= kChi2MaxRejRate)
+            {
+                break;
+            }
+            chi2_mult *= 2.0;
+        }
+    }
+
+    // Pass 2: stack the survivors (already null-space projected in pass 1).
+    for (const auto& fh : computed)
+    {
+        if (fh.feat->_chi2_ratio > chi2_mult)
+        {
+            continue; // rejected by the adaptive projected-chi2 gate
+        }
+        Hx_full.block(Hx_rows, 0, fh.Hx.rows(), fh.Hx.cols()) = fh.Hx;
+        Hx_rows += fh.Hx.rows();
     }
     Hx_full.conservativeResize(Hx_rows, Hx_full.cols());
 
@@ -1251,7 +1333,7 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
     Eigen::MatrixXd Hfx = Eigen::MatrixXd::Zero(obs_size, Hfx_cols);
     Eigen::Vector3d p_finG = feat->_pwf;
 
-    Eigen::Vector2d res_total = Eigen::Vector2d::Zero();
+    double res_sq_sum = 0.0;
     int cnt = 0;
     for (auto& obs : feat->_visual_obs_buffer)
     {
@@ -1323,7 +1405,7 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
             dpcf_dclone.block<3, 3>(0, 3) = -R_CitoG.transpose();
             Hfx.block<2, 6>(2 * cnt, reserve_cols + map_hx.at(obs_pose)) = dz_dpcf * dpcf_dclone;
 
-            res_total += res;
+            res_sq_sum += res.squaredNorm();
 
             // // Debug: Check the correctness of Hx
             // // ------------------------ Check pwf ------------------------
@@ -1390,11 +1472,21 @@ bool VisualManager::SingleFeatureJacobian(Feature* feat,
         }
     }
 
-    double threshold = 4.0f;
-    if (res_total.norm() / cnt > threshold)
+    // Proper chi-square gate (replaces the old ||sum(res)||/cnt > 4 simplified check, which
+    // almost never fired). Reject features whose reprojection residual is inconsistent with the
+    // pixel noise: chi2 = sum(||res_i||^2)/sigma_pix^2 ~ chi2(2*cnt). Catches bad triangulations
+    // / outliers (the high-reprojection-error points) before they enter the EKF update.
+    // Compute the chi2 ratio (chi2 / chi2_95) and store it for the caller's adaptive
+    // gate; do NOT reject here -- the caller (ConstructFeatureJacobianFull) caps the
+    // rejection rate so feature-poor sequences don't get starved into divergence.
+    if (cnt < 2)
     {
-        std::cout << "residual is too large: " << res_total.norm() / cnt << ", threashold is: " << threshold << std::endl;
-        return false;
+        return false; // insufficient observations to triangulate / test
+    }
+    {
+        const double chi2 = res_sq_sum / std::pow(param_.sigma_visual_pix, 2);
+        const double chi2_95 = chiSquare95(2 * cnt);
+        feat->_chi2_ratio = (chi2_95 > 0.0) ? (chi2 / chi2_95) : 1e18;
     }
 
     /*show single Hx matrix*/
@@ -1434,7 +1526,7 @@ bool VisualManager::SingleFeatureJacobianSlam(const Feature* feat,
     residual = Eigen::VectorXd::Zero(2 * total_meas);
 
     Eigen::Vector3d p_finG = feat->_pwf;
-    Eigen::Vector2d res_total = Eigen::Vector2d::Zero();
+    double res_sq_sum = 0.0;
     uint32_t cnt = 0;
 
     for (auto& obs : feat->_visual_obs_buffer)
@@ -1511,16 +1603,23 @@ bool VisualManager::SingleFeatureJacobianSlam(const Feature* feat,
             dpcf_dclone.block<3, 3>(0, 3) = -R_CitoG.transpose();
             Hx.block<2, 6>(2 * cnt, Hx_mapping.at(obs_pose)) = dz_dpcf * dpcf_dclone;
 
-            res_total += res;
+            res_sq_sum += res.squaredNorm();
             cnt++;
         }
     }
 
-    double threshold = 4.0f;
-    if (res_total.norm() / cnt > threshold)
+    // Proper chi-square gate (replaces the old ||sum(res)||/cnt > 4 simplified check, which
+    // almost never fired). Reject features whose reprojection residual is inconsistent with the
+    // pixel noise: chi2 = sum(||res_i||^2)/sigma_pix^2 ~ chi2(2*cnt). Catches bad triangulations
+    // / outliers (the high-reprojection-error points) before they enter the EKF update.
+    if (cnt > 0)
     {
-        std::cout << "residual is too large: " << res_total.norm() / cnt << ", threashold is: " << threshold << std::endl;
-        return false;
+        const double chi2 = res_sq_sum / std::pow(param_.sigma_visual_pix, 2);
+        const double chi2_thresh = kChi2Multiplier * chiSquare95(2 * cnt);
+        if (chi2 > chi2_thresh)
+        {
+            return false;
+        }
     }
 
     return true;

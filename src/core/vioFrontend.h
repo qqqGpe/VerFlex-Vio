@@ -5,6 +5,7 @@
  * @LastEditTime: 2025-09-24 00:17:49
  * @FilePath: /catkin_ws/src/vio_backend/src/core/vioFrontend.h
  */
+#include "camModel.h"
 #include "parameter.h"
 #include "sensorType.h"
 #include <Eigen/Eigen>
@@ -50,7 +51,7 @@ class VioFrontend
 
     std::vector<uint8_t> TrackFeatures(const cv::Mat image_left, const cv::Mat image_right, const Eigen::Matrix3d Rwi, const Eigen::Matrix3d Rwj,
                                        const bool is_stereo_tracking, const bool use_census_transform, const std::vector<cv::Point2f> pts_to_track,
-                                       std::vector<cv::Point2f> &pts_tracked);
+                                       std::vector<cv::Point2f> &pts_tracked, const int warp_cam_id = LEFT_CAM);
 
   private:
     bool InBorder(int x, int y);

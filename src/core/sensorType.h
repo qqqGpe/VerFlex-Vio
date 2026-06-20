@@ -99,6 +99,7 @@ struct Feature
     double _parallex = 0.f;
     Eigen::Vector3d _pwf = Eigen::Vector3d::Zero();
     double _theta_parallex = 0.f;
+    double _chi2_ratio = 0.0;  // reprojection chi2 / chi2_95 (set by SingleFeatureJacobian, used by the adaptive MSCKF gate)
     std::map<double, CameraObs> _visual_obs_buffer;  // <ts_sec, obs>
 
     // Reset feature to initial state
