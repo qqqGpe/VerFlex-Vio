@@ -30,8 +30,8 @@ class VisualManager
     };
 
   public:
-    static constexpr uint32_t kMaxFeatureForUpdate = 40;
-    static constexpr uint32_t kMinFeatureForUpdate = 8;
+    static constexpr uint32_t kMaxFeatureForUpdate = 80;
+    static constexpr uint32_t kMinFeatureForUpdate = 15;
 
     VisualManager() = default;
     VisualManager(const Parameter &params, std::shared_ptr<State> &state,
@@ -78,7 +78,7 @@ class VisualManager
                                       std::vector<std::shared_ptr<Type>> &Hx_order, Eigen::MatrixXd &Hx_full,
                                       Eigen::VectorXd &res);
 
-    bool SingleFeatureJacobian(const Feature *feat, const std::unordered_map<std::shared_ptr<Type>, size_t> Hx_mapping,
+    bool SingleFeatureJacobian(Feature *feat, const std::unordered_map<std::shared_ptr<Type>, size_t> Hx_mapping,
                                const int total_hx, Eigen::MatrixXd &Hfx_single);
 
     bool SingleFeatureJacobianSlam(const Feature *feat,

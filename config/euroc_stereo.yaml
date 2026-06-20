@@ -29,11 +29,12 @@ img_width: 752
 img_height: 480
 use_census_transform: false
 use_histogram_equal: true
-max_feat_n: 300
-grid_w: 20
-grid_h: 15
-max_clone_pose: 6
+max_feat_n: 600
+grid_w: 30
+grid_h: 20
+max_clone_pose: 11
 visualize_clone_poses: true
+keyframe_parallex_thres: 15
 
 intrinsic_cam_0: [458.654, 457.296, 367.215, 248.375]
 distortion_cam_0: [-0.28340811, 0.07395907, 0.00019359, 1.76187114e-05]
@@ -65,6 +66,6 @@ sigma_na: 2.0e-2
 sigma_nw: 1.6968e-3
 sigma_ba: 3.0e-3
 sigma_bg: 1.9393e-3
-sigma_visual_pix: 1.0
+sigma_visual_pix: 2.0
 init_td_visual_sigma: 1.0e-4
 init_ric_sigma: 1.0e-3

@@ -212,12 +212,12 @@ std::vector<uint8_t> VioFrontend::TrackFeatures(const cv::Mat image_left, const 
         cv::warpPerspective(image_right_gray, image_right_warped, H_cv, image_right_gray.size(), cv::INTER_LINEAR, cv::BORDER_CONSTANT);
 
         // forward tracking
-        cv::calcOpticalFlowPyrLK(image_left_gray, image_right_warped, pts_to_track, pts_tracked, forward_status, err, cv::Size(21, 21), 4,
+        cv::calcOpticalFlowPyrLK(image_left_gray, image_right_warped, pts_to_track, pts_tracked, forward_status, err, cv::Size(21, 21), 6,
                                  cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01));
 
         // backward tracking
         reverse_pts = pts_tracked;
-        cv::calcOpticalFlowPyrLK(image_right_warped, image_left_gray, pts_tracked, reverse_pts, backward_status, err, cv::Size(21, 21), 4,
+        cv::calcOpticalFlowPyrLK(image_right_warped, image_left_gray, pts_tracked, reverse_pts, backward_status, err, cv::Size(21, 21), 6,
                                  cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
 
         cv::perspectiveTransform(pts_tracked, pts_tracked, H_cv.inv()); // Remember to devide point.z
@@ -229,7 +229,7 @@ std::vector<uint8_t> VioFrontend::TrackFeatures(const cv::Mat image_left, const 
 
         // backward tracking
         reverse_pts = pts_tracked;
-        cv::calcOpticalFlowPyrLK(image_right_gray, image_left_gray, pts_tracked, reverse_pts, backward_status, err, cv::Size(21, 21), 4,
+        cv::calcOpticalFlowPyrLK(image_right_gray, image_left_gray, pts_tracked, reverse_pts, backward_status, err, cv::Size(21, 21), 6,
                                  cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
     }
 

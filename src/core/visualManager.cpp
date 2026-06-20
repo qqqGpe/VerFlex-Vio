@@ -61,8 +61,7 @@ bool VisualManager::MsckfFeatureUpdate(std::vector<Feature *> feats_msckf)
         }
     }
     ConstructFeatureJacobianFull(FeatureUpdateType::kMsckfUpdate, feats_msckf, map_hx, Hx_order, Hx_msckf, res);
-    Eigen::MatrixXd R =
-        Eigen::MatrixXd::Identity(Hx_msckf.rows(), Hx_msckf.rows()) * std::pow(param_.sigma_visual_pix, 2);
+    Eigen::MatrixXd R = Eigen::MatrixXd::Identity(Hx_msckf.rows(), Hx_msckf.rows()) * std::pow(param_.sigma_visual_pix, 2);
 
     if (_state->_clone_pose.size() >= 2 && Hx_msckf.rows() > 0)
     {
@@ -392,8 +391,6 @@ bool VisualManager::VisualUpdate()
 
 KeyFrameStatus VisualManager::MaybeSetKeyframe(std::shared_ptr<State> _state, std::vector<Feature*> feats)
 {
-    constexpr double kLargeParallexThres = 10.f;
-
     if (_state->_clone_pose.size() < max_clone_pose_)
     {
         return KeyFrameStatus::kNone;
@@ -416,12 +413,17 @@ KeyFrameStatus VisualManager::MaybeSetKeyframe(std::shared_ptr<State> _state, st
             lastest_iter->first, lastest_iter->second);
         cnt++;
     }
-    pixel_parallex_avg = pixel_parallex_avg / cnt;
+
+    if (cnt == 0)
+    {
+        return KeyFrameStatus::kTooFewFeatureTracked;
+    }
+    pixel_parallex_avg /= cnt;
 
     // Decide keyframe status
-    if (pixel_parallex_avg > kLargeParallexThres)
+    if (pixel_parallex_avg > param_.keyframe_parallex_thres)
     {
-        return KeyFrameStatus::kLargeParallex;  // TODO：这里要优化一下
+        return KeyFrameStatus::kLargeParallex;
     }
     else if (feature_lost_.size() > 0.7 * param_.max_feat_n)
     {
@@ -1232,7 +1234,7 @@ bool VisualManager::ConstructFeatureJacobianFull(FeatureUpdateType update_type,
     return true;
 }
 
-bool VisualManager::SingleFeatureJacobian(const Feature* feat,
+bool VisualManager::SingleFeatureJacobian(Feature* feat,
                                           const std::unordered_map<std::shared_ptr<Type>, size_t> map_hx,
                                           const int total_hx,
                                           Eigen::MatrixXd& Hfx_single)
@@ -1298,13 +1300,14 @@ bool VisualManager::SingleFeatureJacobian(const Feature* feat,
             CamModel::getInstance().compute_distort_jacobian(cam_id, uv_norm, dz_dzn);
             Eigen::MatrixXd dz_dpcf = dz_dzn * dzn_dpcf;
 
-            // Get jacobian wrt pwf
-            Eigen::Matrix3d dpcf_dpwf = R_CitoG.transpose();
+            // Get jacobian wrt feature parameterization (pwf for global/SLAM,
+            // [alpha,beta,rho] for anchored MSCKF inverse depth).
             uint32_t pwf_id = 0;
             if (feat->_type == FeatureType::kSlamPoint)
             {
                 pwf_id = map_hx.at(_state->slam_features().at(feat->_id)._state_ptr);
             }
+            Eigen::Matrix3d dpcf_dpwf = R_CitoG.transpose();
             Hfx.block<2, 3>(2 * cnt, pwf_id) = dz_dpcf * dpcf_dpwf;
 
             // Get jacobian wrt extrinsic parameters

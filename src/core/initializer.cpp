@@ -271,9 +271,10 @@ bool Initializer::InitializeOrientation()
     }
     acc_var = acc_var / imu_data_for_init.size();
 
-    if (acc_var > static_acc_var_thres && abs(acc_mean.norm() - gravity_mag) < 0.5)
+    if (acc_var > kAccStaticVarThres && abs(acc_mean.norm() - gravity_mag) < 0.5)
     {
-        LOG_WARN("Static initialization failed reason: Platform is moving");
+        LOG_WARN("Static initialization failed reason: Platform is moving, acceleration variance: {:f}, acc mean norm: {:f}", acc_var,
+                 acc_mean.norm());
         return false;
     }
 

@@ -5,3 +5,4 @@ build
 log
 .sisyphus/
 build_standalone/
+batch_logs/

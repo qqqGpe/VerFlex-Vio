@@ -36,7 +36,8 @@ class Initializer
     static constexpr double kInitSigmaGyroBias = 1e-3;   // rad
     static constexpr double kInitSigmaAccelBias = 1e-2;  // m/s
     static constexpr double kInitSigmaRic = 1e-3;        // rad
-    static constexpr double kInitSigmaTdVisual = 1e-3;   // sec
+    static constexpr double kInitSigmaTdVisual = 1e-5;   // sec
+    static constexpr double kAccStaticVarThres = 0.5;    // m/s^2
 
     Initializer() = default;
     Initializer(const Parameter& paramters, const std::shared_ptr<VisualManager> visual_manager, std::shared_ptr<State>& state)

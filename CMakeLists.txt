@@ -11,12 +11,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo) # Release Debug RelWithDebInfo
 endif()
 
 # Prefer system libraries over conda to avoid conflicts
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-list(PREPEND CMAKE_PREFIX_PATH "/usr" "/usr/local")
+list(PREPEND CMAKE_PREFIX_PATH "/usr/local" "/usr")
 
 # =============================================================================
 # Options
@@ -92,7 +92,7 @@ target_link_libraries(vio_core PUBLIC
 
 add_executable(vio_offline src/app/vio_offline_entry.cpp)
 target_include_directories(vio_offline PRIVATE src/dataloader/)
-target_link_libraries(vio_offline PRIVATE vio_core)
+target_link_libraries(vio_offline PRIVATE vio_core fmt::fmt)
 
 # =============================================================================
 # ROS Support (optional)

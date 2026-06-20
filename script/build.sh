@@ -11,7 +11,6 @@ cd "$BUILD_DIR"
 cmake "$PROJECT_DIR" \
     -DBUILD_WITH_ROS=OFF \
     -DBUILD_TESTS=OFF \
-    -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
 make -j$(nproc)

@@ -26,8 +26,8 @@ import tempfile
 import glob
 import copy
 import csv
-import concurrent.futures
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import yaml
 
@@ -42,9 +42,8 @@ from evo.main_rpe import rpe
 from evo.core import sync
 
 ALL_CASES = [
-    "MH_01_easy", "MH_02_easy", "MH_03_medium",
-    "V1_01_easy", "V1_02_medium",
-    "V2_01_easy", "V2_02_medium",
+    "MH_01_easy", "MH_02_easy", "MH_03_medium", "MH_04_difficult", "MH_05_difficult",
+    "V1_01_easy", "V1_02_medium", "V2_01_easy", "V2_02_medium",
 ]
 
 GT_DIR = PACKAGE_DIR / "data" / "euroc" / "ground_truth"
@@ -84,18 +83,20 @@ def write_temp_config(base_cfg: dict, case_name: str, dataset_root: str, log_dir
 # Running the binary
 # ---------------------------------------------------------------------------
 
-def run_vio(binary: str, config_path: str, timeout: int = 600) -> bool:
-    """Run vio_offline and return True on success."""
+def run_vio(binary: str, config_path: str, log_dir: str, timeout: int = 600) -> bool:
+    """Run vio_offline, tee stdout/stderr to <log_dir>/vio_run.log, return True on success."""
     cmd = [binary, "--config", config_path]
-    logger.info("Running: %s", " ".join(cmd))
+    log_file = os.path.join(log_dir, "vio_run.log")
+    logger.info("Running: %s  (log -> %s)", " ".join(cmd), log_file)
     try:
-        result = subprocess.run(cmd, timeout=timeout, capture_output=False)
+        with open(log_file, "w") as lf:
+            result = subprocess.run(cmd, timeout=timeout, stdout=lf, stderr=lf)
         if result.returncode != 0:
-            logger.error("vio_offline exited with code %d", result.returncode)
+            logger.error("vio_offline exited with code %d — see %s", result.returncode, log_file)
             return False
         return True
     except subprocess.TimeoutExpired:
-        logger.error("vio_offline timed out after %ds", timeout)
+        logger.error("vio_offline timed out after %ds — see %s", timeout, log_file)
         return False
     except FileNotFoundError:
         logger.error("Binary not found: %s", binary)
@@ -188,80 +189,96 @@ def evaluate(gt_file: str, est_file: str, align: bool, metric: str) -> dict | No
 # ---------------------------------------------------------------------------
 
 def run_case(case_name: str, binary: str, base_cfg: dict, dataset_root: str,
-             log_root: str, align: bool, metric: str, timeout: int) -> dict | None:
+             log_root: str, align: bool, metric: str, timeout: int) -> dict:
+    """Always returns a dict with at least 'dataset_name' and 'status'."""
+    result = {"dataset_name": case_name, "status": "unknown"}
     log_dir = os.path.join(log_root, case_name)
     os.makedirs(log_dir, exist_ok=True)
 
     dataset_path = os.path.join(dataset_root, case_name)
     if not os.path.isdir(dataset_path):
-        logger.warning("[%s] Dataset not found at %s, skipping.", case_name, dataset_path)
-        return None
+        logger.warning("[%s] Dataset not found: %s", case_name, dataset_path)
+        result["status"] = "no_dataset"
+        return result
 
     gt_file = find_groundtruth(case_name)
     if gt_file is None:
-        logger.warning("[%s] No ground truth file found, skipping.", case_name)
-        return None
+        logger.warning("[%s] No ground truth file found.", case_name)
+        result["status"] = "no_groundtruth"
+        return result
 
     tmp_cfg = write_temp_config(base_cfg, case_name, dataset_root, log_dir)
     try:
-        ok = run_vio(binary, tmp_cfg, timeout=timeout)
+        ok = run_vio(binary, tmp_cfg, log_dir, timeout=timeout)
     finally:
         os.unlink(tmp_cfg)
 
     if not ok:
-        logger.error("[%s] vio_offline failed.", case_name)
-        return None
+        result["status"] = "vio_failed"
+        return result
 
     est_file = find_tum_output(log_dir, case_name)
     if est_file is None:
         logger.error("[%s] No TUM output file found in %s.", case_name, log_dir)
-        return None
+        result["status"] = "no_output"
+        return result
 
-    logger.info("[%s] Evaluating: est=%s  gt=%s", case_name, est_file, gt_file)
+    logger.info("[%s] Evaluating: est=%s", case_name, est_file)
     stats = evaluate(gt_file, est_file, align, metric)
     if stats is None:
-        return None
+        result["status"] = "eval_failed"
+        return result
 
-    return {"dataset_name": case_name, **stats}
+    result["status"] = "ok"
+    result.update(stats)
+    return result
 
 
 # ---------------------------------------------------------------------------
 # Results display and save
 # ---------------------------------------------------------------------------
 
-def _fmt(v):
-    return f"{v:.4f}" if isinstance(v, float) else str(v)
-
-
 def save_and_print(results: list[dict], log_root: str, metric: str):
-    valid = [r for r in results if r is not None]
-    if not valid:
-        logger.warning("No valid results.")
+    if not results:
+        logger.warning("No results.")
         return
 
-    # Build column list
-    all_keys = list(valid[0].keys())
-    ape_cols = [k for k in all_keys if k.startswith("ape_")]
-    rpe_cols = [k for k in all_keys if k.startswith("rpe_")]
-    show_cols = (["dataset_name"]
-                 + (ape_cols if metric in ("ape", "both") else [])
-                 + (rpe_cols if metric in ("rpe", "both") else []))
+    # Determine metric columns from successful runs
+    sample_ok = next((r for r in results if r.get("status") == "ok"), None)
+    ape_cols = [k for k in (sample_ok or {}) if k.startswith("ape_")] if sample_ok else []
+    rpe_cols = [k for k in (sample_ok or {}) if k.startswith("rpe_")] if sample_ok else []
+    metric_cols = (ape_cols if metric in ("ape", "both") else []) + \
+                  (rpe_cols if metric in ("rpe", "both") else [])
+    show_cols = ["dataset_name", "status"] + metric_cols
 
-    # Terminal table
     headers = [c.replace("_", " ").upper() for c in show_cols]
-    rows = [[_fmt(r.get(c, "")) for c in show_cols] for r in valid]
-    print("\n" + "=" * 110)
+    rows = []
+    for r in results:
+        row = []
+        for c in show_cols:
+            v = r.get(c, "")
+            row.append(f"{v:.4f}" if isinstance(v, float) else str(v))
+        rows.append(row)
+
+    print("\n" + "=" * 120)
     print("  VIO OFFLINE BATCH RESULTS")
-    print("=" * 110)
+    print("=" * 120)
     print(tabulate(rows, headers=headers, tablefmt="grid"))
-    print("=" * 110 + "\n")
+
+    failed = [r for r in results if r.get("status") != "ok"]
+    if failed:
+        print("\nFailed / skipped cases:")
+        for r in failed:
+            log_hint = os.path.join(log_root, r["dataset_name"], "vio_run.log")
+            print(f"  [{r['status']:>15}]  {r['dataset_name']:<25}  log: {log_hint}")
+    print("=" * 120 + "\n")
 
     # CSV summary
     summary_path = os.path.join(log_root, f"batch_results_{metric}.csv")
     with open(summary_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=show_cols, extrasaction="ignore")
         writer.writeheader()
-        writer.writerows(valid)
+        writer.writerows(results)
     logger.info("Summary saved to %s", summary_path)
 
 
@@ -289,10 +306,10 @@ def main():
                         help="SE(3) align trajectories before evaluation")
     parser.add_argument("--metric", default="both", choices=["ape", "rpe", "both"],
                         help="Metrics to compute")
-    parser.add_argument("--jobs", type=int, default=1,
-                        help="Number of parallel cases (default: 1, sequential)")
     parser.add_argument("--timeout", type=int, default=600,
                         help="Per-case timeout in seconds (default: 600)")
+    parser.add_argument("--jobs", type=int, default=1,
+                        help="Number of parallel jobs (default: 1)")
     args = parser.parse_args()
 
     # Resolve paths
@@ -322,15 +339,22 @@ def main():
     logger.info("Cases (%d): %s", len(case_list), case_list)
     logger.info("Align     : %s  |  Metric: %s  |  Jobs: %d", args.align, args.metric, args.jobs)
 
-    def _run(case):
-        return run_case(case, binary, base_cfg, dataset_root,
-                        log_root, args.align, args.metric, args.timeout)
+    results_map = {}
+    with ThreadPoolExecutor(max_workers=args.jobs) as executor:
+        futures = {
+            executor.submit(run_case, case, binary, base_cfg, dataset_root,
+                            log_root, args.align, args.metric, args.timeout): case
+            for case in case_list
+        }
+        completed = 0
+        for f in as_completed(futures):
+            case = futures[f]
+            completed += 1
+            r = f.result()
+            results_map[case] = r
+            logger.info("[%d/%d] [%s] status: %s", completed, len(case_list), case, r.get("status"))
 
-    if args.jobs > 1:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as ex:
-            results = list(ex.map(_run, case_list))
-    else:
-        results = [_run(c) for c in case_list]
+    results = [results_map[case] for case in case_list]
 
     save_and_print(results, log_root, args.metric)
 

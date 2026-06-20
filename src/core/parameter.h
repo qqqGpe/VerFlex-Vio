@@ -60,6 +60,7 @@ class Parameter
 
             // Double parameters
             lazy_time = get("lazy_time") ? get("lazy_time").as<double>() : 0.2;
+            keyframe_parallex_thres = get("keyframe_parallex_thres") ? get("keyframe_parallex_thres").as<double>() : 10.0;
             bag_start = get("bag_start") ? get("bag_start").as<double>() : 0.0;
             bag_duration = get("bag_duration") ? get("bag_duration").as<double>() : -1.0;
             sigma_na = get("sigma_na") ? get("sigma_na").as<double>() : 2.0000e-3;
@@ -172,6 +173,7 @@ class Parameter
     double init_td_visual_sigma;
     double init_ric_sigma;
 
+    double keyframe_parallex_thres = 10.0; // Pixel parallex threshold for keyframe decision
     double lazy_time = 0.2; // In seconds
     double gravity_magn;
     double imu_acc_var_static_thres;
