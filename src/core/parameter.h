@@ -43,6 +43,8 @@ class Parameter
             use_rate_limit = get("use_rate_limit") ? get("use_rate_limit").as<bool>() : true;
             enable_schmidt_eskf = get("enable_schmidt_eskf") ? get("enable_schmidt_eskf").as<bool>() : false;
             visualize_clone_poses = get("visualize_clone_poses") ? get("visualize_clone_poses").as<bool>() : false;
+            enable_pangolin_viewer = get("enable_pangolin_viewer") ? get("enable_pangolin_viewer").as<bool>() : false;
+            record_viewer = get("record_viewer") ? get("record_viewer").as<bool>() : false;
 
             // Integer parameters
             log_level = get("log_level") ? get("log_level").as<int>() : 2;
@@ -164,6 +166,8 @@ class Parameter
     bool enable_schmidt_eskf = false;
     int initial_type = 0;               // 0: static initialization, 1: dynamic initialization
     bool visualize_clone_poses = false; // Enable clone pose visualization
+    bool enable_pangolin_viewer = false; // Enable Pangolin 3D viewer (requires USE_PANGOLIN build)
+    bool record_viewer = false;          // Record Pangolin frames to PNG (for GIF making)
 
     double sigma_na;
     double sigma_nw;

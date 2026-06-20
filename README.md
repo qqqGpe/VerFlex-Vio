@@ -7,6 +7,12 @@
 
 A high-performance Visual Inertial Odometry (VIO) system implemented in C++ with ROS integration, featuring real-time state estimation using camera and IMU data.
 
+## 🎬 Demo
+
+![VerFlex-VIO Pangolin viewer](docs/viewer_demo.gif)
+
+Real-time Pangolin 3D viewer (EuRoC MH_01_easy): trajectory (red), current body pose (green frustum), active clone-window keyframes (blue frustums), MSCKF feature points (blue = in window, black = marginalized), and the live feature-tracking frame (inset). Built-in chase-cam follows the camera from behind; world Z points down to match the VIO frame. Enable with `enable_pangolin_viewer: true` (build with `-DUSE_PANGOLIN=ON`).
+
 ## 🚀 Features
 - **Multiple camera models**: monocular and stereo camera models
 - **Dual operation modes**: online/offline processing

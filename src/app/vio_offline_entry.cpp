@@ -10,6 +10,9 @@
 #include "parameter.h"
 #include "vioManager.h"
 #include "euroc_dataloader.h"
+#ifdef USE_PANGOLIN
+#include "pangolin_viewer.h"
+#endif
 
 namespace fs = std::filesystem;
 namespace
@@ -81,6 +84,16 @@ int main(int argc, char** argv)
 
     // Initialize VIO manager
     auto vio_manager = std::make_shared<VioManager>(params);
+
+#ifdef USE_PANGOLIN
+    std::unique_ptr<PangolinViewer> viewer;
+    if (params.enable_pangolin_viewer)
+    {
+        viewer = std::make_unique<PangolinViewer>(params);
+        vio_manager->SetOutputCallback([&viewer](const VioOutput& output) { viewer->Update(output); });
+        viewer->Start();
+    }
+#endif
 
     // Load dataset
     auto loader = std::make_unique<EurocDataLoader>();
@@ -166,6 +179,15 @@ int main(int argc, char** argv)
             }
         }
     }
+
+#ifdef USE_PANGOLIN
+    if (viewer)
+    {
+        // Keep the Pangolin window open after the dataset finishes; block until the user
+        // closes the window (or Ctrl+C). Logs are already flushed every tick, so they're safe.
+        viewer->Wait();
+    }
+#endif
 
     LOG_INFO("VIO offline processing completed.");
     google::ShutdownGoogleLogging();

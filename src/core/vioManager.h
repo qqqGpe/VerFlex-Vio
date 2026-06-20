@@ -36,7 +36,11 @@ struct VioOutput
     Eigen::Quaterniond orientation = Eigen::Quaterniond::Identity();
     Eigen::Vector3d velocity = Eigen::Vector3d::Zero();
     std::vector<Eigen::Vector3d> feature_points;
+    std::vector<uint32_t> feature_ids; // parallel to feature_points; id of each MSCKF point
     cv::Mat image_with_features;
+    bool is_keyframe = false; // True when the frontend flagged this update as a keyframe
+    std::vector<Eigen::Quaterniond> active_keyframe_q; // active clone-window orientations (body->world)
+    std::vector<Eigen::Vector3d> active_keyframe_p;    // active clone-window positions
 };
 
 using VioOutputCallback = std::function<void(const VioOutput&)>;

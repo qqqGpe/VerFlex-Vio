@@ -34,6 +34,8 @@ grid_w: 30
 grid_h: 20
 max_clone_pose: 11
 visualize_clone_poses: true
+enable_pangolin_viewer: true
+record_viewer: false
 keyframe_parallex_thres: 15
 
 intrinsic_cam_0: [458.654, 457.296, 367.215, 248.375]

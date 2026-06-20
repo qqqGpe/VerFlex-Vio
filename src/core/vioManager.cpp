@@ -369,6 +369,7 @@ void VioManager::PublishVioMessages(const double ts_sec)
             if (feat->_valid && feat->_is_triangulated)
             {
                 output.feature_points.push_back(feat->_pwf);
+                output.feature_ids.push_back(feat->_id);
             }
         }
     }
@@ -377,6 +378,15 @@ void VioManager::PublishVioMessages(const double ts_sec)
     if (abs(image_with_features.first - ts_sec) < 0.01 && !image_with_features.second.empty())
     {
         output.image_with_features = image_with_features.second;
+    }
+
+    output.is_keyframe = (_visual_manager->GetKeyframeState() != KeyFrameStatus::kNone);
+
+    // Active keyframes = the clone poses currently in the sliding window (the MSCKF "active" set).
+    for (const auto& kv : state->clone_poses())
+    {
+        output.active_keyframe_q.push_back(kv.second->quat());
+        output.active_keyframe_p.push_back(kv.second->p());
     }
 
     output_callback_(output);

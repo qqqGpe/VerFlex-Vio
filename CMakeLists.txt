@@ -24,6 +24,7 @@ list(PREPEND CMAKE_PREFIX_PATH "/usr/local" "/usr")
 
 option(BUILD_WITH_ROS "Build with ROS support (requires catkin)" OFF)
 option(BUILD_TESTS "Build unit tests" ON)
+option(USE_PANGOLIN "Build Pangolin 3D viewer (requires Pangolin)" OFF)
 
 # Auto-detect catkin environment (only if BUILD_WITH_ROS not explicitly set)
 if(NOT DEFINED BUILD_WITH_ROS_EXPLICIT)
@@ -93,6 +94,26 @@ target_link_libraries(vio_core PUBLIC
 add_executable(vio_offline src/app/vio_offline_entry.cpp)
 target_include_directories(vio_offline PRIVATE src/dataloader/)
 target_link_libraries(vio_offline PRIVATE vio_core fmt::fmt)
+
+# =============================================================================
+# Pangolin 3D Viewer (optional, offline)
+# =============================================================================
+
+if(USE_PANGOLIN)
+    find_package(Pangolin REQUIRED)
+    add_library(vio_viewer STATIC src/viewer/pangolin_viewer.cpp)
+    target_include_directories(vio_viewer PUBLIC
+        src/viewer/
+        ${Pangolin_INCLUDE_DIRS}
+    )
+    target_link_libraries(vio_viewer PUBLIC
+        vio_core
+        ${Pangolin_LIBRARIES}
+    )
+    target_link_libraries(vio_offline PRIVATE vio_viewer)
+    target_compile_definitions(vio_offline PRIVATE USE_PANGOLIN)
+    message(STATUS "Pangolin viewer enabled: building vio_viewer")
+endif()
 
 # =============================================================================
 # ROS Support (optional)

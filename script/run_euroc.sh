@@ -12,4 +12,13 @@ if [ ! -f "$BUILD_DIR/vio_offline" ]; then
     exit 1
 fi
 
+# Force the X11/XWayland backend for the Pangolin viewer. On NVIDIA + GNOME-Wayland,
+# Pangolin's GLFW hangs inside EGL context creation (NVIDIA exposes no /dev/dri render
+# node that Mesa EGL can open). Routing through XWayland + the NVIDIA GLX driver works.
+# This is harmless when the viewer is disabled (enable_pangolin_viewer: false).
+export WAYLAND_DISPLAY=nonexistent
+# No Qt GUI is used by the viewer; keep Qt's platform-plugin probe quiet (OpenCV's
+# HighGUI lib pulls in Qt5, which otherwise prints harmless wayland-plugin warnings).
+export QT_QPA_PLATFORM=offscreen
+
 "$BUILD_DIR/vio_offline" --config "$CONFIG" --dataset "$DATASET_DIR"
