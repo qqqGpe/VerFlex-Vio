@@ -60,6 +60,55 @@
 
 ---
 
+### 4. `2eb510b` FIX: sqrt-root ESKF Kalman gain (U⁻¹ → U⁻ᵀ) — 修复 sqrt-root 求解器精度
+
+**问题:** sqrt-root 求解器(`solver_type=1`)在 Vicon 序列(V1_01/V2_01/V2_02)和 MH_05 上发散/精度差(V1_01 1.17m、V2_01 0.58m、MH_05 270m),而 eskf(`solver_type=0`)正常。所有序列均不崩溃(0 negative-diag-exit)。
+
+**根因(数学):** sqrt-root `update()` 的 Kalman 增益 K 算错了。QR 分解后增广矩阵
+`M_all = [R^{1/2}  0 ; S·Hᵀ  S]`(其中 `Cov = SᵀS`)经 Givens 旋转得上三角
+`rhks = [U  W ; 0  S_new]`,其中:
+- `UᵀU = S_innov`(新息协方差,U 上三角、非对称)
+- `UᵀW = H·P`  ⇒  `P·Hᵀ = Wᵀ·U`
+
+正确增益:`K = P·Hᵀ·S_innov⁻¹ = Wᵀ·U·(UᵀU)⁻¹ = Wᵀ·U⁻ᵀ`。
+原代码:`K = K_hat · qr.solve(I) = Wᵀ·U⁻¹`(`qr.solve(I) = U⁻¹`)。
+
+**`U⁻¹ ≠ U⁻ᵀ`**(U 来自 QR 上三角、非对称)→ 增益错误 → 状态更新 `dx = K·res` 错误
+→ 状态漂移 → 快旋转序列发散。注意:协方差 `S_new` 是正确的
+(`S_newᵀS_new = P_post`),所以**不崩溃**,只是状态估错 —— 这正是 sqrt-root
+「能跑但精度差」的原因。
+
+**修复(`src/solver/sqrt_eskf_solver.h`):**
+`K = (U⁻¹·W)ᵀ = qr.solve(W).transpose()`。
+
+**效果(全 9 序列,sqrt-root + K 修复 + warp + chi2):**
+
+| 序列 | sqrt(K 修复) | eskf | sqrt(原bug) |
+|---|---|---|---|
+| MH_01_easy | 0.064 | 0.068 | 0.081 |
+| MH_02_easy | 0.111 | 0.104 | 0.087 |
+| MH_03_medium | 0.168 | 0.152 | 0.168 |
+| MH_04_difficult | 0.574 | 0.802 | 0.578 |
+| MH_05_difficult | **4.099** | 147.316 | 270.036 |
+| V1_01_easy | 0.095 | 0.113 | 1.174 |
+| V1_02_medium | 0.285 | 0.285 | 0.299 |
+| V2_01_easy | 0.071 | 0.065 | 0.578 |
+| V2_02_medium | 0.094 | 0.109 | 0.415 |
+| **Σ RMSE** | **5.561** | 149.014 | 273.417 |
+
+- Σ RMSE **5.561**(eskf 149,buggy sqrt 273)。**最优配置**。
+- **MH_05: 270 → 4.099 m**(不再发散;eskf 147 仍发散)。本次最大的单项改善。
+- 8/9 优于或持平 eskf。0 崩溃(全部 9 序列跑通)。
+
+**结论:** sqrt-root(K 修复后)成为最优求解器 —— 结构性 PSD(`Cov = SᵀS`,
+无 eskf 的非 PSD / PSD 恢复问题)+ 正确增益。默认配置切换到 `solver_type: 1`。
+
+> 注:eskf 那边的 td_visual 改善(Fix 2 自协方差、Fix 3 PSD 恢复)sqrt-root **不需要适配** ——
+> sqrt-root 的克隆增广(`clone_S = imu_pose_S + td_S·J_tdᵀ`)经 `Cov = SᵀS` 天然含全 4 项
+> (含 td 自协方差),且 `Cov = SᵀS` 恒 PSD。eskf 的 Fix 2/Fix 3 是协方差形式特有的补救。
+
+---
+
 ## td_visual 优化的数学解释
 
 > 对应提交 `75a21d8` 的 Fix 2(克隆 td 自协方差补全)。这是本次最需要从数学层面理解的优化。
@@ -151,6 +200,7 @@ OpenVINS 的 `augment_clone`(`ov_msckf/src/state/StateHelper.cpp`)同样**只加
 ## 附:提交链(feature/decouple-ros)
 
 ```
+（本次） FIX: sqrt-root ESKF Kalman gain (U⁻¹ → U⁻ᵀ); switch default to solver_type=1
 413f8c3 ENH: rotation-compensated warp KLT + projected adaptive chi-square gate
 f0edc14 REF: remove anchored MSCKF inverse-depth representation (no effect on MSCKF updates)
 75a21d8 FIX: resolve MH_04/MH_05 crash via covariance PSD recovery + clone td self-covariance

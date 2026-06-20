@@ -181,14 +181,16 @@ class SqrtEskfSolver : public MsckfSolverBase
 
         // QR decomposition
         Eigen::MatrixXd rhks = utils::math::GivensRotation(M_all, M_all.cols());
-        Eigen::MatrixXd rh = rhks.topLeftCorner(R.rows(), R.cols());
-        Eigen::MatrixXd K_hat = rhks.topRightCorner(R.rows(), SqrtPt_predict.cols()).transpose();
+        Eigen::MatrixXd rh = rhks.topLeftCorner(R.rows(), R.cols());              // U (upper-tri, U^T U = S_innov)
+        Eigen::MatrixXd W = rhks.topRightCorner(R.rows(), SqrtPt_predict.cols()); // W (m x n),  U^T W = H * P
         Eigen::MatrixXd SqrtPt_update = rhks.bottomRightCorner(SqrtPt_predict.rows(), SqrtPt_predict.cols());
 
-        // Calculate K matrix
+        // Kalman gain K = P H^T S_innov^{-1}. From the QR: U^T U = S_innov and U^T W = H P,
+        // so P H^T = W^T U, hence K = W^T U (U^T U)^{-1} = W^T U^{-T} = (U^{-1} W)^T.
+        // (The old code computed W^T U^{-1} -- wrong for non-symmetric upper-tri U -- which
+        //  gave an incorrect gain and made the state drift on fast-rotation sequences.)
         Eigen::HouseholderQR<Eigen::MatrixXd> qr(rh);
-        Eigen::MatrixXd I_mat = Eigen::MatrixXd::Identity(rh.rows(), rh.cols());
-        Eigen::MatrixXd K = K_hat * qr.solve(I_mat);
+        Eigen::MatrixXd K = qr.solve(W).transpose();  // (U^{-1} W)^T = W^T U^{-T}
 
         // Check covariance matrix definition
         Eigen::MatrixXd Cov_full = SqrtPt_update.transpose() * SqrtPt_update;
