@@ -29,6 +29,7 @@ img_width: 752
 img_height: 480
 use_census_transform: false
 use_histogram_equal: true
+histequal_method: 0  # stereo histogram equalization: 0=off (default), 1=global equalizeHist, 2=CLAHE. Off by default; set 1 for low-light sequences (MH_05/V1_03/V2_03).
 max_feat_n: 600
 grid_w: 30
 grid_h: 20

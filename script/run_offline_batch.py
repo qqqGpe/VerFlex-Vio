@@ -41,10 +41,7 @@ from evo.main_ape import ape
 from evo.main_rpe import rpe
 from evo.core import sync
 
-ALL_CASES = [
-    "MH_01_easy", "MH_02_easy", "MH_03_medium", "MH_04_difficult", "MH_05_difficult",
-    "V1_01_easy", "V1_02_medium", "V2_01_easy", "V2_02_medium",
-]
+ALL_CASES = ["MH_01_easy", "MH_02_easy", "MH_03_medium", "MH_04_difficult", "MH_05_difficult", "V1_01_easy", "V1_02_medium", "V1_03_difficult", "V2_01_easy", "V2_02_medium", "V2_03_difficult"]
 
 GT_DIR = PACKAGE_DIR / "data" / "euroc" / "ground_truth"
 
@@ -71,6 +68,9 @@ def write_temp_config(base_cfg: dict, case_name: str, dataset_root: str, log_dir
     cfg["dataset_dir"] = os.path.join(dataset_root, case_name)
     cfg["log_path"] = log_dir
     cfg["bag_name"] = case_name
+    # Batch runs are headless — never pop the Pangolin window, even if the
+    # base config has it enabled (also disabled when running in parallel jobs).
+    cfg["enable_pangolin_viewer"] = False
 
     fd, tmp_path = tempfile.mkstemp(suffix=".yaml", prefix=f"vio_{case_name}_")
     os.close(fd)

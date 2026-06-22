@@ -813,6 +813,24 @@ void VioManager::FeedImageData(double ts_sec, const std::vector<cv::Mat> &images
     double adjusted_ts = ts_sec - _initial_timestamp;
     std::vector<cv::Mat> rectified_images;
 
+    // Histogram equalization for the STEREO branch, controlled by use_histequal +
+    // histequal_method (0=none, 1=global cv::equalizeHist, 2=CLAHE). The mono branch
+    // keeps its legacy global equalizeHist call above. Defaults preserve prior behaviour.
+    auto histequal = [this](cv::Mat &img) {
+        if (!params_.use_histequal || img.empty() || params_.histequal_method == 0)
+            return;
+        if (params_.histequal_method == 2)
+        {
+            cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(
+                params_.clahe_clip_limit, cv::Size(params_.clahe_tile_size, params_.clahe_tile_size));
+            clahe->apply(img, img);
+        }
+        else
+        {
+            cv::equalizeHist(img, img);
+        }
+    };
+
     if (params_.camera_num == CamType::MONO && !images.empty())
     {
         cv::Mat image_rectified;
@@ -828,6 +846,8 @@ void VioManager::FeedImageData(double ts_sec, const std::vector<cv::Mat> &images
         cv::Mat image_l_rectified, image_r_rectified;
         CamModel::getInstance().RectifyImage(0, images[0], &image_l_rectified);
         CamModel::getInstance().RectifyImage(1, images[1], &image_r_rectified);
+        histequal(image_l_rectified);
+        histequal(image_r_rectified);
         rectified_images.push_back(image_l_rectified);
         rectified_images.push_back(image_r_rectified);
     }

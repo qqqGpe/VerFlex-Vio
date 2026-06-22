@@ -40,6 +40,11 @@ class Parameter
             use_slam_feature = get("use_slam_feature") ? get("use_slam_feature").as<bool>() : false;
             use_census_transform = get("use_census_transform") ? get("use_census_transform").as<bool>() : true;
             use_histequal = get("use_histogram_equal") ? get("use_histogram_equal").as<bool>() : true;
+            // Stereo-only equalization method (mono branch still uses global equalizeHist).
+            // 0 = none (default, preserves legacy stereo behaviour), 1 = global cv::equalizeHist, 2 = CLAHE.
+            histequal_method = get("histequal_method") ? get("histequal_method").as<int>() : 0;
+            clahe_clip_limit = get("clahe_clip_limit") ? get("clahe_clip_limit").as<double>() : 3.0;
+            clahe_tile_size = get("clahe_tile_size") ? get("clahe_tile_size").as<int>() : 8;
             use_rate_limit = get("use_rate_limit") ? get("use_rate_limit").as<bool>() : true;
             enable_schmidt_eskf = get("enable_schmidt_eskf") ? get("enable_schmidt_eskf").as<bool>() : false;
             visualize_clone_poses = get("visualize_clone_poses") ? get("visualize_clone_poses").as<bool>() : false;
@@ -153,6 +158,9 @@ class Parameter
     bool use_rate_limit = true;
     bool use_slam_feature = false;
     bool use_histequal = true;
+    int histequal_method = 0;       // stereo: 0=none, 1=global equalizeHist, 2=CLAHE
+    double clahe_clip_limit = 3.0;  // CLAHE clip limit (only used when method == 2)
+    int clahe_tile_size = 8;        // CLAHE tile grid (only used when method == 2)
 
     int running_rate; // Hz
     int log_level = 2;
