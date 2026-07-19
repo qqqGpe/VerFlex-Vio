@@ -1,0 +1,87 @@
+# TUM-VI stereo fisheye configuration (room sequences).
+# Camera: pinhole + Kannala-Brandt equidistant (fisheye). CamModel::Init rectifies the raw
+# fisheye images into a virtual distortion-free pinhole, so the rest of the pipeline runs as
+# pure pinhole with zero distortion.
+# Calibration source: <dataset>/dso/camchain.yaml ; IMU noise: <dataset>/dso/imu_config.yaml
+
+set_init_timestamp_to_zero: false
+use_multi_thread: true
+log_level: 0
+save_full_log: true
+save_tum_log: true
+solver_type: 1        # 0: eskf, 1: sqrt-root eskf
+initial_type: 0       # 0: stereo initialization, 1: dynamic initialization
+estimate_ric: true
+estimate_td_visual: true
+do_warp_klt: true   # pinhole only; auto-disabled for fisheye (perspective warp invalid on raw KB image)
+do_prediction: false
+use_zupt: false
+use_pnp_ransac: true
+use_fej: false
+use_slam_feature: false
+max_slam_feature: 25
+lazy_time: 0.2
+use_rate_limit: true
+enable_schmidt_eskf: true
+running_rate: 20
+
+bag_start: 0.0
+bag_duration: -1.0
+dataset_dir: "/home/gao/dataset/tum_vi/dataset-room1_1024_16"
+log_path: "log_tumvi"
+
+camera_num: 2
+camera_model: fisheye   # fisheye = Kannala-Brandt equidistant; rectified to pinhole on load
+fisheye_balance: 0.0    # 0 = crop to fully-valid region (no black border)
+img_width: 1024
+img_height: 1024
+use_census_transform: false
+use_histogram_equal: true
+histequal_method: 2     # CLAHE — TUM-VI 16->8bit images are dark, boost local contrast
+clahe_clip_limit: 3.0
+clahe_tile_size: 8
+max_feat_n: 600
+grid_w: 32
+grid_h: 32
+max_clone_pose: 11
+visualize_clone_poses: false
+enable_pangolin_viewer: true
+record_viewer: false
+keyframe_parallex_thres: 15
+
+# Kannala-Brandt intrinsics [fx, fy, cx, cy] @1024x1024
+intrinsic_cam_0: [380.81042871360756, 380.81194179427075, 510.29465304840727, 514.3304630538506]
+intrinsic_cam_1: [379.2869884263036, 379.26583742214524, 505.5666703237407, 510.2840961765407]
+
+# KB equidistant distortion [k1, k2, k3, k4]
+distortion_cam_0: [0.010171079892421483, -0.010816440029919381, 0.005942781769412756, -0.001662284667857643]
+distortion_cam_1: [0.01371679169245271, -0.015567360615942622, 0.00905043103315326, -0.002347858896562788]
+
+# T_cam_imu (rows 0-2 = R, row 3 = t)
+Tic:
+  - - [-0.9995378259923383,  0.02917807204183088, -0.008530798463872679]
+    - [ 0.007526588843243184, -0.03435493139706542, -0.9993813532126198]
+    - [-0.029453096117288798, -0.9989836729399656,  0.034119442089241274]
+    - [ 0.047094247958417004, -0.04788273017221637, -0.0697294754693238]
+  - - [-0.9995240747493029,  0.02986739485347808, -0.007717688852024281]
+    - [ 0.008095979457928231,  0.01256553460985914, -0.9998882749870535]
+    - [-0.02976708103202316, -0.9994748851595197, -0.012801360169345]
+    - [-0.05374086123613335, -0.04648588412432889, -0.07333210787623645]
+
+imu_topic: "/imu0"
+camera_topic:
+  - "/cam0/image_raw"
+  - "/cam1/image_raw"
+
+imu_acc_var_static_thres: 0.5
+imu_gyro_static_thres: 0.5
+gravity_magn: 9.81
+
+# IMU noise (inflated values from dso/imu_config.yaml, scaled to this project's convention)
+sigma_na: 2.8e-2
+sigma_nw: 1.6e-3
+sigma_ba: 8.6e-4
+sigma_bg: 2.2e-3
+sigma_visual_pix: 2.0
+init_td_visual_sigma: 1.0e-4
+init_ric_sigma: 1.0e-3

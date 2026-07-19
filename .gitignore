@@ -2,7 +2,7 @@
 .venv
 .cache
 build
-log
+log*
 .sisyphus/
 build_standalone/
 batch_logs/

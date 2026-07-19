@@ -142,7 +142,7 @@ TEST(VioTest, Sfm)
     params.tic.push_back(Tic);
 
     const double center_distance = 10.0f;
-    CamModel::getInstance().Init(params);
+    CamModel::Init(params);
     std::vector<Feature> features = CreateFeaturePoints(center_distance);
     std::vector<Pose> camera_poses = CreateCameraPoses(center_distance);
     std::map<double, std::vector<CameraObs>> camera_observations;

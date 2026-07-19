@@ -66,11 +66,18 @@ target_link_libraries(vio_utils PUBLIC
 
 # Core algorithm library
 aux_source_directory(src/core vio_core_files)
-add_library(vio_core STATIC ${vio_core_files})
+aux_source_directory(src/cam vio_cam_files)
+add_library(vio_core STATIC ${vio_core_files} ${vio_cam_files})
+# Create alias for yaml-cpp if needed (older versions lack namespace)
+if(TARGET yaml-cpp AND NOT TARGET yaml-cpp::yaml-cpp)
+    add_library(yaml-cpp::yaml-cpp ALIAS yaml-cpp)
+endif()
+
 target_include_directories(vio_core PUBLIC
     src/types/
     src/utils/
     src/core/
+    src/cam/
     src/solver/
     ${EIGEN3_INCLUDE_DIR}
     ${Sophus_INCLUDE_DIRS}
@@ -82,7 +89,7 @@ target_link_libraries(vio_core PUBLIC
     glog::glog
     yaml-cpp::yaml-cpp
     ${OpenCV_LIBRARIES}
-    ${Sophus_LIBRARIES}
+    Sophus::Sophus
     ${CERES_LIBRARIES}
     $<$<BOOL:${CURL_FOUND}>:CURL::libcurl>
 )
@@ -138,7 +145,7 @@ if(BUILD_WITH_ROS)
 
     catkin_package(
         LIBRARIES vio_core
-        INCLUDE_DIRS src/core src/types src/utils
+        INCLUDE_DIRS src/core src/cam src/types src/utils
         CATKIN_DEPENDS
             cv_bridge
             geometry_msgs
@@ -157,6 +164,7 @@ if(BUILD_WITH_ROS)
     target_include_directories(vio_ros PUBLIC
         src/ros/
         src/core/
+        src/cam/
         src/types/
         src/utils/
         src/solver/

@@ -1,5 +1,5 @@
 #include "vioFrontend.h"
-#include "camModel.h"
+#include "camera_model.h"
 #include "opencv2/core/mat.hpp"
 #include "sensorType.h"
 #include "utils.h"

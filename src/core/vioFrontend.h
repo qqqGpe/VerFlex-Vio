@@ -5,7 +5,7 @@
  * @LastEditTime: 2025-09-24 00:17:49
  * @FilePath: /catkin_ws/src/vio_backend/src/core/vioFrontend.h
  */
-#include "camModel.h"
+#include "camera_model.h"
 #include "parameter.h"
 #include "sensorType.h"
 #include <Eigen/Eigen>
@@ -35,7 +35,10 @@ class VioFrontend
         max_feat_n_ = params.max_feat_n;
         use_census_transform_ = params.use_census_transform;
         do_prediction_ = params.do_prediction;
-        do_warp_klt_ = params.do_warp_klt;
+        // Perspective warp (H = K·R·K⁻¹) assumes a pinhole image. On the raw
+        // fisheye image (KB projection) it is geometrically invalid, so disable
+        // warp for fisheye and rely on multi-scale LK directly.
+        do_warp_klt_ = params.do_warp_klt && (params.camera_model != "fisheye");
     }
 
     bool TrackMonocular(const std::pair<double, std::vector<cv::Mat>> &input_image, const Eigen::Matrix3d Rwc,

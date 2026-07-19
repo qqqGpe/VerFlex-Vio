@@ -1,41 +1,19 @@
-/*
- * @Author: pengen.gao gaope.hb@gmail.com
- * @Date: 2025-11-07 01:40:59
- * Copyright (c) 2025 by gaope.hb@gmail.com, All Rights Reserved.
- */
-#include "camModel.h"
+#include "pinhole.h"
 
-void CamModel::Init(const Parameter params)
+void Pinhole::initImpl(const Parameter& params)
 {
-    camera_num_ = params.camera_num;
-    image_size_ = cv::Size(params.img_width, params.img_height);
-
+    initCommon(params);
+    // Pinhole + Brown-Conrady: keep raw K/D. No rectify map is generated, so
+    // distortion is handled analytically per feature in project_distort /
+    // compute_distort_jacobian / back_project_undistort.
     for (int i = 0; i < camera_num_; i++)
     {
-        vRic_.push_back(params.Ric[i]);
-        vTic_.push_back(params.tic[i]);
+        vK_.push_back(params.intrinsics[i]);
         vD_.push_back(params.distortion[i]);
-        cv::Mat map1, map2;
-        Eigen::Matrix3d K_undistort = params.intrinsics[i];
-        rectify_map_.push_back(map1);
-        rectify_map_.push_back(map2);
-        vK_.push_back(K_undistort);
     }
 }
 
-// For debug
-void CamModel::SetCameraIntrinsicMatrix(const std::vector<double>& intrinsic_coeff)
-{
-    vK_.clear();
-    Eigen::Matrix3d K = Eigen::Matrix3d::Identity();
-    K(0, 0) = intrinsic_coeff[0];
-    K(1, 1) = intrinsic_coeff[1];
-    K(0, 2) = intrinsic_coeff[2];
-    K(1, 2) = intrinsic_coeff[3];
-    vK_.push_back(K);
-}
-
-void CamModel::compute_distort_jacobian(const int& cam_id, const Eigen::Vector2d& uv_norm, Eigen::MatrixXd& H_dz_dzn)
+void Pinhole::compute_distort_jacobian(const int& cam_id, const Eigen::Vector2d& uv_norm, Eigen::MatrixXd& H_dz_dzn)
 {
     double fx = vK_[cam_id](0, 0);
     double fy = vK_[cam_id](1, 1);
@@ -70,7 +48,7 @@ void CamModel::compute_distort_jacobian(const int& cam_id, const Eigen::Vector2d
                                  (2 * cam_d(6) * y + 4 * cam_d(6) * y));
 }
 
-Eigen::Vector2d CamModel::project_distort(const uint32_t cam_id, const Eigen::Vector3d& p3d) const
+Eigen::Vector2d Pinhole::project_distort(const uint32_t cam_id, const Eigen::Vector3d& p3d) const
 {
     double fx = vK_[cam_id](0, 0);
     double fy = vK_[cam_id](1, 1);
@@ -103,7 +81,7 @@ Eigen::Vector2d CamModel::project_distort(const uint32_t cam_id, const Eigen::Ve
     return uv_dist;
 }
 
-void CamModel::back_project_undistort(CameraObs& obs) const
+void Pinhole::back_project_undistort(CameraObs& obs) const
 {
     Eigen::Vector2d uv_distort;
     for (int cam_id = 0; cam_id < camera_num_; cam_id++)
@@ -121,16 +99,4 @@ void CamModel::back_project_undistort(CameraObs& obs) const
         uv_distort(1) = dst_pts[0].y;
         obs.uv_norm[cam_id] = uv_distort;
     }
-}
-
-void CamModel::RectifyImage(const int32_t cam_id, const cv::Mat& img_raw_ptr, cv::Mat* img_rectified_ptr)
-{
-    // Skip rectification if maps are not initialized
-    if (rectify_map_.size() <= cam_id * 2 + 1 ||
-        rectify_map_[cam_id * 2].empty() || rectify_map_[cam_id * 2 + 1].empty())
-    {
-        *img_rectified_ptr = img_raw_ptr.clone();
-        return;
-    }
-    cv::remap(img_raw_ptr, *img_rectified_ptr, rectify_map_[cam_id * 2], rectify_map_[cam_id * 2 + 1], cv::INTER_LINEAR);
 }

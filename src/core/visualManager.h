@@ -2,7 +2,7 @@
 #define __VISUAL_MANAGER__
 
 #include "ImuState.h"
-#include "camModel.h"
+#include "camera_model.h"
 #include "eskf_solver.h"
 #include "parameter.h"
 #include "sensorType.h"

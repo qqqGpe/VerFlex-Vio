@@ -24,7 +24,12 @@ public:
         {
             loadCamera(1, dataset_path + "/mav0/cam1/data.csv", dataset_path + "/mav0/cam1/data");
         }
-        loadGroundTruth(dataset_path + "/mav0/state_groundtruth_estimate0/data.csv");
+        // Ground truth: EuRoC state_groundtruth_estimate0 (11-col: p+v+q), else fall back to
+        // TUM-VI mocap0 (8-col: ts, px,py,pz, qw,qx,qy,qz). loadGroundTruth parses both.
+        std::string gt_path = dataset_path + "/mav0/state_groundtruth_estimate0/data.csv";
+        if (!std::ifstream(gt_path).is_open())
+            gt_path = dataset_path + "/mav0/mocap0/data.csv";
+        loadGroundTruth(gt_path);
 
         std::sort(timeline_.begin(), timeline_.end(),
                   [](const SensorDataPtr& a, const SensorDataPtr& b) { return a->timestamp < b->timestamp; });
@@ -118,12 +123,23 @@ private:
         {
             if (line.empty() || line[0] == '#') continue;
             auto values = parseCsvLine(line);
-            if (values.size() >= 11)
+            bool ok = false;
+            GroundTruth gt;
+            gt.ts_sec = values[0] * 1e-9;
+            if (values.size() >= 11) // EuRoC: ts, p(1-3), ..., v(8-10)
             {
-                GroundTruth gt;
-                gt.ts_sec = values[0] * 1e-9;
                 gt.p_ << values[1], values[2], values[3];
                 gt.v_ << values[8], values[9], values[10];
+                ok = true;
+            }
+            else if (values.size() >= 8) // TUM-VI mocap: ts, px,py,pz, qw,qx,qy,qz (no velocity)
+            {
+                gt.p_ << values[1], values[2], values[3];
+                gt.v_.setZero();
+                ok = true;
+            }
+            if (ok)
+            {
                 timeline_.push_back(std::make_shared<GroundTruthSensorData>(gt.ts_sec, gt));
                 count++;
             }

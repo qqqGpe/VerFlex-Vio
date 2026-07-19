@@ -6,7 +6,7 @@
 #include <memory>
 #include <map>
 
-#include "camModel.h"
+#include "camera_model.h"
 #include "parameter.h"
 #include "vioManager.h"
 #include "euroc_dataloader.h"
@@ -80,7 +80,7 @@ int main(int argc, char** argv)
     fLI::FLAGS_stderrthreshold = params.log_level;
 
     // Initialize camera model
-    CamModel::getInstance().Init(params);
+    CamModel::Init(params);
 
     // Initialize VIO manager
     auto vio_manager = std::make_shared<VioManager>(params);
@@ -143,6 +143,12 @@ int main(int argc, char** argv)
                     {
                         LOG_WARN("Cannot load image: {}", img_data->filepath);
                         break;
+                    }
+                    // Some datasets (e.g. TUM-VI) ship 16-bit grayscale. KLT / goodFeaturesToTrack
+                    // require CV_8U, so scale the high byte down linearly. No-op for 8-bit images.
+                    if (img_data->image.type() == CV_16U)
+                    {
+                        img_data->image.convertTo(img_data->image, CV_8U, 1.0 / 256.0);
                     }
                 }
 

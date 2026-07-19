@@ -10,7 +10,7 @@
 #include "eskf_solver.h"
 #include "sqrt_eskf_solver.h"
 #include "ImuManager.h"
-#include "camModel.h"
+#include "camera_model.h"
 #include "vioFrontend.h"
 #include "initializer.h"
 #include "dynamicInitializer.h"

@@ -8,7 +8,7 @@
 #include "eskf_solver.h"
 #include "visualManager.h"
 #include "vioState.h"
-#include "camModel.h"
+#include "camera_model.h"
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
@@ -44,7 +44,7 @@ protected:
         static bool cam_model_initialized = false;
         if (!cam_model_initialized)
         {
-            CamModel::getInstance().Init(params_);
+            CamModel::Init(params_);
             cam_model_initialized = true;
         }
         

@@ -17,7 +17,7 @@
 
 #include <gtest/gtest.h>
 
-#include "camModel.h"
+#include "camera_model.h"
 #include "sqrt_eskf_solver.h"
 #include "vioState.h"
 
@@ -48,7 +48,7 @@ class SqrtEskfSlamTest : public ::testing::Test
         static bool cam_model_initialized = false;
         if (!cam_model_initialized)
         {
-            CamModel::getInstance().Init(params_);
+            CamModel::Init(params_);
             cam_model_initialized = true;
         }
 

@@ -3,7 +3,7 @@
 #include "imuPreIntegration.h"
 #include "initializer.h"
 #include "ImuState.h"
-#include "camModel.h"
+#include "camera_model.h"
 #include "parameter.h"
 #include "sensorType.h"
 #include "vioState.h"

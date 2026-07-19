@@ -12,7 +12,7 @@
 #include <memory>
 #include <fmt/format.h>
 
-#include "core/camModel.h"
+#include "camera_model.h"
 #include "core/parameter.h"
 #include "core/vioManager.h"
 #include "ros_visualizer.h"
@@ -66,7 +66,7 @@ int main(int argc, char** argv)
     }
 
     // Initialize camera model
-    CamModel::getInstance().Init(params);
+    CamModel::Init(params);
 
     // Initialize ROS visualizer
     RosVisualizer ros_visualizer;

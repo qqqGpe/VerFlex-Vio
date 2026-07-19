@@ -98,6 +98,13 @@ class Parameter
                 camera_topic.resize(camera_num, "");
             }
 
+            // Camera model type. "pinhole" = Brown-Conrady (default, no image rectification).
+            // "fisheye" = Kannala-Brandt equidistant; CamModel::Init creates a Fisheye
+            // subclass that projects via the KB model directly on the raw image (no
+            // rectification), so distortion is handled analytically per feature.
+            camera_model = get("camera_model") ? get("camera_model").as<std::string>() : std::string("pinhole");
+            fisheye_balance = get("fisheye_balance") ? get("fisheye_balance").as<double>() : 0.0;
+
             // Camera intrinsics and distortion
             for (int i = 0; i < camera_num; i++)
             {
@@ -198,6 +205,9 @@ class Parameter
     std::string bag_name;
     std::string dataset_dir;
     std::vector<std::string> camera_topic;
+
+    std::string camera_model = "pinhole"; // "pinhole" (Brown-Conrady) or "fisheye" (Kannala-Brandt equidistant)
+    double fisheye_balance = 0.0;         // deprecated: kept for config compat, no longer used (fisheye projects directly)
 
     std::vector<Eigen::Matrix3d> intrinsics;
     std::vector<Eigen::VectorXd> distortion;

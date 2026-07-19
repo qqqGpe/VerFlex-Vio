@@ -1,7 +1,7 @@
 #pragma once
 
 #include "visualManager.h"
-#include "camModel.h"
+#include "camera_model.h"
 #include "parameter.h"
 #include "sensorType.h"
 #include "mathematical_tools.h"

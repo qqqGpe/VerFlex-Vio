@@ -1,7 +1,7 @@
 #include <glog/logging.h>
 #include <sophus/so3.hpp>
 
-#include "camModel.h"
+#include "camera_model.h"
 #include "imuPreIntegration.h"
 #include "mathematical_tools.h"
 #include "utils.h"
@@ -124,7 +124,6 @@ bool VioManager::TryFrontendTrack(const std::pair<double, std::vector<cv::Mat>> 
 {
     const double td_visual = state->enableEstimateTdVisual() ? state->td_visual().data() : 0.0;
     std::vector<ImuData> imu_data = _imu_manager->AccessIntervalImuMeasurements(state->ts_sec(), images.first + td_visual);
-    bool do_warp_klt = params_.do_warp_klt && initializer->IsInitialized();
 
     Eigen::Matrix3d Rwc = Eigen::Matrix3d::Identity();
     if (!imu_data.empty())
@@ -134,10 +133,6 @@ bool VioManager::TryFrontendTrack(const std::pair<double, std::vector<cv::Mat>> 
         pre_integration.Propagate(state->_imu_state->ba()->vec(), state->_imu_state->bg()->vec());
         Eigen::Matrix3d Rwi = state->_imu_state->q()->Rot() * pre_integration.get_dR();
         Rwc = Rwi * CamModel::getInstance().Ric(LEFT_CAM);
-    }
-    else
-    {
-        do_warp_klt = false;
     }
 
     if (params_.camera_num == CamType::MONO)
